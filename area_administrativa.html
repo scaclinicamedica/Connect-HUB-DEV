@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Connect HUB | Área Administrativa</title>
+<style>
+:root{
+  --bg:#06101d;--panel:#0b1a2c;--panel2:#0e2741;--border:#24537f;
+  --text:#eef6ff;--muted:#9fb5ca;--blue:#0b6bcb;--cyan:#38bdf8;
+  --green:#16a34a;--red:#b91c1c;--amber:#ca8a04;--shadow:0 14px 34px rgba(0,0,0,.26)
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:linear-gradient(180deg,#06101d,#071827);color:var(--text)}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.hidden{display:none!important}
+.topbar{
+  position:sticky;top:0;z-index:30;display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:13px 18px;background:rgba(5,21,37,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)
+}
+.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(180deg,#0f4c81,#0b6bcb);font-weight:950}
+.brand h1{margin:0;font-size:18px}.brand small{display:block;color:var(--muted);margin-top:2px}
+.btn{min-height:39px;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:#0b223d;color:var(--text);font-weight:850}
+.btn.primary{background:var(--blue);border-color:#60a5fa}.btn.danger{background:#7f1d1d;border-color:#ef4444}
+.container{max-width:1480px;margin:auto;padding:18px}
+.panel{background:linear-gradient(180deg,var(--panel),#0a2036);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow)}
+.access{max-width:520px;margin:8vh auto;padding:22px}
+.access h2{margin:0 0 7px}.access p{color:var(--muted);line-height:1.5}
+.access-row{display:flex;gap:8px;margin-top:14px}.access input{flex:1;min-height:42px;padding:9px 11px;border-radius:10px;border:1px solid var(--border);background:#06101d;color:var(--text)}
+.error{color:#fecaca;font-size:12px;margin-top:8px}
+.summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.metric{padding:15px}.metric small{display:block;color:var(--muted);font-weight:800;margin-bottom:5px}.metric strong{font-size:27px}.metric span{display:block;color:var(--muted);font-size:12px;margin-top:5px}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;padding:10px;margin-bottom:12px}
+.tab{border:1px solid var(--border);background:#0b223d;color:var(--text);padding:9px 12px;border-radius:10px;font-weight:850}
+.tab.active{background:var(--blue);border-color:#7dd3fc}
+.section{padding:14px}.section h2{margin:0 0 12px;font-size:17px}
+.occupancy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.occupancy-card{padding:13px;border:1px solid var(--border);border-radius:13px;background:#081523}
+.occupancy-card h3{margin:0 0 8px;font-size:14px}.occupancy-numbers{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px}
+.progress{height:9px;background:#07101c;border-radius:999px;overflow:hidden;margin-top:10px}.progress>div{height:100%;background:linear-gradient(90deg,#0b6bcb,#38bdf8)}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px}
+table{width:100%;border-collapse:collapse;min-width:780px;background:#081523}
+th,td{text-align:left;padding:10px;border-bottom:1px solid #173957;font-size:12px;vertical-align:top}
+th{position:sticky;top:0;background:#0b2744;color:#dbeafe;font-weight:900}
+td{color:#eaf4ff}.muted{color:var(--muted)}
+.tag{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;border:1px solid #2f6fa7;background:#0f3f61;font-size:11px;font-weight:900}
+.tag.red{background:#991b1b;border-color:#ef4444}.tag.green{background:#14532d;border-color:#22c55e}.tag.amber{background:#713f12;border-color:#f59e0b}
+.unit-block{margin-top:12px}.unit-block h3{margin:0 0 8px;font-size:14px}
+.beds{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+.bed{padding:7px 6px;border-radius:9px;text-align:center;font-size:10.5px;font-weight:850;border:1px solid var(--border);background:#0b223d}
+.bed.free{background:#14532d;border-color:#22c55e}.bed.occupied{background:#7f1d1d;border-color:#ef4444}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.status{font-size:12px;color:var(--muted)}
+@media(max-width:1050px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.occupancy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.beds{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:650px){.container{padding:10px}.summary-grid,.occupancy-grid{grid-template-columns:1fr}.access-row{flex-direction:column}.beds{grid-template-columns:repeat(3,minmax(0,1fr))}.topbar{padding:10px}}
+</style>
+<style id="v39-outra-especialidade">
+.bed.other-specialty{
+  background:#1f2937!important;
+  border-color:#64748b!important;
+  color:#dbe4ee!important;
+}
+.bed.patient-clinica{
+  background:#0f4c81!important;
+  border-color:#38bdf8!important;
+}
+.bed-link-v39{
+  display:block!important;
+  color:inherit!important;
+  text-decoration:none!important;
+}
+.bed-link-v39:hover{
+  text-decoration:underline!important;
+}
+.admin-warning-v39{
+  margin-bottom:12px;
+  padding:10px 12px;
+  border-radius:11px;
+  border:1px solid #ca8a04;
+  background:#3f2d08;
+  color:#fde68a;
+  font-size:12px;
+  line-height:1.45;
+}
+</style>
+<style id="v40-dashboard-admin">
+.charts-grid-v40{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.chart-card-v40{min-height:320px;padding:14px;border-radius:14px;border:1px solid var(--border);background:#081523}.chart-card-v40 h3{margin:0 0 12px;font-size:14px}.chart-card-v40 canvas{width:100%!important;max-height:255px!important}.admin-select-v40,.admin-input-v40{min-height:40px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:#06101d;color:var(--text)}.admin-warning-v40{margin:0 0 12px;padding:10px 12px;border-radius:11px;border:1px solid #ca8a04;background:#3f2d08;color:#fde68a;font-size:12px;line-height:1.45}.report-controls-v40{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:end;margin-bottom:12px}.report-controls-v40 label{display:block;color:var(--muted);font-size:12px;font-weight:850;margin-bottom:5px}.report-controls-v40 select,.report-controls-v40 input{width:100%}.report-actions-v40{display:flex;gap:8px;flex-wrap:wrap}.report-preview-v40{margin-top:12px}.report-head-v40{padding:16px;border:1px solid var(--border);border-radius:14px;background:#081523;margin-bottom:12px}.report-kpis-v40{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.report-kpi-v40{padding:12px;border:1px solid var(--border);border-radius:12px;background:#0b223d}.report-kpi-v40 small{display:block;color:var(--muted)}.report-kpi-v40 strong{display:block;font-size:23px;margin-top:4px}@media(max-width:900px){.charts-grid-v40{grid-template-columns:1fr}.report-controls-v40{grid-template-columns:1fr 1fr}.report-actions-v40{grid-column:1/-1}.report-kpis-v40{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.report-controls-v40{grid-template-columns:1fr}.report-actions-v40{grid-column:auto;flex-direction:column}.report-actions-v40 .btn{width:100%}.report-kpis-v40{grid-template-columns:1fr}}@media print{.topbar,.tabs,.toolbar,.report-controls-v40,.admin-warning-v40,#refreshBtn{display:none!important}body{background:#fff!important;color:#111!important}.panel,.chart-card-v40,.report-head-v40,.report-kpi-v40{box-shadow:none!important;background:#fff!important;color:#111!important;border-color:#bbb!important}.status,.muted,.metric small,.metric span{color:#444!important}#adminContent{display:block!important}}
+</style>
+<meta content="55-recovery-admin" name="connect-hub-version"/></head>
+<body>
+<header class="topbar">
+<div class="brand">
+<div class="brand-mark">ADM</div>
+<div><h1>Área Administrativa</h1><small>Connect Hub • Gestão Assistencial</small></div>
+</div>
+<div style="display:flex;gap:8px">
+<button class="btn" onclick="location.href='./index.html'">Voltar ao HUB</button>
+<button class="btn primary" id="refreshBtn" onclick="loadAllData()" style="display:none">Atualizar</button>
+</div>
+</header>
+<main class="container">
+<section class="panel access" id="accessPanel">
+<h2>Acesso administrativo</h2>
+<p>Digite o código administrativo para visualizar ocupação, contra-fluxos e movimentações. Esta tela não altera dados dos pacientes.</p>
+<div class="access-row">
+<input id="accessCode" onkeydown="if(event.key==='Enter')unlockAdmin()" placeholder="Código administrativo" type="password"/>
+<button class="btn primary" onclick="unlockAdmin()">Entrar</button>
+</div>
+<div class="error hidden" id="accessError">Código inválido.</div>
+</section>
+<section class="hidden" id="adminContent">
+<div class="toolbar">
+<div class="status" id="syncStatus">Aguardando carregamento...</div>
+<div class="status" id="lastUpdated"></div>
+</div>
+<div class="summary-grid">
+<div class="panel metric"><small>Pacientes ativos</small><strong id="metricPatients">0</strong><span>Todos os setores</span></div>
+<div class="panel metric"><small>Pacientes em Maca</small><strong id="metricMaca">0</strong><span>Emergência, Observação e outros setores</span></div>
+<div class="panel metric"><small>Contra-fluxos ativos</small><strong id="metricCounterflow">0</strong><span>Identificados nos registros atuais</span></div>
+<div class="panel metric"><small>Pacientes críticos</small><strong id="metricCritical">0</strong><span>Conforme gravidade registrada</span></div>
+</div>
+<div class="panel tabs">
+<button class="tab active" data-tab="dashboard" onclick="openTab('dashboard')">Dashboard</button>
+<button class="tab" data-tab="overview" onclick="openTab('overview')">Visão geral</button>
+<button class="tab" data-tab="beds" onclick="openTab('beds')">Ocupação de leitos</button>
+<button class="tab" data-tab="counterflow" onclick="openTab('counterflow')">Contra-fluxos</button>
+<button class="tab" data-tab="movements" onclick="openTab('movements')">Movimentações</button>
+<button class="tab" data-tab="reports" onclick="openTab('reports')">Relatórios</button>
+</div>
+<section class="panel section" id="tab-dashboard">
+<div class="toolbar">
+<div><h2 style="margin:0 0 4px">Dashboard administrativo</h2><div class="status">Indicadores dos pacientes cadastrados nesta ferramenta.</div></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<select class="admin-select-v40" id="dashboardSectorFilter" onchange="renderDashboardV40()">
+<option value="all">Todos os setores</option><option value="emergencia">Emergência</option><option value="observacao_sus">Observação SUS</option><option value="convenio">Convênio</option><option value="enfermaria">Enfermaria</option><option value="uti_1">UTI 1</option><option value="uti_2">UTI 2</option>
+</select>
+<button class="btn" onclick="exportDashboardExcelV40()">Exportar Excel</button>
+<button class="btn primary" onclick="printDashboardPdfV40()">Exportar PDF</button>
+</div>
+</div>
+<div class="admin-warning-v40">A Enfermaria apresenta somente pacientes acompanhados pela Clínica Médica. Os dados não substituem o censo oficial do NIR.</div>
+<div class="charts-grid-v40">
+<div class="chart-card-v40"><h3>Pacientes por setor</h3><canvas id="chartPatientsBySectorV40"></canvas></div>
+<div class="chart-card-v40"><h3>Alertas clínicos ativos</h3><canvas id="chartAlertsV40"></canvas></div>
+<div class="chart-card-v40"><h3>Pacientes da Clínica Médica por unidade</h3><canvas id="chartWardUnitsV40"></canvas></div>
+<div class="chart-card-v40"><h3>Gravidade dos pacientes</h3><canvas id="chartSeverityV40"></canvas></div>
+</div>
+<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Setor</th><th>Pacientes</th><th>Críticos</th><th>Em Maca</th><th>Contra-fluxos</th><th>Alta prevista hoje</th></tr></thead><tbody id="dashboardSummaryRowsV40"></tbody></table></div>
+</section>
+<section class="panel section hidden" id="tab-overview">
+<h2>Ocupação por setor</h2>
+<div class="occupancy-grid" id="sectorOccupancy"></div>
+</section>
+<section class="panel section hidden" id="tab-beds">
+<h2>Mapa atual de leitos</h2>
+<div class="admin-warning-v39">
+        Na Enfermaria, o painel mostra somente pacientes acompanhados pela Clínica Médica.
+        “Outra Especialidade” não significa leito livre e não substitui o censo oficial do NIR.
+      </div>
+<div id="bedMaps"></div>
+</section>
+<section class="panel section hidden" id="tab-counterflow">
+<h2>Pacientes com contra-fluxo</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Paciente</th><th>Setor atual</th><th>Leito</th><th>Data</th><th>Origem</th></tr></thead>
+<tbody id="counterflowRows"></tbody>
+</table>
+</div>
+</section>
+<section class="panel section hidden" id="tab-movements">
+<h2>Última movimentação registrada</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Paciente</th><th>Origem</th><th>Destino</th><th>Unidade / leito</th><th>Data e horário</th></tr></thead>
+<tbody id="movementRows"></tbody>
+</table>
+</div>
+</section>
+<section class="panel section hidden" id="tab-reports">
+<div class="toolbar"><div><h2 style="margin:0 0 4px">Relatórios</h2><div class="status">Consolidação do retrato atual da ferramenta.</div></div></div>
+<div class="report-controls-v40">
+<div><label>Tipo</label><select class="admin-select-v40" id="reportTypeV40" onchange="updateReportDatesV40()"><option value="weekly">Semanal</option><option value="monthly">Mensal</option><option value="custom">Personalizado</option></select></div>
+<div><label>Data inicial</label><input class="admin-input-v40" id="reportStartV40" type="date"/></div>
+<div><label>Data final</label><input class="admin-input-v40" id="reportEndV40" type="date"/></div>
+<div class="report-actions-v40"><button class="btn primary" onclick="generateCurrentSnapshotReportV40()">Gerar relatório</button><button class="btn" onclick="exportReportExcelV40()">Exportar Excel</button><button class="btn" onclick="printReportPdfV40()">Exportar PDF</button></div>
+</div>
+<div class="admin-warning-v40">Nesta versão, o período selecionado identifica o relatório, mas os números representam o estado atual e as últimas movimentações disponíveis. O histórico integral será implantado na próxima etapa.</div>
+<div class="report-preview-v40" id="reportPreviewV40"><div class="empty">Clique em “Gerar relatório”.</div></div>
+</section>
+</section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script>
+const ADMIN_CODE = 'SCACM2026';
+const FIRESTORE_ROOT = 'connect_hub_v55';
+const firebaseConfig = {
+  apiKey: "AIzaSyDkkz0icUp8sbF7nWkE626fOgJvGL8lRc4",
+  authDomain: "passagem-de-plantao-1746c.firebaseapp.com",
+  projectId: "passagem-de-plantao-1746c",
+  storageBucket: "passagem-de-plantao-1746c.firebasestorage.app",
+  messagingSenderId: "1021826325362",
+  appId: "1:1021826325362:web:60bdd58d26b61f2ed45beb",
+  measurementId: "G-JRZYZQ2TYL"
+};
+
+const SECTORS = [
+  {unit:'emergencia',name:'Emergência',capacity:9},
+  {unit:'observacao_sus',name:'Observação SUS',capacity:30},
+  {unit:'convenio',name:'Convênio',capacity:null},
+  {unit:'enfermaria',name:'Enfermaria',capacity:120},
+  {unit:'uti_1',name:'UTI 1',capacity:18},
+  {unit:'uti_2',name:'UTI 2',capacity:12}
+];
+
+function pairedBeds(start,end){
+  const out=[];for(let room=start;room<=end;room++)out.push(`${room}-1`,`${room}-2`);return out;
+}
+const BED_CATALOG = {
+  enfermaria:{
+    'Subsolo':pairedBeds(101,110),
+    'Térreo':pairedBeds(101,110),
+    'Convênio':pairedBeds(703,722),
+    '2º andar':pairedBeds(201,210),
+    '3º andar':pairedBeds(301,310)
+  },
+  uti_1:{'UTI 1':['151','152','153','154','155','156','157','158','159','160','161','162','163','164','165','166','167','168']},
+  uti_2:{'UTI 2':['101-1','101-2','102','103','104-1','104-2','105-1','105-2','106-1','106-2','107-1','107-2']},
+  observacao_sus:{
+    'Observação SUS 01':Array.from({length:10},(_,i)=>String(i+1).padStart(2,'0')),
+    'Observação SUS 02':Array.from({length:20},(_,i)=>String(i+1).padStart(2,'0'))
+  },
+  emergencia:{'Emergência':Array.from({length:9},(_,i)=>`Leito ${String(i+1).padStart(2,'0')}`)}
+};
+
+let db=null;
+let allPatients=[];
+let allHistoryEventsV41=[];
+
+function unlockAdmin(){
+  const code=document.getElementById('accessCode').value.trim();
+  if(code!==ADMIN_CODE){
+    document.getElementById('accessError').classList.remove('hidden');return;
+  }
+  sessionStorage.setItem('admin_v38_unlocked','1');
+  showAdmin();
+}
+function showAdmin(){
+  document.getElementById('accessPanel').classList.add('hidden');
+  document.getElementById('adminContent').classList.remove('hidden');
+  document.getElementById('refreshBtn').style.display='';
+  initFirebase();
+}
+function initFirebase(){
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    db=firebase.firestore();
+    firebase.auth().signInAnonymously()
+      .then(loadAllData)
+      .catch(err=>setStatus('Erro de autenticação: '+err.message));
+  }catch(err){setStatus('Erro Firebase: '+err.message)}
+}
+async function loadAllData(){
+  if(!db)return;
+  setStatus('Carregando informações...');
+  const result=[];
+  try{
+    for(const sector of SECTORS){
+      const snap=await db.collection(FIRESTORE_ROOT).doc(sector.unit).collection('pacientes').get();
+      snap.forEach(doc=>result.push({...doc.data(),id:doc.id,sectorUnit:sector.unit,sectorName:sector.name}));
+    }
+    allPatients=result;
+
+    try{
+      const historySnap = await db.collection('historico_eventos').orderBy('createdAtLocal','desc').limit(5000).get();
+      allHistoryEventsV41 = historySnap.docs.map(doc=>({id:doc.id,...doc.data()}));
+    }catch(historyError){
+      console.warn('Histórico ainda não disponível:',historyError);
+      allHistoryEventsV41 = [];
+    }
+
+    renderAll();
+    document.getElementById('lastUpdated').textContent='Atualizado em '+new Date().toLocaleString('pt-BR');
+    setStatus('Dados e histórico carregados com sucesso.');
+  }catch(err){
+    console.error(err);
+    setStatus('Não foi possível carregar: '+err.message);
+  }
+}
+function setStatus(text){document.getElementById('syncStatus').textContent=text}
+function openTab(name){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  ['dashboard','overview','beds','counterflow','movements','reports'].forEach(tab=>document.getElementById('tab-'+tab).classList.toggle('hidden',tab!==name));
+  if(name==='dashboard') setTimeout(renderDashboardV40,50);
+  if(name==='reports') setTimeout(updateReportDatesV40,50);
+}
+function normalizedBed(p){return String(p.bed||'').trim()}
+function normalizedUnit(p){return String(p.inpatientUnit||p.wardUnit||p.unit||p.obsLocation||'').trim()}
+function hasCounterflow(p){
+  return !!(p.counterflowDate||p.transitionDate||(Array.isArray(p.alerts)&&p.alerts.includes('Contra-fluxo')));
+}
+function formatDate(value){
+  if(!value)return '—';
+  const raw=String(value).slice(0,10);
+  const parts=raw.split('-');
+  return parts.length===3?`${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`:value;
+}
+function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function renderAll(){
+  const total=allPatients.length;
+  const maca=allPatients.filter(p=>normalizedBed(p).toLowerCase().includes('maca')).length;
+  const counter=allPatients.filter(hasCounterflow).length;
+  const critical=allPatients.filter(p=>String(p.severity||'').toLowerCase()==='critico'||String(p.severity||'').toLowerCase()==='crítico').length;
+  metricPatients.textContent=total;metricMaca.textContent=maca;metricCounterflow.textContent=counter;metricCritical.textContent=critical;
+  renderSectorOccupancy();renderBedMaps();renderCounterflows();renderMovements();renderDashboardV40();
+}
+function renderSectorOccupancy(){
+  sectorOccupancy.innerHTML=SECTORS.map(sector=>{
+    const list=allPatients.filter(p=>p.sectorUnit===sector.unit);
+    const occupiedBeds=list.filter(p=>normalizedBed(p)&&!normalizedBed(p).toLowerCase().includes('maca')).length;
+    const percent=sector.capacity?Math.min(100,Math.round((occupiedBeds/sector.capacity)*100)):0;
+    const detail=sector.capacity?`${occupiedBeds}/${sector.capacity} leitos ocupados`:`${list.length} pacientes ativos`;
+    return `<div class="occupancy-card"><h3>${sector.name}</h3><div class="occupancy-numbers"><span>${detail}</span><strong>${sector.capacity?percent+'%':'—'}</strong></div>${sector.capacity?`<div class="progress"><div style="width:${percent}%"></div></div>`:''}<div class="muted" style="margin-top:8px;font-size:11px">${list.filter(p=>normalizedBed(p).toLowerCase().includes('maca')).length} em Maca</div></div>`;
+  }).join('');
+}
+function renderBedMaps(){
+  const sections=[];
+  for(const [sectorUnit,units] of Object.entries(BED_CATALOG)){
+    for(const [unit,beds] of Object.entries(units)){
+      const patients=allPatients.filter(p=>p.sectorUnit===sectorUnit);
+      const occupied=new Map();
+
+      patients.forEach(p=>{
+        const pUnit=normalizedUnit(p);
+        const bed=normalizedBed(p);
+        const unitMatch=
+          sectorUnit==='emergencia' ||
+          pUnit===unit ||
+          (!pUnit&&Object.keys(units).length===1);
+
+        if(unitMatch&&bed&&!bed.toLowerCase().includes('maca')){
+          occupied.set(bed,p);
+        }
+      });
+
+      const bedHtml=beds.map(bed=>{
+        const p=occupied.get(bed);
+
+        if(sectorUnit==='enfermaria'){
+          if(p){
+            const sectorParam='enfermaria';
+            const url=`./passagem.html?v=65.5.1&setor=${sectorParam}&patient=${encodeURIComponent(p.id)}`;
+            return `<div class="bed patient-clinica" title="${escapeHtml(p.name||'Paciente da Clínica Médica')}">
+              <a class="bed-link-v39" href="${url}">
+                ${escapeHtml(bed)}<br>${escapeHtml((p.name||'Paciente').split(' ')[0])}
+              </a>
+            </div>`;
+          }
+
+          return `<div class="bed other-specialty" title="Leito sem paciente da Clínica Médica cadastrado nesta ferramenta">
+            ${escapeHtml(bed)}<br>Outra Especialidade
+          </div>`;
+        }
+
+        return `<div class="bed ${p?'occupied':'free'}" title="${p?escapeHtml(p.name||'Paciente'):'Disponível'}">
+          ${escapeHtml(bed)}${p?'<br>'+escapeHtml((p.name||'Paciente').split(' ')[0]):''}
+        </div>`;
+      }).join('');
+
+      const title = sectorUnit==='enfermaria'
+        ? `${escapeHtml(unit)} — Clínica Médica`
+        : escapeHtml(unit);
+
+      sections.push(`<div class="unit-block"><h3>${title}</h3><div class="beds">${bedHtml}</div></div>`);
+    }
+  }
+  bedMaps.innerHTML=sections.join('');
+}
+
+function renderCounterflows(){
+  const list=allPatients.filter(hasCounterflow).sort((a,b)=>String(b.counterflowDate||b.transitionDate||'').localeCompare(String(a.counterflowDate||a.transitionDate||'')));
+  counterflowRows.innerHTML=list.length?list.map(p=>`<tr><td><strong>${escapeHtml(p.name||'Paciente sem nome')}</strong></td><td>${escapeHtml(p.sectorName)}</td><td>${escapeHtml(normalizedUnit(p)?normalizedUnit(p)+' — '+normalizedBed(p):normalizedBed(p)||'—')}</td><td><span class="tag red">${formatDate(p.counterflowDate||p.transitionDate)}</span></td><td>${escapeHtml(p.migratedFromName||p.transitionFromName||'—')}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Nenhum contra-fluxo identificado.</td></tr>';
+}
+function renderMovements(){
+  const list=allPatients.filter(p=>p.migratedFromName||p.migratedFrom||p.migratedAtLocal||p.transitionDate).sort((a,b)=>String(b.migratedAtLocal||b.updatedAtLocal||b.transitionDate||'').localeCompare(String(a.migratedAtLocal||a.updatedAtLocal||a.transitionDate||'')));
+  movementRows.innerHTML=list.length?list.map(p=>`<tr><td><strong>${escapeHtml(p.name||'Paciente sem nome')}</strong></td><td>${escapeHtml(p.migratedFromName||p.transitionFromName||p.migratedFrom||'—')}</td><td>${escapeHtml(p.migratedToName||p.transitionToName||p.sectorName||'—')}</td><td>${escapeHtml(normalizedUnit(p)?normalizedUnit(p)+' — '+normalizedBed(p):normalizedBed(p)||'—')}</td><td>${escapeHtml(p.migratedAtLocal?new Date(p.migratedAtLocal).toLocaleString('pt-BR'):formatDate(p.transitionDate))}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Nenhuma movimentação identificada nos registros atuais.</td></tr>';
+}
+if(sessionStorage.getItem('admin_v38_unlocked')==='1')showAdmin();
+</script>
+<script id="v40-dashboard-admin">
+let chartsV40={},lastReportDataV40=null;
+function currentDashboardPatientsV40(){const f=document.getElementById('dashboardSectorFilter')?.value||'all';return f==='all'?[...allPatients]:allPatients.filter(p=>p.sectorUnit===f)}
+function destroyChartV40(k){if(chartsV40[k]){chartsV40[k].destroy();chartsV40[k]=null}}
+function countActiveAlertV40(p,n){const a=Array.isArray(p.alerts)?p.alerts:[];return a.some(x=>String(x||'').toLowerCase().includes(n.toLowerCase()))}
+function renderDashboardV40(){if(typeof Chart==='undefined')return;const patients=currentDashboardPatientsV40();const labels=SECTORS.map(s=>s.name),values=SECTORS.map(s=>patients.filter(p=>p.sectorUnit===s.unit).length);destroyChartV40('sector');const c1=document.getElementById('chartPatientsBySectorV40');if(c1)chartsV40.sector=new Chart(c1,{type:'bar',data:{labels,datasets:[{label:'Pacientes',data:values}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#dbeafe'}},y:{beginAtZero:true,ticks:{color:'#dbeafe',precision:0}}}}});const defs=[['Antibiótico','atb'],['Sepse','sepse'],['AVCi','avci'],['DVA','dva'],['Isolamento','isolamento'],['Paliativo','paliativo']];const av=defs.map(([l,n])=>patients.filter(p=>n==='atb'?(countActiveAlertV40(p,'ATB')||!!p.atbName||!!(p.atbData&&Array.isArray(p.atbData.items)&&p.atbData.items.length)):n==='sepse'?countActiveAlertV40(p,'Sepse'):n==='avci'?countActiveAlertV40(p,'AVCi'):countActiveAlertV40(p,l)).length);destroyChartV40('alerts');const c2=document.getElementById('chartAlertsV40');if(c2)chartsV40.alerts=new Chart(c2,{type:'bar',data:{labels:defs.map(x=>x[0]),datasets:[{label:'Pacientes',data:av}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{color:'#dbeafe',precision:0}},y:{ticks:{color:'#dbeafe'}}}}});const units=['Subsolo','Térreo','Convênio','2º andar','3º andar'];const uv=units.map(u=>patients.filter(p=>p.sectorUnit==='enfermaria'&&normalizedUnit(p)===u).length);destroyChartV40('ward');const c3=document.getElementById('chartWardUnitsV40');if(c3)chartsV40.ward=new Chart(c3,{type:'bar',data:{labels:units,datasets:[{label:'Clínica Médica',data:uv}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#dbeafe'}},y:{beginAtZero:true,ticks:{color:'#dbeafe',precision:0}}}}});const sv=[patients.filter(p=>['critico','crítico'].includes(String(p.severity||'').toLowerCase())).length,patients.filter(p=>['atencao','atenção'].includes(String(p.severity||'').toLowerCase())).length,patients.filter(p=>!['critico','crítico','atencao','atenção'].includes(String(p.severity||'').toLowerCase())).length];destroyChartV40('severity');const c4=document.getElementById('chartSeverityV40');if(c4)chartsV40.severity=new Chart(c4,{type:'pie',data:{labels:['Crítico','Atenção','Estável/Outros'],datasets:[{data:sv}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#dbeafe'}}}}});const d=new Date(),today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;dashboardSummaryRowsV40.innerHTML=SECTORS.map(s=>{const l=patients.filter(p=>p.sectorUnit===s.unit);return `<tr><td><strong>${escapeHtml(s.name)}</strong></td><td>${l.length}</td><td>${l.filter(p=>['critico','crítico'].includes(String(p.severity||'').toLowerCase())).length}</td><td>${l.filter(p=>normalizedBed(p).toLowerCase().includes('maca')).length}</td><td>${l.filter(hasCounterflow).length}</td><td>${l.filter(p=>String(p.dischargeForecast||'').slice(0,10)===today).length}</td></tr>`}).join('')}
+function isoDateV40(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function updateReportDatesV40(){const t=document.getElementById('reportTypeV40')?.value||'weekly',e=new Date(),s=new Date(e);if(t==='weekly')s.setDate(e.getDate()-6);else if(t==='monthly')s.setDate(1);if(t!=='custom'){reportStartV40.value=isoDateV40(s);reportEndV40.value=isoDateV40(e)}}
+function buildCurrentSnapshotReportV40(){const start=reportStartV40?.value||'',end=reportEndV40?.value||'',patients=[...allPatients],sectorRows=SECTORS.map(s=>{const l=patients.filter(p=>p.sectorUnit===s.unit);return {Setor:s.name,Pacientes:l.length,'Críticos':l.filter(p=>['critico','crítico'].includes(String(p.severity||'').toLowerCase())).length,'Em Maca':l.filter(p=>normalizedBed(p).toLowerCase().includes('maca')).length,'Contra-fluxos':l.filter(hasCounterflow).length}}),patientRows=patients.map(p=>({Paciente:p.name||'Paciente sem nome',Setor:p.sectorName||p.sectorUnit,Unidade:normalizedUnit(p),Leito:normalizedBed(p),Gravidade:p.severity||'',Status:p.status||'','Previsão de alta':formatDate(p.dischargeForecast),'Contra-fluxo':hasCounterflow(p)?formatDate(p.counterflowDate||p.transitionDate):'',Alertas:(Array.isArray(p.alerts)?p.alerts:[]).join(', ')}));return {generatedAt:new Date().toLocaleString('pt-BR'),start,end,total:patients.length,critical:patients.filter(p=>['critico','crítico'].includes(String(p.severity||'').toLowerCase())).length,maca:patients.filter(p=>normalizedBed(p).toLowerCase().includes('maca')).length,counterflows:patients.filter(hasCounterflow).length,sectorRows,patientRows}}
+function generateCurrentSnapshotReportV40(){lastReportDataV40=buildCurrentSnapshotReportV40();const rows=lastReportDataV40.sectorRows.map(r=>`<tr><td>${escapeHtml(r.Setor)}</td><td>${r.Pacientes}</td><td>${r.Críticos}</td><td>${r['Em Maca']}</td><td>${r['Contra-fluxos']}</td></tr>`).join('');reportPreviewV40.innerHTML=`<div class="report-head-v40"><h2 style="margin:0">Relatório administrativo</h2><div class="status" style="margin-top:5px">Período: ${escapeHtml(formatDate(lastReportDataV40.start))} a ${escapeHtml(formatDate(lastReportDataV40.end))}</div><div class="status">Gerado em ${escapeHtml(lastReportDataV40.generatedAt)}</div><div class="report-kpis-v40"><div class="report-kpi-v40"><small>Pacientes ativos</small><strong>${lastReportDataV40.total}</strong></div><div class="report-kpi-v40"><small>Pacientes críticos</small><strong>${lastReportDataV40.critical}</strong></div><div class="report-kpi-v40"><small>Pacientes em Maca</small><strong>${lastReportDataV40.maca}</strong></div><div class="report-kpi-v40"><small>Contra-fluxos</small><strong>${lastReportDataV40.counterflows}</strong></div></div></div><div class="table-wrap"><table><thead><tr><th>Setor</th><th>Pacientes</th><th>Críticos</th><th>Em Maca</th><th>Contra-fluxos</th></tr></thead><tbody>${rows}</tbody></table></div>`}
+function exportWorkbookV40(r,f){if(typeof XLSX==='undefined'){alert('Biblioteca de Excel não carregada.');return}const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(r.sectorRows),'Resumo por setor');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(r.patientRows),'Pacientes');XLSX.writeFile(wb,f)}
+function exportDashboardExcelV40(){const r=buildCurrentSnapshotReportV40();exportWorkbookV40(r,`dashboard_passagem_${isoDateV40(new Date())}.xlsx`)}
+function exportReportExcelV40(){if(!lastReportDataV40)generateCurrentSnapshotReportV40();exportWorkbookV40(lastReportDataV40,`relatorio_passagem_${lastReportDataV40.start}_${lastReportDataV40.end}.xlsx`)}
+function printDashboardPdfV40(){openTab('dashboard');setTimeout(()=>window.print(),100)}
+function printReportPdfV40(){if(!lastReportDataV40)generateCurrentSnapshotReportV40();openTab('reports');setTimeout(()=>window.print(),100)}
+document.addEventListener('DOMContentLoaded',updateReportDatesV40);
+</script>
+<script id="v41-history-admin">
+function historyEventDateV41(event={}){
+  const raw = event.createdAtLocal || event.dateLocal || '';
+  if(!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function filteredHistoryEventsV41(start,end){
+  const startDate = start ? new Date(start+'T00:00:00') : null;
+  const endDate = end ? new Date(end+'T23:59:59') : null;
+
+  return allHistoryEventsV41.filter(event=>{
+    const d = historyEventDateV41(event);
+    if(!d) return false;
+    if(startDate && d < startDate) return false;
+    if(endDate && d > endDate) return false;
+    return true;
+  });
+}
+
+function buildHistoricalReportV41(){
+  const start = document.getElementById('reportStartV40')?.value || '';
+  const end = document.getElementById('reportEndV40')?.value || '';
+  const events = filteredHistoryEventsV41(start,end);
+
+  const countType = type => events.filter(e=>e.type===type).length;
+  const migrations = events.filter(e=>e.type==='sector_migration');
+  const reassignments = events.filter(e=>e.type==='bed_reassignment');
+  const counterflows = events.filter(e=>e.type==='counterflow');
+  const creations = events.filter(e=>e.type==='patient_created');
+  const updates = events.filter(e=>e.type==='patient_updated');
+  const deletions = events.filter(e=>e.type==='patient_deleted');
+
+  const eventRows = events.map(e=>({
+    'Data/Hora': e.createdAtLocal ? new Date(e.createdAtLocal).toLocaleString('pt-BR') : formatDate(e.dateLocal),
+    'Tipo': e.type || '',
+    'Paciente': e.patientName || '',
+    'Setor origem': e.fromSectorName || e.sectorName || '',
+    'Setor destino': e.toSectorName || '',
+    'Unidade origem': e.fromUnit || e.unit || '',
+    'Leito origem': e.fromBed || e.bed || '',
+    'Unidade destino': e.toUnit || '',
+    'Leito destino': e.toBed || '',
+    'Responsável': e.actor || ''
+  }));
+
+  return {
+    generatedAt:new Date().toLocaleString('pt-BR'),
+    start,end,events,
+    totals:{
+      events:events.length,
+      creations:creations.length,
+      updates:updates.length,
+      migrations:migrations.length,
+      reassignments:reassignments.length,
+      counterflows:counterflows.length,
+      deletions:deletions.length
+    },
+    eventRows
+  };
+}
+
+function generateCurrentSnapshotReportV40(){
+  const historical = buildHistoricalReportV41();
+  lastReportDataV40 = {
+    ...historical,
+    total:allPatients.length,
+    critical:allPatients.filter(p=>['critico','crítico'].includes(String(p.severity||'').toLowerCase())).length,
+    maca:allPatients.filter(p=>normalizedBed(p).toLowerCase().includes('maca')).length,
+    counterflows:historical.totals.counterflows,
+    sectorRows:SECTORS.map(sector=>{
+      const list=allPatients.filter(p=>p.sectorUnit===sector.unit);
+      return {
+        Setor:sector.name,
+        Pacientes:list.length,
+        Críticos:list.filter(p=>['critico','crítico'].includes(String(p.severity||'').toLowerCase())).length,
+        'Em Maca':list.filter(p=>normalizedBed(p).toLowerCase().includes('maca')).length,
+        'Contra-fluxos':historical.events.filter(e=>e.type==='counterflow' && (e.toSectorUnit===sector.unit || e.sectorUnit===sector.unit)).length
+      };
+    }),
+    patientRows:allPatients.map(p=>({
+      Paciente:p.name||'Paciente sem nome',
+      Setor:p.sectorName||p.sectorUnit,
+      Unidade:normalizedUnit(p),
+      Leito:normalizedBed(p),
+      Gravidade:p.severity||'',
+      Status:p.status||'',
+      'Previsão de alta':formatDate(p.dischargeForecast),
+      Alertas:(Array.isArray(p.alerts)?p.alerts:[]).join(', ')
+    }))
+  };
+
+  const t=historical.totals;
+
+  document.getElementById('reportPreviewV40').innerHTML = `
+    <div class="report-head-v40">
+      <h2 style="margin:0">Relatório histórico</h2>
+      <div class="status" style="margin-top:5px">Período: ${escapeHtml(formatDate(historical.start))} a ${escapeHtml(formatDate(historical.end))}</div>
+      <div class="status">Gerado em ${escapeHtml(historical.generatedAt)}</div>
+
+      <div class="report-kpis-v40">
+        <div class="report-kpi-v40"><small>Eventos registrados</small><strong>${t.events}</strong></div>
+        <div class="report-kpi-v40"><small>Migrações</small><strong>${t.migrations}</strong></div>
+        <div class="report-kpi-v40"><small>Remanejamentos</small><strong>${t.reassignments}</strong></div>
+        <div class="report-kpi-v40"><small>Contra-fluxos</small><strong>${t.counterflows}</strong></div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data/Hora</th>
+            <th>Tipo</th>
+            <th>Paciente</th>
+            <th>Origem</th>
+            <th>Destino</th>
+            <th>Leito origem</th>
+            <th>Leito destino</th>
+            <th>Responsável</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${historical.events.length ? historical.events.map(e=>`
+            <tr>
+              <td>${escapeHtml(e.createdAtLocal ? new Date(e.createdAtLocal).toLocaleString('pt-BR') : formatDate(e.dateLocal))}</td>
+              <td>${escapeHtml(e.type||'')}</td>
+              <td>${escapeHtml(e.patientName||'')}</td>
+              <td>${escapeHtml(e.fromSectorName||e.sectorName||'—')}</td>
+              <td>${escapeHtml(e.toSectorName||'—')}</td>
+              <td>${escapeHtml(e.fromBed||e.bed||'—')}</td>
+              <td>${escapeHtml(e.toBed||'—')}</td>
+              <td>${escapeHtml(e.actor||'—')}</td>
+            </tr>
+          `).join('') : '<tr><td colspan="8" class="muted">Nenhum evento registrado no período selecionado.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function exportWorkbookV40(reportData, filename){
+  if(typeof XLSX==='undefined'){
+    alert('A biblioteca de Excel não foi carregada.');
+    return;
+  }
+  const wb=XLSX.utils.book_new();
+
+  if(reportData.sectorRows){
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(reportData.sectorRows),'Resumo atual');
+  }
+  if(reportData.eventRows){
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(reportData.eventRows),'Histórico de eventos');
+  }
+  if(reportData.patientRows){
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(reportData.patientRows),'Pacientes atuais');
+  }
+  XLSX.writeFile(wb,filename);
+}
+</script>
+<style id="v45-connect-hub-brand-v2">
+:root{
+  --ch-bg:#06101d;--ch-panel:#0b132b;--ch-blue:#0d47a1;
+  --ch-cyan:#008bd4;--ch-teal:#00c2a8;--ch-text:#e6edf3;--ch-muted:#9fb5ca;
+}
+.connect-brand-v45{
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  gap:16px!important;width:100%!important;box-sizing:border-box!important;
+  padding:14px 16px!important;border:1px solid rgba(0,139,212,.35)!important;
+  border-radius:16px!important;background:linear-gradient(180deg,#08172a 0%,#06101d 100%)!important;
+  box-shadow:0 14px 34px rgba(0,0,0,.24)!important;margin-bottom:16px!important;
+}
+.connect-brand-left-v45{display:flex!important;align-items:center!important;gap:12px!important;min-width:0!important}
+.connect-logo-v45{
+  position:relative!important;width:54px!important;height:54px!important;min-width:54px!important;
+  border-radius:16px!important;background:linear-gradient(145deg,#0b132b,#08172a)!important;
+  box-shadow:inset 0 0 0 1px rgba(125,211,252,.18),0 10px 24px rgba(0,0,0,.24)!important;
+}
+.connect-logo-v45::before,.connect-logo-v45::after{
+  content:""!important;position:absolute!important;top:10px!important;width:12px!important;height:34px!important;border-radius:999px!important;
+}
+.connect-logo-v45::before{left:10px!important;background:linear-gradient(180deg,#4f9cff,#0d47a1)!important}
+.connect-logo-v45::after{right:10px!important;background:linear-gradient(180deg,#11d4c1,#00a7b8)!important}
+.connect-logo-bridge-v45{
+  position:absolute!important;left:17px!important;right:17px!important;top:21px!important;height:12px!important;
+  border-radius:999px!important;background:linear-gradient(90deg,#0d47a1,#008bd4,#00c2a8)!important;
+}
+.connect-logo-center-v45{
+  position:absolute!important;left:50%!important;top:50%!important;width:12px!important;height:12px!important;
+  border-radius:50%!important;transform:translate(-50%,-50%)!important;background:#fff!important;
+  box-shadow:0 0 16px rgba(255,255,255,.7)!important;
+}
+.connect-brand-text-v45 strong{
+  display:block!important;color:#fff!important;font-size:20px!important;font-weight:950!important;
+  letter-spacing:.01em!important;white-space:nowrap!important;
+}
+.connect-brand-text-v45 strong span{
+  background:linear-gradient(90deg,#4f9cff,#00c2a8)!important;
+  -webkit-background-clip:text!important;background-clip:text!important;color:transparent!important;
+}
+.connect-brand-text-v45 small{
+  display:block!important;margin-top:3px!important;color:var(--ch-muted)!important;
+  font-size:11px!important;font-weight:800!important;
+}
+.connect-brand-tag-v45{
+  padding:7px 10px!important;border-radius:999px!important;border:1px solid rgba(0,194,168,.55)!important;
+  background:rgba(0,194,168,.08)!important;color:#bdfbf2!important;font-size:10.5px!important;font-weight:900!important;white-space:nowrap!important;
+}
+@media(max-width:680px){
+  .connect-brand-v45{padding:12px!important;align-items:flex-start!important}
+  .connect-logo-v45{width:46px!important;height:46px!important;min-width:46px!important}
+  .connect-logo-v45::before,.connect-logo-v45::after{top:8px!important;width:10px!important;height:30px!important}
+  .connect-logo-v45::before{left:8px!important}.connect-logo-v45::after{right:8px!important}
+  .connect-logo-bridge-v45{left:14px!important;right:14px!important;top:18px!important;height:10px!important}
+  .connect-logo-center-v45{width:10px!important;height:10px!important}
+  .connect-brand-text-v45 strong{font-size:17px!important}
+  .connect-brand-text-v45 small{font-size:10px!important;line-height:1.3!important}
+  .connect-brand-tag-v45{display:none!important}
+}
+</style>
+<script id="v45-connect-hub-brand-v2-script">
+(function(){
+  function brandMarkupV45(){
+    const wrap=document.createElement('div');
+    wrap.className='connect-brand-v45';
+    wrap.innerHTML=`
+      <div class="connect-brand-left-v45">
+        <div class="connect-logo-v45" aria-label="Símbolo Connect HUB">
+          <span class="connect-logo-bridge-v45"></span>
+          <span class="connect-logo-center-v45"></span>
+        </div>
+        <div class="connect-brand-text-v45">
+          <strong>Connect <span>HUB</span></strong>
+          <small>Integrando equipes. Conectando cuidados.</small>
+        </div>
+      </div>
+      <div class="connect-brand-tag-v45">Clinical Care Platform</div>`;
+    return wrap;
+  }
+  function installBrandV45(){
+    document.querySelectorAll('.sca-brand-v44,.sca-hub-brand-v44').forEach(el=>el.remove());
+    if(document.querySelector('.connect-brand-v45')) return;
+    const target=document.querySelector('main')||document.querySelector('header,.topbar,.app-header,.page-header')||document.body;
+    const brand=brandMarkupV45();
+    if(target.firstChild) target.insertBefore(brand,target.firstChild); else target.appendChild(brand);
+  }
+  document.addEventListener('DOMContentLoaded',installBrandV45);
+  window.addEventListener('load',installBrandV45);
+  [100,350,800].forEach(t=>setTimeout(installBrandV45,t));
+})();
+</script>
+</body>
+</html>
