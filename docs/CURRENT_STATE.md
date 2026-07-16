@@ -1,0 +1,168 @@
+# Estado atual do projeto
+
+Atualizado em: 16/07/2026
+
+## Baseline
+
+- Produto: Connect HUB — Passagem de Plantão.
+- Componente em foco: Clinical Copilot — Assistente de Arritmias.
+- Base: FOUNDATION 1.0.
+- Release de referência: RC1.2.8 — Completion State Semantic Alignment.
+- Arquivo publicado: `passagem.html`.
+- Commit de referência na `main`:
+  `cb51ae8cc666246c19e02dc74867f2478fc377da`.
+- Artefato local que originou a publicação:
+  `passagem-Arritmias-FOUNDATION-1.0-RC1.2.8-Completion-State-Semantic-Alignment.html`.
+- Tamanho registrado do artefato: 1.259.660 bytes.
+- SHA-256 registrado:
+  `c6396cb91b387e63696f287caac060bc1b402c47a86551d4dcd9bcb2797902d7`.
+
+Antes de uma mudança funcional, confirme que a `main` ainda corresponde a
+esse baseline ou atualize este documento.
+
+## Situação funcional
+
+O Assistente de Arritmias está integrado ao formulário do paciente e ao
+Clinical Copilot exibido no card da passagem de plantão.
+
+O fluxo validado contempla:
+
+- seleção direta do assistente;
+- abertura automática do módulo selecionado;
+- avaliação clínica progressiva;
+- Auto Save;
+- Auto Advance;
+- edição deliberada;
+- ação `Finalizar perfil` para FA/Flutter;
+- visualização somente leitura;
+- recolhimento para resumo compacto;
+- resumo assistencial no card;
+- acesso direto do card ao módulo;
+- funcionamento em mobile e desktop;
+- cards verticais e horizontais;
+- busca, passagem copiada, snapshot e impressão.
+
+O Assistente de Profilaxia de TEV é considerado homologado na V1. O Clinical
+Copilot também consolida Antimicrobianos quando selecionado.
+
+## Hierarquia homologada do card
+
+1. Cabeçalho e situação operacional.
+2. Alerta superior de prioridade, quando necessário.
+3. Hipótese diagnóstica.
+4. Pendências.
+5. Resumo Assistencial — Clinical Copilot.
+6. Outros alertas não consolidados.
+7. Ações do card.
+
+Status operacional, como `Aguardando UTI`, permanece separado dos estados
+clínicos dos assistentes. Pacientes sem módulos selecionados não exibem um
+contêiner vazio.
+
+## Modos de Arritmias
+
+### Recolhido
+
+Formato compacto durante a edição geral do paciente. Exibe módulo, estado,
+resumo e ações para visualizar ou editar.
+
+### Visualização
+
+Modo somente leitura aberto pelo olho ou pelo resumo do card quando o módulo
+está concluído. Exibe diagnóstico, estabilidade, evolução/conduta e perfil
+clínico sem modificar os dados.
+
+### Edição
+
+Aberta deliberadamente pelo lápis, pela continuidade de avaliação incompleta
+ou imediatamente após selecionar Arritmias para um novo paciente.
+
+## Seleção de assistentes
+
+Para um novo paciente:
+
+1. `Adicionar assistente clínico` abre diretamente o catálogo.
+2. O catálogo funciona como modo de seleção.
+3. O cartão inteiro é clicável.
+4. Selecionar fecha o catálogo.
+5. O módulo é aberto e posicionado na área visível do drawer.
+6. `Adicionar outro assistente` permite incluir outro módulo.
+
+Não existe uma etapa adicional obrigando o usuário a clicar em `Concluir`
+antes de abrir o primeiro módulo selecionado.
+
+## Compatibilidade mobile e desktop
+
+A RC1.2.8 preserva as correções das RC1.2.5 a RC1.2.7:
+
+- ações manuais prevalecem sobre temporizadores antigos;
+- abrir, recolher, visualizar e selecionar não são revertidos por uma
+  atualização automática anterior;
+- `click` e `change` funcionam como caminhos complementares;
+- solicitações duplicadas são descartadas;
+- a rolagem é controlada dentro do drawer;
+- uma camada de recuperação confirma que cabeçalho e módulo permaneceram
+  abertos no ambiente hospedado.
+
+Larguras registradas: 390, 494, 768, 1180 e 1440 px.
+
+## Semântica dos estados
+
+| Estado | Significado |
+|---|---|
+| `Em andamento` | Existem decisões obrigatórias pendentes. |
+| `Conduta registrada` | Houve estabilização após conduta, mas ainda existe etapa pendente. |
+| `Concluído` | Todas as etapas aplicáveis foram finalizadas, inclusive após conduta. |
+| `Prioridade clínica` | Existe instabilidade atual, persistente ou não resolvida. |
+
+Regras obrigatórias:
+
+- `Conduta registrada` não é sinônimo de `Concluído`.
+- Avaliação finalizada após conduta deve exibir `Concluído`.
+- `Estabilizou após conduta imediata` permanece no corpo do resumo.
+- A cor âmbar pode preservar o histórico de risco, mas não substitui o estado.
+- Paciente que permanece instável continua como `Prioridade clínica`.
+
+## Resumo assistencial
+
+O resumo é derivado exclusivamente dos dados estruturados registrados pelo
+usuário. Pode apresentar diagnóstico, estado hemodinâmico, resposta à
+conduta, padrão do episódio, janela de início, pré-excitação, anticoagulação
+prévia, precipitantes e próxima etapa pendente.
+
+O sistema não deve criar informação clínica por inferência. Se o estado
+hemodinâmico não estiver documentado, deve informar `Estado hemodinâmico não
+informado` em vez de assumir estabilidade.
+
+## Limitações técnicas atuais
+
+- `passagem.html` é monolítico e concentra interface, estilos e scripts.
+- O artefato de referência possui 25.417 linhas, 104 blocos `<style>` e 60
+  blocos `<script>`.
+- O estado é majoritariamente global; a persistência combina Firebase
+  Auth/Firestore e fallback por `localStorage`.
+- O repositório não possui uma suíte permanente e reproduzível de regressão.
+- As validações da release foram realizadas em artefatos locais e registradas
+  nos relatórios de RC.
+- O teste histórico `test_rc128.cjs` não é portátil: depende de Playwright do
+  ambiente e de um Chromium localizado em caminho temporário absoluto.
+- Em observação local, o teste de recuperação desktop em 1440 px alternou
+  entre falha e sucesso em execuções diferentes. Isso deve ser tratado como
+  dívida de confiabilidade sensível a temporização até existir uma suíte
+  determinística.
+- Antes de uma refatoração ampla, os cenários homologados devem ser
+  convertidos em testes de caracterização dentro do repositório.
+
+## Restrições de manutenção
+
+Até nova homologação:
+
+- não alterar a lógica clínica de Arritmias;
+- não remover Auto Save ou Auto Advance;
+- não tornar a visualização editável;
+- não substituir `Finalizar perfil` por conclusão implícita;
+- não mudar a semântica dos estados;
+- não alterar a hierarquia homologada do card;
+- não quebrar busca, cópia, snapshot ou impressão;
+- validar desktop e mobile separadamente;
+- não utilizar dados reais de pacientes.
