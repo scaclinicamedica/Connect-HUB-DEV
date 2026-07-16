@@ -1,0 +1,22 @@
+{
+  "name": "connect-hub-v1-characterization",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23 || >=24 <25 || >=26 <27"
+  },
+  "scripts": {
+    "test": "playwright test --project=functional-1180 --project=viewport-390 --project=viewport-494 --project=viewport-759 --project=viewport-760 --project=viewport-761 --project=viewport-768 --project=viewport-1180 --project=viewport-1440",
+    "test:stability": "playwright test --project=stability-1440 tests/e2e/timing-1440.stress.spec.ts --repeat-each=50 --workers=1 --retries=0",
+    "test:print": "playwright test --project=functional-1180 tests/e2e/print-a4.spec.ts",
+    "test:headed": "playwright test --project=functional-1180 --headed",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "verify:integrity": "node scripts/verify-passagem-integrity.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "pdf-lib": "1.17.1"
+  }
+}
