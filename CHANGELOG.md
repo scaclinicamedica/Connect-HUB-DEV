@@ -1,0 +1,109 @@
+# Changelog
+
+## [FOUNDATION 1.0 RC1.2.8] — 2026-07-16
+
+### Corrigido
+
+- Separada a conclusão do fluxo do histórico de conduta imediata.
+- Avaliação finalizada após conduta passa a exibir `Concluído`.
+- `Conduta registrada` identifica somente fluxos ainda incompletos.
+- Paciente que permanece instável continua como `Prioridade clínica`.
+
+### Preservado
+
+- Texto `Estabilizou após conduta imediata` no resumo.
+- Aparência âmbar como histórico de maior risco.
+- Pergunta explícita sobre pré-excitação.
+- Correções de interação no desktop, mobile, visualização e impressão.
+
+## [FOUNDATION 1.0 RC1.2.7] — 2026-07-16
+
+### Adicionado
+
+- Recuperação da abertura do Assistente Clínico no desktop hospedado.
+- Confirmação de que o módulo selecionado permaneceu aberto.
+- Pergunta `O ECG apresenta sinais de pré-excitação?` com respostas clínicas
+  completas.
+
+## [FOUNDATION 1.0 RC1.2.6] — 2026-07-16
+
+### Corrigido
+
+- Seleção no desktop deixou de depender apenas de `change`.
+- Cartão inteiro passou a ser acionador.
+- Eventos `click` e `change` passaram a ser deduplicados.
+- Rolagem passou a ser controlada dentro do drawer.
+
+## [FOUNDATION 1.0 RC1.2.5] — 2026-07-16
+
+### Corrigido
+
+- Condições de corrida que fechavam o assistente ou reabriam Arritmias após
+  ação manual.
+- Atualizações antigas passaram a ser descartadas após nova interação.
+
+## [FOUNDATION 1.0 RC1.2.4] — 2026-07-16
+
+### Alterado
+
+- Selecionar um assistente passou a abrir o módulo imediatamente.
+- Ações de visualizar e editar foram convertidas em olho e lápis acessíveis.
+
+### Corrigido
+
+- Removido o texto sobreposto `EditarEditando`.
+
+## [FOUNDATION 1.0 RC1.2.3] — 2026-07-16
+
+### Alterado
+
+- Clinical Copilot horizontal convertido em linhas compactas.
+- Removida a etapa redundante ao adicionar o primeiro assistente.
+- Catálogo transformado em modo exclusivo de seleção.
+- Visualização de Arritmias simplificada e somente leitura.
+
+## [FOUNDATION 1.0 RC1.2.2] — 2026-07-16
+
+### Adicionado
+
+- Separação entre Recolhido, Visualização e Edição.
+- Visualização somente leitura sem alterar dados.
+- Catálogo progressivo de assistentes.
+
+## [FOUNDATION 1.0 RC1.2.1] — 2026-07-16
+
+### Adicionado
+
+- `Resumo Assistencial — Clinical Copilot`.
+- Consolidação de Arritmias, Profilaxia de TEV e Antimicrobianos.
+- Sinalização compacta de prioridade e acesso direto aos módulos.
+
+### Alterado
+
+- Hierarquia do card padronizada.
+- Status operacional movido para o cabeçalho.
+
+## [FOUNDATION 1.0 RC1.2.0] — 2026-07-16
+
+### Adicionado
+
+- Resumo estruturado de Arritmias no card.
+- Estados Concluído, Em andamento, Prioridade e Conduta registrada.
+- Conteúdo do resumo na busca, cópia, snapshot e impressão.
+
+## [FOUNDATION 1.0 RC1.1.4]
+
+### Adicionado
+
+- Clinical Copilot Framework para Arritmias.
+- Indicador de avaliação concluída ou em andamento.
+- Acesso direto ao módulo e rótulos dinâmicos do assistente.
+- Suporte para teclado e tecnologias assistivas.
+
+### Preservado
+
+- Persistência, Auto Save, Auto Advance e Perfil Clínico.
+
+### Corrigido
+
+- Novo paciente deixa de herdar estado clínico do paciente anterior.
