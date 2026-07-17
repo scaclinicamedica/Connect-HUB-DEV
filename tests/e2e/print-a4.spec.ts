@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
 import { test, expect } from '../support/test-fixture';
 import { eightFictitiousPatients } from '../fixtures/handover-eight-patients';
+import { expectFullyInside, expectNoOverlap } from '../support/layout-assertions';
 
 test('imprime oito pacientes fictícios em uma página A4 com o resumo assistencial', async ({ app }, testInfo) => {
   await app.goto({ patients: eightFictitiousPatients });
@@ -13,6 +14,18 @@ test('imprime oito pacientes fictícios em uma página A4 com o resumo assistenc
   await expect(app.page.locator('#printArea')).toContainText('Clinical Copilot');
 
   await app.page.emulateMedia({ media: 'print' });
+  const printArea = app.page.locator('#printArea');
+  const printGrid = printArea.locator('.print-grid');
+  const printCards = printArea.locator('.print-card');
+  for(const patient of eightFictitiousPatients) await expect(printArea).toContainText(patient.name);
+  for(let index = 0; index < 8; index += 1) {
+    await expect(printCards.nth(index)).toBeVisible();
+    await expect(printCards.nth(index)).toContainText(eightFictitiousPatients[index].name);
+  }
+  await expectFullyInside(printArea, await printCards.all());
+  await expectFullyInside(printGrid, await printCards.all());
+  await expectNoOverlap(await printCards.all());
+
   const pdfPath = testInfo.outputPath('passagem-oito-pacientes-a4.pdf');
   await app.page.pdf({ path: pdfPath, format: 'A4', printBackground: true, preferCSSPageSize: true });
   const pdf = await PDFDocument.load(await readFile(pdfPath));
@@ -23,4 +36,3 @@ test('imprime oito pacientes fictícios em uma página A4 com o resumo assistenc
   expect(size.height).toBeGreaterThan(838);
   expect(size.height).toBeLessThan(846);
 });
-

@@ -1,6 +1,6 @@
 import { test, expect } from '../support/test-fixture';
 import { arrhythmiaCompleted } from '../fixtures/arrhythmias';
-import { expectNoHorizontalOverflow } from '../support/layout-assertions';
+import { expectHorizontalClinicalCardLayout, expectNoHorizontalOverflow } from '../support/layout-assertions';
 
 test('não apresenta overflow horizontal e preserva card e drawer', async ({ app }) => {
   await app.goto({ patients: [arrhythmiaCompleted] });
@@ -16,7 +16,9 @@ test('modo horizontal permanece utilizável no breakpoint corrente', async ({ ap
   await app.goto({ patients: [arrhythmiaCompleted] });
   await app.page.locator('[data-view-v25="horizontal"]').click();
   await expect(app.page.locator('#cards')).toHaveClass(/view-horizontal-v25/);
-  await expect(app.page.locator(`.card[data-id="${arrhythmiaCompleted.id}"] .clinical-copilot-card-summary`)).toBeVisible();
+  const card = app.page.locator(`.card[data-id="${arrhythmiaCompleted.id}"]`);
+  await expect(card.locator('.clinical-copilot-card-summary')).toBeVisible();
+  await expectHorizontalClinicalCardLayout(card);
 });
 
 test('modo horizontal não apresenta overflow fora da regressão conhecida', async ({ app }) => {
