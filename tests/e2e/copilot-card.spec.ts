@@ -1,7 +1,7 @@
 import { test, expect } from '../support/test-fixture';
 import { arrhythmiaCompleted } from '../fixtures/arrhythmias';
 import { basePatient } from '../fixtures/patients';
-import { expectNoHorizontalOverflow, expectOrderedVertically } from '../support/layout-assertions';
+import { expectHorizontalClinicalCardLayout, expectNoHorizontalOverflow, expectOrderedVertically } from '../support/layout-assertions';
 
 test('mantém o resumo no card vertical e horizontal sem contêiner vazio', async ({ app }) => {
   const withoutModule = basePatient('fixture-without-module', 2);
@@ -22,6 +22,6 @@ test('mantém o resumo no card vertical e horizontal sem contêiner vazio', asyn
   await app.page.locator('[data-view-v25="horizontal"]').click();
   await expect(app.page.locator('#cards')).toHaveClass(/view-horizontal-v25/);
   await expect(withCopilot.locator('.clinical-copilot-card-summary')).toBeVisible();
+  await expectHorizontalClinicalCardLayout(withCopilot);
   await expectNoHorizontalOverflow(app.page);
 });
-

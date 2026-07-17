@@ -1,5 +1,37 @@
 # Changelog
 
+## [FOUNDATION 1.0 RC1.2.9] — 2026-07-16
+
+### Corrigido
+
+- Decisões intermediárias válidas de Arritmias passam a ser persistidas pelo
+  Auto Save depois da atualização do estado em memória.
+- Reabertura de avaliação incompleta restaura as respostas e posiciona a
+  primeira microetapa ainda não respondida.
+
+### Protegido
+
+- Auto Save de Arritmias incompleta autorizado somente para evento real do
+  usuário.
+- Salvamento manual incompleto continua bloqueado pela validação existente.
+- `Finalizar perfil` permanece como única ação de conclusão do perfil.
+- Visualização, recolhimento e hidratação permanecem com zero mutação e zero
+  escrita.
+
+### Testes
+
+- Cobertura fortalecida para decisões intermediárias, precipitantes,
+  reabertura, novo paciente e conclusão explícita.
+- Testes de leitura aguardam além dos temporizadores conhecidos e falham diante
+  de escrita inesperada.
+- Suíte principal e estabilidade permanecem sem retries.
+
+### Pendências responsivas
+
+- Interceptação do opener no card horizontal em 390 px.
+- Overflow horizontal em 761 px.
+- Overflow horizontal em 768 px.
+
 ## [FOUNDATION 1.0 RC1.2.8] — 2026-07-16
 
 ### Corrigido
