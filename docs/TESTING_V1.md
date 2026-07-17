@@ -74,8 +74,16 @@ Durante cada teste, somente `127.0.0.1` pode acessar a rede. As solicitações
 dos scripts Firebase são atendidas por um test double em memória; qualquer
 outro destino é bloqueado e registrado no artefato de rede do teste.
 
-Falhas preservam trace, screenshot, vídeo, console, tentativas de rede externa
-e, nos cenários temporais, uma linha do tempo das mudanças relevantes do DOM.
+O vídeo está desativado por instabilidade comprovada no encerramento paralelo
+do Chromium no Windows. Em diagnóstico controlado com quatro workers,
+`ERR_STREAM_WRITE_AFTER_END` e os timeouts de `browserContext.close`
+desapareceram; erros isolados de `GpuControl.CreateCommandBuffer` permaneceram
+sem causar falhas.
+
+Falhas continuam preservando trace, screenshot, diagnósticos de console,
+tentativas de rede externa e, nos cenários temporais, uma linha do tempo das
+mudanças relevantes do DOM. Essa estabilização não reduziu asserts, não
+aumentou timeouts nem adicionou retries.
 
 Os resultados ficam em `test-results/` e o relatório HTML em
 `playwright-report/`. Esses diretórios não devem ser versionados.

@@ -44,7 +44,7 @@ export default defineConfig({
     serviceWorkers: 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'off',
     actionTimeout: 7_500,
     navigationTimeout: 15_000
   },
