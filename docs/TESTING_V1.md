@@ -7,7 +7,8 @@ ou navegador instalado manualmente.
 Todos os pacientes usados nos testes são explicitamente fictícios. Não copie
 informações de prontuário para fixtures, traces, screenshots ou PDFs.
 
-A identificação funcional atualmente caracterizada é FOUNDATION 1.0 RC1.2.9.
+A identificação funcional atualmente caracterizada é
+`FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX`.
 
 ## Pré-requisitos
 
@@ -88,19 +89,25 @@ aumentou timeouts nem adicionou retries.
 Os resultados ficam em `test-results/` e o relatório HTML em
 `playwright-report/`. Esses diretórios não devem ser versionados.
 
-## Pendências responsivas conhecidas
+## Fronteira responsiva na RC1.2.10
 
-As pendências são mantidas separadas da correção funcional RC1.2.9:
+- O modo horizontal permanece compacto até 791 px e usa grid a partir de
+  792 px.
+- Os overflows horizontais de 761 e 768 px foram corrigidos, e as respectivas
+  marcações `test.fail` foram removidas.
+- A fronteira estrita exige `scrollWidth === innerWidth` em 759, 760, 761, 768,
+  790, 791, 792, 793, 1180 e 1440 px.
+- Cada largura valida ordem, contenção, ausência de sobreposição e recorte em
+  dois cards com pacientes exclusivamente fictícios: um com conteúdo curto e
+  outro com conteúdo extremo.
+- Em 390 px, a abertura do Clinical Copilot e do painel de Arritmias foi
+  validada por interações reais com `locator.click` e `locator.tap`.
+- O risco histórico intermitente de hit-testing em 390 px permanece como
+  observação monitorada, mas não como falha esperada ativa.
 
-- em 390 px, o opener do Assistente de Arritmias no card horizontal pode ser
-  interceptado por outras camadas do layout;
-- em 761 px, o modo horizontal produz overflow global;
-- em 768 px, o modo horizontal produz overflow global.
-
-Os testes dedicados a 761 e 768 px continuam marcados como falhas esperadas.
-Essas ocorrências não representam critérios concluídos da suíte. Uma correção
-futura em `passagem.html` deverá transformá-las em sucesso e remover a
-marcação somente depois da homologação correspondente.
+A correção responsiva não alterou JavaScript, handlers, temporizadores,
+`z-index`, `pointer-events` ou regras clínicas. A semântica clínica e a
+persistência intermediária homologadas na RC1.2.9 permanecem inalteradas.
 
 ## Atualização do Playwright
 

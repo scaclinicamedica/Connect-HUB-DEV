@@ -10,6 +10,16 @@ export async function expectNoHorizontalOverflow(page: Page){
   expect(dimensions.body, JSON.stringify(dimensions)).toBeLessThanOrEqual(dimensions.viewport + 1);
 }
 
+export async function expectStrictHorizontalNoOverflow(page: Page){
+  const dimensions = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    body: document.body.scrollWidth
+  }));
+  expect(dimensions.document, JSON.stringify(dimensions)).toBe(dimensions.viewport);
+  expect(dimensions.body, JSON.stringify(dimensions)).toBe(dimensions.viewport);
+}
+
 export async function expectInside(container: Locator, child: Locator){
   const [outer, inner] = await Promise.all([container.boundingBox(), child.boundingBox()]);
   expect(outer).not.toBeNull();

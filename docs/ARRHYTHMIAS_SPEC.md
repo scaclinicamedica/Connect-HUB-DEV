@@ -1,6 +1,6 @@
 # Especificação funcional — Assistente de Arritmias
 
-Versão de referência: FOUNDATION 1.0 RC1.2.9
+Versão de referência: `FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX`
 
 ## Objetivo e limite
 
@@ -257,9 +257,12 @@ Validar em 390, 494, 768, 1180 e 1440 px:
 - pergunta explícita de pré-excitação;
 - busca, cópia, snapshot e impressão preservados.
 
-Pendências responsivas conhecidas da V1, registradas separadamente da correção
-funcional RC1.2.9:
+Na RC1.2.10, o modo horizontal permanece compacto até 791 px e passa ao grid
+a partir de 792 px. Os overflows de 761 e 768 px foram corrigidos sem alterar
+JavaScript, handlers, temporizadores, `z-index`, `pointer-events` ou regras
+clínicas. A abertura do Clinical Copilot em 390 px passou com `locator.click`
+e `locator.tap` reais.
 
-- interceptação do opener no card horizontal em 390 px;
-- overflow horizontal em 761 px;
-- overflow horizontal em 768 px.
+O risco histórico intermitente de hit-testing em 390 px permanece como
+observação monitorada, sem falha esperada ativa. A correção funcional RC1.2.9,
+sua semântica clínica e a persistência intermediária permanecem inalteradas.

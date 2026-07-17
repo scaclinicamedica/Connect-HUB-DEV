@@ -1,19 +1,19 @@
 # Estado atual do projeto
 
-Atualizado em: 16/07/2026
+Atualizado em: 17/07/2026
 
 ## Baseline
 
 - Produto: Connect HUB — Passagem de Plantão.
 - Componente em foco: Clinical Copilot — Assistente de Arritmias.
 - Base: FOUNDATION 1.0.
-- Release funcional em preparação: RC1.2.9 — persistência intermediária de
-  Arritmias.
-- Baseline publicado imediatamente anterior: RC1.2.8 — Completion State
-  Semantic Alignment.
+- Release funcional em preparação:
+  `FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX`.
+- Baseline publicado imediatamente anterior: RC1.2.9 — persistência
+  intermediária de Arritmias.
 - Arquivo publicado: `passagem.html`.
 - Commit de referência na `main`:
-  `cb51ae8cc666246c19e02dc74867f2478fc377da`.
+  `6d20650b675ea77fe249a2acdc69254b0523668e`.
 - Artefato local que originou a publicação:
   `passagem-Arritmias-FOUNDATION-1.0-RC1.2.8-Completion-State-Semantic-Alignment.html`.
 - Tamanho registrado do artefato: 1.259.660 bytes.
@@ -61,6 +61,22 @@ Copilot também consolida Antimicrobianos quando selecionado.
   permanecem `false`, e o estado continua `Em andamento`.
 - Visualização, recolhimento e hidratação não modificam o objeto do paciente nem
   produzem escrita, inclusive após os temporizadores conhecidos.
+
+### Fronteira responsiva — RC1.2.10
+
+- O modo horizontal permanece compacto até 791 px.
+- O grid horizontal começa em 792 px.
+- Os overflows horizontais de 761 e 768 px foram corrigidos.
+- As marcações `test.fail` desses dois viewports foram removidas.
+- A fronteira estrita foi validada em 759, 760, 761, 768, 790, 791, 792, 793,
+  1180 e 1440 px com pacientes exclusivamente fictícios e conteúdos curto e
+  extremo.
+- Em 390 px, a abertura do Clinical Copilot foi validada com `locator.click` e
+  `locator.tap` reais.
+- Nenhum JavaScript, handler, temporizador, `z-index`, `pointer-events` ou regra
+  clínica foi alterado pela correção responsiva.
+- A semântica clínica e a persistência intermediária homologadas na RC1.2.9
+  permanecem inalteradas.
 
 ## Hierarquia homologada do card
 
@@ -110,7 +126,8 @@ antes de abrir o primeiro módulo selecionado.
 
 ## Compatibilidade mobile e desktop
 
-A RC1.2.9 preserva as correções das RC1.2.5 a RC1.2.8:
+A RC1.2.10 preserva as correções das RC1.2.5 a RC1.2.8 e a persistência
+intermediária homologada na RC1.2.9:
 
 - ações manuais prevalecem sobre temporizadores antigos;
 - abrir, recolher, visualizar e selecionar não são revertidos por uma
@@ -121,17 +138,13 @@ A RC1.2.9 preserva as correções das RC1.2.5 a RC1.2.8:
 - uma camada de recuperação confirma que cabeçalho e módulo permaneceram
   abertos no ambiente hospedado.
 
-Larguras registradas: 390, 494, 768, 1180 e 1440 px.
+Larguras registradas na fronteira horizontal: 759, 760, 761, 768, 790, 791,
+792, 793, 1180 e 1440 px. A abertura do Clinical Copilot também foi validada
+em 390 px com mouse e toque reais.
 
-Pendências responsivas registradas separadamente para a V1:
-
-- interceptação do opener do Assistente de Arritmias no card horizontal em
-  390 px;
-- overflow horizontal em 761 px;
-- overflow horizontal em 768 px.
-
-Essas pendências não são critérios concluídos da RC1.2.9 e não alteram a
-homologação da correção de persistência intermediária.
+O risco histórico intermitente de hit-testing do opener no card horizontal em
+390 px permanece como observação monitorada, sem falha esperada ativa. Os
+overflows de 761 e 768 px não são mais pendências.
 
 ## Semântica dos estados
 
@@ -173,6 +186,8 @@ informado` em vez de assumir estabilidade.
 - Os testes fortalecidos da RC1.2.9 cobrem Auto Save intermediário,
   reabertura, conclusão explícita, visualização, recolhimento, hidratação e
   isolamento entre pacientes, sempre com `retries: 0`.
+- Os testes responsivos da RC1.2.10 cobrem a fronteira estrita do modo
+  horizontal e o acionamento real do Clinical Copilot em 390 px, sem retries.
 - O teste histórico `test_rc128.cjs` não é portátil: depende de Playwright do
   ambiente e de um Chromium localizado em caminho temporário absoluto.
 - A estabilidade desktop em 1440 px permanece protegida por 50 repetições,
