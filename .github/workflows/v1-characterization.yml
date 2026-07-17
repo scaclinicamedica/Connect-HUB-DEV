@@ -1,0 +1,65 @@
+name: V1 Characterization
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  characterization:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js from .nvmrc
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Chromium and Linux dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium on Windows
+        if: runner.os == 'Windows'
+        run: npx playwright install chromium
+
+      - name: Verify passagem.html integrity
+        run: npm run verify:integrity
+
+      - name: Run main characterization suite
+        run: npm test
+
+      - name: Run A4 print characterization
+        run: npm run test:print
+
+      - name: Run 1440 px stability characterization
+        run: npm run test:stability
+
+      - name: Upload Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: v1-characterization-${{ runner.os }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
