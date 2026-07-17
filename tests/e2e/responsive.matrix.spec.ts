@@ -21,13 +21,7 @@ test('modo horizontal permanece utilizável no breakpoint corrente', async ({ ap
   await expectHorizontalClinicalCardLayout(card);
 });
 
-test('modo horizontal não apresenta overflow fora da regressão conhecida', async ({ app }) => {
-  const width = app.page.viewportSize()?.width;
-  test.fail(
-    width === 761 || width === 768,
-    'Regressão preexistente da V1: o modo horizontal mede 792 px nestes viewports.'
-  );
-
+test('modo horizontal não apresenta overflow', async ({ app }) => {
   await app.goto({ patients: [arrhythmiaCompleted] });
   await app.page.locator('[data-view-v25="horizontal"]').click();
   await expectNoHorizontalOverflow(app.page);

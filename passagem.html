@@ -16340,7 +16340,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
 #cards.view-horizontal-v25 .card-actions button{width:100%;white-space:nowrap}
 #cards.view-horizontal-v25 .migration-chooser{grid-column:1/-1}
 @media(max-width:1150px){#cards.view-horizontal-v25 .card{grid-template-columns:minmax(240px,1.2fr) minmax(200px,1fr) minmax(200px,1fr);}.view-horizontal-v25 .tags,.view-horizontal-v25 .card-actions{grid-column:auto}}
-@media(max-width:760px){#cards.view-horizontal-v25 .card{display:block!important}.view-mode-switch-v25{width:100%;margin-left:0}}
+@media(max-width:791px){#cards.view-horizontal-v25 .card{display:block!important}.view-mode-switch-v25{width:100%;margin-left:0}}
 
 /* Filtro adicional de local da Observação SUS */
 .obs-location-filter-v25{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px}
@@ -23425,7 +23425,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
   const MODULE_VALUE='Arritmias';
   const LEGACY_VALUE='Fibrilação atrial / Flutter';
   const PANEL_ID='arrhythmiasCleanWrap';
-  const VERSION='FOUNDATION-1.0-RC1.2.9-ARRHYTHMIAS-INTERMEDIATE-AUTOSAVE';
+  const VERSION='FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX';
   const EMPTY_STATE=()=>({finalized:false,editing:false,editingGravity:false,editingProfile:false,diagnosisExpanded:true,status:'Selecione a arritmia',diagnosis:'',otherDiagnosis:'',instabilityCriteria:[],gravityCompleted:false,causalRelation:'',priorityCompleted:false,stabilized:'',profileCompleted:false,episodePattern:'',onsetWindow:'',preexcitation:'',priorAnticoagulation:'',triggers:[],otherTrigger:'',profileStep:1,profileReturnStep:0});
   let state=EMPTY_STATE();
   const $=id=>document.getElementById(id);
@@ -24162,7 +24162,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 @media(max-width:1200px){
   #cards.view-horizontal-v25 .card{grid-template-columns:minmax(240px,1.1fr) minmax(220px,1fr) minmax(280px,1.25fr)!important}
 }
-@media(max-width:760px){
+@media(max-width:791px){
   #cards.view-horizontal-v25 .clinical-handover-summary{height:auto!important;margin-top:8px!important}
 }
 @media(max-width:390px){
@@ -24278,7 +24278,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 
 #cards.view-horizontal-v25 .clinical-copilot-card-summary{height:100%!important;margin:0!important;min-width:0!important}
 #cards.view-horizontal-v25 .clinical-priority-signal{grid-column:2/-1!important;height:100%!important;margin:0!important}
-@media(max-width:760px){
+@media(max-width:791px){
   #cards.view-horizontal-v25 .clinical-copilot-card-summary{height:auto!important;margin-top:8px!important}
   #cards.view-horizontal-v25 .clinical-priority-signal{height:auto!important;margin-top:8px!important}
 }
@@ -24423,7 +24423,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 
   function boot(){refreshGateway()}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-  window.ClinicalCopilotFramework={version:'RC1.2.9',refresh:refreshGateway,revealArrhythmias};
+  window.ClinicalCopilotFramework={version:'RC1.2.10',refresh:refreshGateway,revealArrhythmias};
 })();
 </script>
 <script id="foundation-rc121-card-hierarchy-refinement-script">
@@ -24468,7 +24468,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
       focusClinicalModule(key);
     },delay));
   },true);
-  window.ClinicalCopilotCardHierarchy={version:'RC1.2.9',focusModule:focusClinicalModule};
+  window.ClinicalCopilotCardHierarchy={version:'RC1.2.10',focusModule:focusClinicalModule};
 })();
 </script>
 <style id="foundation-rc122-view-edit-progressive-disclosure-style">
@@ -24596,7 +24596,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 <script id="foundation-rc122-view-edit-progressive-disclosure-script">
 (function(){
   'use strict';
-  const VERSION='RC1.2.9';
+  const VERSION='RC1.2.10';
   const PANEL_ID='arrhythmiasCleanWrap';
   const CATALOG_BUTTON_ID='rc122AddClinicalAssistant';
   const $=id=>document.getElementById(id);
@@ -24969,7 +24969,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 <script id="foundation-rc123-density-selection-flow-script">
 (function(){
   'use strict';
-  const VERSION='RC1.2.9';
+  const VERSION='RC1.2.10';
   const $=id=>document.getElementById(id);
   let syncScheduled=false;
   const eyeIcon='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>';
@@ -25154,7 +25154,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 <script id="foundation-rc124-direct-open-icon-actions-script">
 (function(){
   'use strict';
-  const VERSION='RC1.2.9';
+  const VERSION='RC1.2.10';
   const $=id=>document.getElementById(id);
   const PANEL_BY_MODULE={
     'Dispositivos':'devicesDetailWrap',
@@ -25293,7 +25293,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 <script id="foundation-rc127-hosted-desktop-bridge-script">
 (function(){
   'use strict';
-  const VERSION='RC1.2.9';
+  const VERSION='RC1.2.10';
   const $=id=>document.getElementById(id);
   const PANEL_BY_MODULE={
     'Dispositivos':'devicesDetailWrap','DVA':'dvaDetailWrap','Sedoanalgesia':'sedoWrap',

@@ -1,5 +1,34 @@
 # Changelog
 
+## [FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX] — 2026-07-17
+
+### Correção responsiva
+
+- O card horizontal permanece no modo compacto até 791 px e passa ao grid a
+  partir de 792 px.
+- Corrigidos os overflows horizontais observados em 761 e 768 px.
+
+### Testes
+
+- Removidas as marcações `test.fail` de 761 e 768 px após a correção.
+- Fronteira estrita validada em 759, 760, 761, 768, 790, 791, 792, 793, 1180
+  e 1440 px, com conteúdo fictício curto e extremo.
+- Abertura do Clinical Copilot em 390 px validada com `locator.click` e
+  `locator.tap` reais.
+- Todos os pacientes usados nos cenários são exclusivamente fictícios.
+
+### Preservado
+
+- Nenhum JavaScript, handler, temporizador, `z-index`, `pointer-events` ou
+  regra clínica foi alterado pela correção responsiva.
+- A semântica clínica e a persistência intermediária homologadas na RC1.2.9
+  permanecem inalteradas.
+
+### Observação monitorada
+
+- O risco histórico intermitente de hit-testing em 390 px permanece
+  monitorado, sem marcação de falha esperada ativa.
+
 ## [FOUNDATION 1.0 RC1.2.9] — 2026-07-16
 
 ### Corrigido
