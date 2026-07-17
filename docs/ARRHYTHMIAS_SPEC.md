@@ -1,6 +1,6 @@
 # Especificação funcional — Assistente de Arritmias
 
-Versão de referência: FOUNDATION 1.0 RC1.2.8
+Versão de referência: FOUNDATION 1.0 RC1.2.9
 
 ## Objetivo e limite
 
@@ -14,6 +14,10 @@ médica, evolução, prescrição, prontuário institucional ou julgamento clín
 
 - Apresentar uma decisão clínica por vez.
 - Salvar automaticamente respostas registradas.
+- Autorizar a persistência de um fluxo incompleto somente quando o Auto Save
+  partir de uma decisão real do usuário.
+- Manter o salvamento manual bloqueado enquanto houver etapa obrigatória
+  incompleta.
 - Avançar automaticamente quando a decisão permitir.
 - Permitir revisão deliberada de respostas anteriores.
 - Invalidar etapas dependentes quando uma resposta muda o caminho clínico.
@@ -208,6 +212,18 @@ posicionar Arritmias e:
 O Auto Save deve ser solicitado após decisões, campos textuais e finalização.
 Campos textuais podem usar pequeno atraso antes da persistência.
 
+Na RC1.2.9, cada decisão válida deve atualizar primeiro o estado em memória e
+depois solicitar o Auto Save. A autorização para persistir Arritmias ainda
+incompleta é explícita e restrita a eventos reais do usuário. Ela não dispensa
+a validação dos campos básicos nem dos outros módulos selecionados e não se
+aplica ao salvamento manual.
+
+Ao reabrir uma avaliação incompleta, as decisões intermediárias persistidas
+devem ser restauradas e o fluxo deve mostrar a primeira microetapa ainda não
+respondida. Essa restauração não conclui implicitamente o perfil: `finalized`
+e `clinicalProfile.completed` permanecem `false`, com estado `Em andamento`,
+até a ação `Finalizar perfil`.
+
 O Auto Advance deve ser preservado na sequência do perfil:
 
 1. padrão;
@@ -223,6 +239,8 @@ O Auto Advance deve ser preservado na sequência do perfil:
 - O estado `Em edição` deve permanecer visível sem texto duplicado.
 - Visualização é estritamente somente leitura.
 - `Recolher` retorna ao formato compacto.
+- Visualização, recolhimento e hidratação devem produzir zero mutação do objeto
+  do paciente e zero escrita, inclusive depois de temporizadores tardios.
 
 ## Responsividade e regressão mínima
 
@@ -238,3 +256,10 @@ Validar em 390, 494, 768, 1180 e 1440 px:
 - semântica correta dos quatro estados;
 - pergunta explícita de pré-excitação;
 - busca, cópia, snapshot e impressão preservados.
+
+Pendências responsivas conhecidas da V1, registradas separadamente da correção
+funcional RC1.2.9:
+
+- interceptação do opener no card horizontal em 390 px;
+- overflow horizontal em 761 px;
+- overflow horizontal em 768 px.

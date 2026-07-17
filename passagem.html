@@ -6327,6 +6327,8 @@ let patientAutosaveBusy = false;
 let patientAutosaveQueued = false;
 let patientAutosaveLastSignature = '';
 let patientAutosaveBound = false;
+let patientAutosaveHydrationEpoch = 0;
+let patientAutosaveHydrating = false;
 
 function makeId() {
   return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id_' + Date.now() + '_' + Math.random().toString(16).slice(2);
@@ -10005,6 +10007,7 @@ function setDrawerMode(isEditing=false) {
   if(deleteBtn) deleteBtn.style.display = isEditing ? 'inline-block' : 'none';
 }
 function openDrawer(id=null) {
+  beginPatientAutosaveHydration();
   clearForm();
   if(id) {
     const p = patients.find(x => x.id === id); if(!p) return;
@@ -10152,6 +10155,14 @@ function drawerIsOpen() {
   const drawer = document.getElementById('drawer');
   return !!drawer && drawer.classList.contains('open');
 }
+function beginPatientAutosaveHydration() {
+  const epoch = ++patientAutosaveHydrationEpoch;
+  patientAutosaveHydrating = true;
+  if(patientAutosaveTimer) { clearTimeout(patientAutosaveTimer); patientAutosaveTimer = null; }
+  setTimeout(() => {
+    if(epoch === patientAutosaveHydrationEpoch) patientAutosaveHydrating = false;
+  }, 1000);
+}
 function setAutosaveStatus(state='waiting', message='') {
   const el = document.getElementById('autosaveStatus');
   if(!el) return;
@@ -10163,17 +10174,20 @@ function bindPatientAutosave() {
   const drawer = document.getElementById('drawer');
   if(!drawer) return;
   patientAutosaveBound = true;
-  drawer.addEventListener('input', () => schedulePatientAutosave());
-  drawer.addEventListener('change', () => schedulePatientAutosave());
+  drawer.addEventListener('input', (event) => schedulePatientAutosave(900, { userInitiated:event.isTrusted, allowIncompleteArrhythmiaAutosave:event.isTrusted }));
+  drawer.addEventListener('change', (event) => schedulePatientAutosave(900, { userInitiated:event.isTrusted, allowIncompleteArrhythmiaAutosave:event.isTrusted }));
   drawer.addEventListener('click', (event) => {
     if(event.target && event.target.closest && event.target.closest('#savePatientBtn,#saveAddAnotherBtn,#deletePatientBtn')) return;
-    schedulePatientAutosave(650);
+    if(event.target && event.target.closest && event.target.closest('#arrhythmiasCleanWrap.rc122-mode-view,[data-rc122-arr-action],[data-rc122-compact-action]')) return;
+    schedulePatientAutosave(650, { userInitiated:event.isTrusted, allowIncompleteArrhythmiaAutosave:event.isTrusted });
   }, true);
 }
-function schedulePatientAutosave(delay=900) {
+function schedulePatientAutosave(delay=900, { userInitiated=false, allowIncompleteArrhythmiaAutosave=false }={}) {
   if(!drawerIsOpen()) return;
+  if(patientAutosaveHydrating && !userInitiated) return;
   if(patientAutosaveTimer) clearTimeout(patientAutosaveTimer);
-  patientAutosaveTimer = setTimeout(() => savePatient(false, { auto:true }), delay);
+  const allowIncompleteAutosave = userInitiated && allowIncompleteArrhythmiaAutosave === true;
+  patientAutosaveTimer = setTimeout(() => savePatient(false, { auto:true, allowIncompleteArrhythmiaAutosave:allowIncompleteAutosave }), delay);
 }
 function patientDraftSignature(p) {
   if(!p) return '';
@@ -10303,7 +10317,8 @@ async function savePatient(keepOpen=false, options={}) {
   const isEditing = Boolean(editingId);
   if(isEditing) keepOpen = false;
   const selectedAlerts = normalizeAlertList(Array.from(document.querySelectorAll('.alertCheck:checked')).map(c => c.value));
-  if(!validatePatientDraftForSave(selectedAlerts, { silent:auto })) return false;
+  const allowIncompleteArrhythmiaAutosave = auto && options?.allowIncompleteArrhythmiaAutosave === true;
+  if(!validatePatientDraftForSave(selectedAlerts, { silent:auto, allowIncompleteArrhythmiaAutosave })) return false;
 
   const id = editingId || makeId();
   if(auto && !editingId) {
@@ -23410,7 +23425,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
   const MODULE_VALUE='Arritmias';
   const LEGACY_VALUE='Fibrilação atrial / Flutter';
   const PANEL_ID='arrhythmiasCleanWrap';
-  const VERSION='FOUNDATION-1.0-RC1.2.8-COMPLETION-STATE-SEMANTIC-ALIGNMENT';
+  const VERSION='FOUNDATION-1.0-RC1.2.9-ARRHYTHMIAS-INTERMEDIATE-AUTOSAVE';
   const EMPTY_STATE=()=>({finalized:false,editing:false,editingGravity:false,editingProfile:false,diagnosisExpanded:true,status:'Selecione a arritmia',diagnosis:'',otherDiagnosis:'',instabilityCriteria:[],gravityCompleted:false,causalRelation:'',priorityCompleted:false,stabilized:'',profileCompleted:false,episodePattern:'',onsetWindow:'',preexcitation:'',priorAnticoagulation:'',triggers:[],otherTrigger:'',profileStep:1,profileReturnStep:0});
   let state=EMPTY_STATE();
   const $=id=>document.getElementById(id);
@@ -23418,6 +23433,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
   function getPatientsList(){try{if(typeof patients!=='undefined'&&Array.isArray(patients))return patients}catch(_e){}return Array.isArray(window.patients)?window.patients:[]}
   function getPatient(id){if(!id)return null;return getPatientsList().find(p=>String(p?.id)===String(id))||null}
   function currentEditingPatient(){return getPatient($('patientId')?.value||'')}
+  function requestArrhythmiaAutosave(delay=0,event=null){const userInitiated=event?.isTrusted===true;try{schedulePatientAutosave?.(delay,{userInitiated,allowIncompleteArrhythmiaAutosave:userInitiated})}catch(_e){}}
 
   const DIAGNOSIS_LABELS={af:'Fibrilação atrial',flutter:'Flutter atrial',svt:'Taquicardia supraventricular (TSV)',vt:'Taquicardia ventricular (TV)',brady:'Bradiarritmia',ectopy:'Extrassístoles',other:'Outra arritmia'};
   const INSTABILITY_LABELS={hypotension:'Hipotensão com repercussão clínica',shock:'Sinais de choque',ischemia:'Dor torácica isquêmica',acute_hf:'Insuficiência cardíaca aguda / edema agudo de pulmão',mental_status:'Alteração aguda do nível de consciência',none:'Nenhum dos critérios acima'};
@@ -23689,17 +23705,17 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
     wrap.appendChild(panel);
     panel.addEventListener('click',ev=>{
       const d=ev.target.closest('[data-arr-diagnosis]');
-      if(d){state.diagnosis=d.dataset.arrDiagnosis||'';if(state.diagnosis!=='other')state.otherDiagnosis='';state.gravityCompleted=false;state.instabilityCriteria=[];state.causalRelation='';state.priorityCompleted=false;state.stabilized='';state.profileCompleted=false;state.episodePattern='';state.onsetWindow='';state.preexcitation='';state.priorAnticoagulation='';state.triggers=[];state.otherTrigger='';state.editingProfile=false;state.editing=true;state.editingGravity=false;state.diagnosisExpanded=state.diagnosis==='other';renderPanelState(panel);if(state.diagnosis==='other')setTimeout(()=>panel.querySelector('[data-arr-other-input]')?.focus(),0);try{updateAlertPanelSummary?.()}catch(_e){}try{schedulePatientAutosave?.(0)}catch(_e){}return}
+      if(d){state.diagnosis=d.dataset.arrDiagnosis||'';if(state.diagnosis!=='other')state.otherDiagnosis='';state.gravityCompleted=false;state.instabilityCriteria=[];state.causalRelation='';state.priorityCompleted=false;state.stabilized='';state.profileCompleted=false;state.episodePattern='';state.onsetWindow='';state.preexcitation='';state.priorAnticoagulation='';state.triggers=[];state.otherTrigger='';state.editingProfile=false;state.editing=true;state.editingGravity=false;state.diagnosisExpanded=state.diagnosis==='other';renderPanelState(panel);if(state.diagnosis==='other')setTimeout(()=>panel.querySelector('[data-arr-other-input]')?.focus(),0);try{updateAlertPanelSummary?.()}catch(_e){}requestArrhythmiaAutosave(0,ev);return}
       const option=ev.target.closest('[data-arr-instability]');
-      if(option){ev.preventDefault();const v=option.dataset.arrInstability;if(v==='none'){state.instabilityCriteria=state.instabilityCriteria.includes('none')?[]:['none']}else{const set=new Set(state.instabilityCriteria.filter(x=>x!=='none'));set.has(v)?set.delete(v):set.add(v);state.instabilityCriteria=[...set]}state.gravityCompleted=false;state.causalRelation='';state.priorityCompleted=false;state.stabilized='';state.profileCompleted=false;state.editingProfile=false;state.editing=true;state.editingGravity=true;renderPanelState(panel);try{schedulePatientAutosave?.(0)}catch(_e){}return}
+      if(option){ev.preventDefault();const v=option.dataset.arrInstability;if(v==='none'){state.instabilityCriteria=state.instabilityCriteria.includes('none')?[]:['none']}else{const set=new Set(state.instabilityCriteria.filter(x=>x!=='none'));set.has(v)?set.delete(v):set.add(v);state.instabilityCriteria=[...set]}state.gravityCompleted=false;state.causalRelation='';state.priorityCompleted=false;state.stabilized='';state.profileCompleted=false;state.editingProfile=false;state.editing=true;state.editingGravity=true;renderPanelState(panel);requestArrhythmiaAutosave(0,ev);return}
       const causal=ev.target.closest('[data-arr-causal]');
-      if(causal){state.causalRelation=causal.dataset.arrCausal||'';state.priorityCompleted=false;state.stabilized='';state.profileCompleted=false;state.editingProfile=false;state.editing=true;renderPanelState(panel);try{schedulePatientAutosave?.(0)}catch(_e){}return}
+      if(causal){state.causalRelation=causal.dataset.arrCausal||'';state.priorityCompleted=false;state.stabilized='';state.profileCompleted=false;state.editingProfile=false;state.editing=true;renderPanelState(panel);requestArrhythmiaAutosave(0,ev);return}
       const stabilized=ev.target.closest('[data-arr-stabilized]');
-      if(stabilized){state.stabilized=stabilized.dataset.arrStabilized||'';state.priorityCompleted=false;state.profileCompleted=false;state.editingProfile=false;state.editing=true;renderPanelState(panel);try{schedulePatientAutosave?.(0)}catch(_e){}return}
+      if(stabilized){state.stabilized=stabilized.dataset.arrStabilized||'';state.priorityCompleted=false;state.profileCompleted=false;state.editingProfile=false;state.editing=true;renderPanelState(panel);requestArrhythmiaAutosave(0,ev);return}
       const profileSingle=ev.target.closest('[data-arr-profile-single]');
-      if(profileSingle){const field=profileSingle.dataset.arrProfileSingle;const value=profileSingle.dataset.arrValue||'';if(field)state[field]=value;state.profileCompleted=false;state.editingProfile=true;state.editing=true;const next={episodePattern:2,onsetWindow:3,preexcitation:4,priorAnticoagulation:5}[field];if(state.profileReturnStep){state.profileStep=state.profileReturnStep;state.profileReturnStep=0}else if(next)state.profileStep=next;renderPanelState(panel);setTimeout(()=>panel.querySelector('[data-arr-profile-step="'+state.profileStep+'"]')?.scrollIntoView({block:'nearest',behavior:'smooth'}),120);try{schedulePatientAutosave?.(0)}catch(_e){}return}
+      if(profileSingle){const field=profileSingle.dataset.arrProfileSingle;const value=profileSingle.dataset.arrValue||'';if(field)state[field]=value;state.profileCompleted=false;state.editingProfile=true;state.editing=true;const next={episodePattern:2,onsetWindow:3,preexcitation:4,priorAnticoagulation:5}[field];if(state.profileReturnStep){state.profileStep=state.profileReturnStep;state.profileReturnStep=0}else if(next)state.profileStep=next;renderPanelState(panel);setTimeout(()=>panel.querySelector('[data-arr-profile-step="'+state.profileStep+'"]')?.scrollIntoView({block:'nearest',behavior:'smooth'}),120);requestArrhythmiaAutosave(0,ev);return}
       const trigger=ev.target.closest('[data-arr-trigger]');
-      if(trigger){ev.preventDefault();const value=trigger.dataset.arrTrigger;let set=new Set(state.triggers);if(value==='none'){set=set.has('none')?new Set():new Set(['none'])}else{set.delete('none');set.has(value)?set.delete(value):set.add(value)}state.triggers=[...set];if(!state.triggers.includes('other'))state.otherTrigger='';state.profileCompleted=false;state.editingProfile=true;state.editing=true;state.profileStep=5;renderPanelState(panel);try{schedulePatientAutosave?.(0)}catch(_e){}return}
+      if(trigger){ev.preventDefault();const value=trigger.dataset.arrTrigger;let set=new Set(state.triggers);if(value==='none'){set=set.has('none')?new Set():new Set(['none'])}else{set.delete('none');set.has(value)?set.delete(value):set.add(value)}state.triggers=[...set];if(!state.triggers.includes('other'))state.otherTrigger='';state.profileCompleted=false;state.editingProfile=true;state.editing=true;state.profileStep=5;renderPanelState(panel);requestArrhythmiaAutosave(0,ev);return}
       const reviewChip=ev.target.closest('[data-arr-review-profile]');
       if(reviewChip){const targetStep=Number(reviewChip.dataset.arrReviewProfile||1);if(targetStep!==state.profileStep)state.profileReturnStep=state.profileStep||5;state.profileCompleted=false;state.editingProfile=true;state.editing=true;state.profileStep=targetStep;renderPanelState(panel);setTimeout(()=>panel.querySelector('[data-arr-profile-step="'+state.profileStep+'"]')?.scrollIntoView({block:'nearest',behavior:'smooth'}),80);return}
       const btn=ev.target.closest('[data-arr-clean-action]');if(!btn)return;
@@ -23709,18 +23725,18 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
       if(btn.dataset.arrCleanAction==='edit-causal'){state.causalRelation='';state.priorityCompleted=false;state.stabilized='';state.editing=true;renderPanelState(panel);setTimeout(()=>panel.querySelector('[data-arr-causal-block]')?.scrollIntoView({block:'nearest',behavior:'smooth'}),0)}
       if(btn.dataset.arrCleanAction==='edit-priority'){state.priorityCompleted=false;state.profileCompleted=false;state.editingProfile=false;state.editing=true;renderPanelState(panel);setTimeout(()=>panel.querySelector('[data-arr-priority-block]')?.scrollIntoView({block:'nearest',behavior:'smooth'}),0)}
       if(btn.dataset.arrCleanAction==='edit-profile'){state.profileCompleted=false;state.editingProfile=true;state.editing=true;state.profileReturnStep=0;state.profileStep=5;renderPanelState(panel);setTimeout(()=>panel.querySelector('[data-arr-profile-block]')?.scrollIntoView({block:'nearest',behavior:'smooth'}),0)}
-      if(btn.dataset.arrCleanAction==='finalize-profile'){if(!state.triggers.length){try{showToast?.('Selecione ao menos um fator precipitante ou “Nenhum identificado”.')}catch(_e){}return}if(state.triggers.includes('other')&&!(state.otherTrigger||'').trim()){try{showToast?.('Descreva o outro fator precipitante antes de finalizar.')}catch(_e){}setTimeout(()=>panel.querySelector('[data-arr-other-trigger-input]')?.focus(),0);return}state.profileCompleted=true;state.editingProfile=false;state.editing=false;renderPanelState(panel);try{updateAlertPanelSummary?.()}catch(_e){}try{schedulePatientAutosave?.(0)}catch(_e){}setTimeout(()=>panel.querySelector('[data-arr-profile-chip]')?.scrollIntoView({block:'nearest',behavior:'smooth'}),100)}
-      if(btn.dataset.arrCleanAction==='complete-priority'){if(!state.stabilized){try{showToast?.('Informe se o paciente estabilizou após a conduta inicial.')}catch(_e){}return}state.priorityCompleted=true;state.editing=false;renderPanelState(panel);try{updateAlertPanelSummary?.()}catch(_e){}try{schedulePatientAutosave?.(0)}catch(_e){}}
-      if(btn.dataset.arrCleanAction==='complete-gravity'){if(!state.instabilityCriteria.length){try{showToast?.('Selecione ao menos um critério de gravidade.')}catch(_e){}return}state.gravityCompleted=true;state.editing=false;state.editingGravity=false;state.diagnosisExpanded=false;renderPanelState(panel);try{updateAlertPanelSummary?.()}catch(_e){}try{schedulePatientAutosave?.(0)}catch(_e){}}
+      if(btn.dataset.arrCleanAction==='finalize-profile'){if(!state.triggers.length){try{showToast?.('Selecione ao menos um fator precipitante ou “Nenhum identificado”.')}catch(_e){}return}if(state.triggers.includes('other')&&!(state.otherTrigger||'').trim()){try{showToast?.('Descreva o outro fator precipitante antes de finalizar.')}catch(_e){}setTimeout(()=>panel.querySelector('[data-arr-other-trigger-input]')?.focus(),0);return}state.profileCompleted=true;state.editingProfile=false;state.editing=false;renderPanelState(panel);try{updateAlertPanelSummary?.()}catch(_e){}requestArrhythmiaAutosave(0,ev);setTimeout(()=>panel.querySelector('[data-arr-profile-chip]')?.scrollIntoView({block:'nearest',behavior:'smooth'}),100)}
+      if(btn.dataset.arrCleanAction==='complete-priority'){if(!state.stabilized){try{showToast?.('Informe se o paciente estabilizou após a conduta inicial.')}catch(_e){}return}state.priorityCompleted=true;state.editing=false;renderPanelState(panel);try{updateAlertPanelSummary?.()}catch(_e){}requestArrhythmiaAutosave(0,ev)}
+      if(btn.dataset.arrCleanAction==='complete-gravity'){if(!state.instabilityCriteria.length){try{showToast?.('Selecione ao menos um critério de gravidade.')}catch(_e){}return}state.gravityCompleted=true;state.editing=false;state.editingGravity=false;state.diagnosisExpanded=false;renderPanelState(panel);try{updateAlertPanelSummary?.()}catch(_e){}requestArrhythmiaAutosave(0,ev)}
     });
-    const otherInput=panel.querySelector('[data-arr-other-input]');otherInput?.addEventListener('input',()=>{state.otherDiagnosis=otherInput.value||'';state.editing=true;renderPanelState(panel);try{schedulePatientAutosave?.(250)}catch(_e){}});otherInput?.addEventListener('blur',()=>{if(diagnosisIsComplete()){state.diagnosisExpanded=false;renderPanelState(panel)}});otherInput?.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&diagnosisIsComplete()){ev.preventDefault();state.diagnosisExpanded=false;renderPanelState(panel)}});
-    const otherTriggerInput=panel.querySelector('[data-arr-other-trigger-input]');otherTriggerInput?.addEventListener('input',()=>{state.otherTrigger=otherTriggerInput.value||'';state.profileCompleted=false;state.editingProfile=true;state.editing=true;state.profileStep=5;renderPanelState(panel);try{schedulePatientAutosave?.(250)}catch(_e){}});
+    const otherInput=panel.querySelector('[data-arr-other-input]');otherInput?.addEventListener('input',inputEvent=>{state.otherDiagnosis=otherInput.value||'';state.editing=true;renderPanelState(panel);requestArrhythmiaAutosave(250,inputEvent)});otherInput?.addEventListener('blur',()=>{if(diagnosisIsComplete()){state.diagnosisExpanded=false;renderPanelState(panel)}});otherInput?.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&diagnosisIsComplete()){ev.preventDefault();state.diagnosisExpanded=false;renderPanelState(panel)}});
+    const otherTriggerInput=panel.querySelector('[data-arr-other-trigger-input]');otherTriggerInput?.addEventListener('input',inputEvent=>{state.otherTrigger=otherTriggerInput.value||'';state.profileCompleted=false;state.editingProfile=true;state.editing=true;state.profileStep=5;renderPanelState(panel);requestArrhythmiaAutosave(250,inputEvent)});
     const header=panel.querySelector('[data-arr-clean-toggle]');const toggleSummary=()=>{if(!state.finalized)return;panel.classList.toggle('summary-collapsed')};header?.addEventListener('click',ev=>{if(ev.target.closest('[data-arr-clean-action]'))return;toggleSummary()});header?.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();toggleSummary()}});
     const composite=panel.querySelector('[data-arr-profile-chip]');composite?.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();composite.click()}});
     return panel;
   }
 
-  function restoreStateFromPatient(patient){const saved=patient?.arrhythmiasCleanData;const profile=saved?.clinicalProfile||{};state=saved?{finalized:!!saved.finalized,editing:false,editingGravity:false,editingProfile:false,diagnosisExpanded:false,status:saved.status||'Avaliação concluída',diagnosis:saved.diagnosis||'',otherDiagnosis:saved.otherDiagnosis||'',instabilityCriteria:Array.isArray(saved.instabilityCriteria)?saved.instabilityCriteria:[],gravityCompleted:!!saved.gravityCompleted,causalRelation:saved.causalRelation||'',priorityCompleted:!!saved.priorityCompleted,stabilized:saved.stabilized||'',profileCompleted:!!profile.completed,episodePattern:profile.episodePattern||'',onsetWindow:profile.onsetWindow||'',preexcitation:profile.preexcitation||'',priorAnticoagulation:profile.priorAnticoagulation||'',triggers:Array.isArray(profile.triggers)?profile.triggers:[],otherTrigger:profile.otherTrigger||'',profileStep:1,profileReturnStep:0}:EMPTY_STATE();state.finalized=moduleIsComplete();if(!diagnosisIsComplete())state.diagnosisExpanded=true}
+  function restoreStateFromPatient(patient){const saved=patient?.arrhythmiasCleanData;const profile=saved?.clinicalProfile||{};state=saved?{finalized:!!saved.finalized,editing:false,editingGravity:false,editingProfile:false,diagnosisExpanded:false,status:saved.status||'Avaliação concluída',diagnosis:saved.diagnosis||'',otherDiagnosis:saved.otherDiagnosis||'',instabilityCriteria:Array.isArray(saved.instabilityCriteria)?saved.instabilityCriteria:[],gravityCompleted:!!saved.gravityCompleted,causalRelation:saved.causalRelation||'',priorityCompleted:!!saved.priorityCompleted,stabilized:saved.stabilized||'',profileCompleted:!!profile.completed,episodePattern:profile.episodePattern||'',onsetWindow:profile.onsetWindow||'',preexcitation:profile.preexcitation||'',priorAnticoagulation:profile.priorAnticoagulation||'',triggers:Array.isArray(profile.triggers)?profile.triggers:[],otherTrigger:profile.otherTrigger||'',profileStep:0,profileReturnStep:0}:EMPTY_STATE();state.finalized=moduleIsComplete();if(!diagnosisIsComplete())state.diagnosisExpanded=true}
   function integrate(selectedAlerts=[]){
     const wrap=$('alertChecks');if(!wrap)return;removeLegacyPanel();
     const candidates=Array.from(wrap.querySelectorAll('input.alertCheck')).filter(cb=>cb.value===LEGACY_VALUE||cb.value===MODULE_VALUE||cb.id==='afibFlutterAlert'||cb.id==='arrhythmiasAlert');let cb=candidates[0];
@@ -23733,7 +23749,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
   const originalClear=window.clearForm;if(typeof originalClear==='function'){window.clearForm=function(){const result=originalClear.apply(this,arguments);state=EMPTY_STATE();setTimeout(()=>integrate([]),0);return result};try{clearForm=window.clearForm}catch(_e){}}
   const originalOpen=window.openDrawer;if(typeof originalOpen==='function'){window.openDrawer=function(id=null){restoreStateFromPatient(getPatient(id));const result=originalOpen.apply(this,arguments);setTimeout(()=>{const patient=getPatient(id)||currentEditingPatient();if(patient)restoreStateFromPatient(patient);integrate(normalizeAlerts(patient?.alerts||[]))},60);return result};try{openDrawer=window.openDrawer}catch(_e){}}
   const originalBuild=window.buildPatientDraftFromForm;if(typeof originalBuild==='function'){window.buildPatientDraftFromForm=function(){const draft=originalBuild.apply(this,arguments);draft.alerts=normalizeAlerts(draft.alerts);draft.arrhythmiasCleanData=draft.alerts.includes(MODULE_VALUE)?{version:VERSION,finalized:moduleIsComplete(),status:moduleIsComplete()?'Avaliação concluída':'Em andamento',diagnosis:state.diagnosis||'',diagnosisLabel:diagnosisLabel(),otherDiagnosis:state.otherDiagnosis||'',instabilityCriteria:[...state.instabilityCriteria],instabilityLabels:state.instabilityCriteria.map(v=>INSTABILITY_LABELS[v]).filter(Boolean),gravityCompleted:state.gravityCompleted,causalRelation:state.causalRelation||'',priorityCompleted:!!state.priorityCompleted,stabilized:state.stabilized||'',clinicalPath:state.causalRelation==='yes'?'priority-immediate':'routine',hemodynamicStatus:gravityIsComplete()?(isUnstable()?'unstable':'stable'):'pending',clinicalProfile:{applicable:profileEligible(),completed:!!state.profileCompleted,episodePattern:state.episodePattern||'',episodeLabel:EPISODE_LABELS[state.episodePattern]||'',onsetWindow:state.onsetWindow||'',onsetLabel:ONSET_LABELS[state.onsetWindow]||'',preexcitation:state.preexcitation||'',preexcitationLabel:PREEXCITATION_LABELS[state.preexcitation]||'',priorAnticoagulation:state.priorAnticoagulation||'',priorAnticoagulationLabel:ANTICOAG_LABELS[state.priorAnticoagulation]||'',triggers:[...state.triggers],triggerLabels:state.triggers.map(v=>v==='other'?(state.otherTrigger||'Outro precipitante'):(TRIGGER_LABELS[v]||v)),otherTrigger:state.otherTrigger||''},clinicalStoryPartial:moduleIsComplete()?diagnosisLabel()+'. '+instabilitySummary()+'.'+(profileSummary()?' '+profileSummary()+'.':''):(diagnosisIsComplete()?'Diagnóstico principal: '+diagnosisLabel()+'.':'')}:null;return draft};try{buildPatientDraftFromForm=window.buildPatientDraftFromForm}catch(_e){}}
-  const originalValidate=window.validatePatientDraftForSave;if(typeof originalValidate==='function'){window.validatePatientDraftForSave=function(selectedAlerts,options={}){const normalized=normalizeAlerts(selectedAlerts);if(normalized.includes(MODULE_VALUE)&&!moduleIsComplete()){const panel=$(PANEL_ID);if(panel){panel.hidden=false;panel.classList.add('show');panel.classList.remove('finalized')}if(!options?.silent){try{showToast?.(!diagnosisIsComplete()?'Selecione o diagnóstico da arritmia antes de salvar.':(!gravityIsComplete()?'Conclua a avaliação hemodinâmica antes de salvar.':(!state.causalRelation&&isUnstable()?'Defina se a instabilidade está relacionada à arritmia.':(profileEligible()&&!profileIsComplete()?'Conclua o perfil clínico de FA / Flutter antes de salvar.':'Conclua o fluxo de prioridade assistencial antes de salvar.'))))}catch(_e){}}return false}return originalValidate.call(this,normalized,options)};try{validatePatientDraftForSave=window.validatePatientDraftForSave}catch(_e){}}
+  const originalValidate=window.validatePatientDraftForSave;if(typeof originalValidate==='function'){window.validatePatientDraftForSave=function(selectedAlerts,options={}){const normalized=normalizeAlerts(selectedAlerts);const allowIncompleteAutosave=options?.allowIncompleteArrhythmiaAutosave===true;if(normalized.includes(MODULE_VALUE)&&!moduleIsComplete()&&!allowIncompleteAutosave){const panel=$(PANEL_ID);if(panel){panel.hidden=false;panel.classList.add('show');panel.classList.remove('finalized')}if(!options?.silent){try{showToast?.(!diagnosisIsComplete()?'Selecione o diagnóstico da arritmia antes de salvar.':(!gravityIsComplete()?'Conclua a avaliação hemodinâmica antes de salvar.':(!state.causalRelation&&isUnstable()?'Defina se a instabilidade está relacionada à arritmia.':(profileEligible()&&!profileIsComplete()?'Conclua o perfil clínico de FA / Flutter antes de salvar.':'Conclua o fluxo de prioridade assistencial antes de salvar.'))))}catch(_e){}}return false}return originalValidate.call(this,normalized,options)};try{validatePatientDraftForSave=window.validatePatientDraftForSave}catch(_e){}}
   const originalDisplay=window.displayAlertList;if(typeof originalDisplay==='function'){window.displayAlertList=function(patient={}){const clone={...patient,alerts:normalizeAlerts(patient.alerts)};return originalDisplay.call(this,clone)};try{displayAlertList=window.displayAlertList}catch(_e){}}
   function boot(){const patient=currentEditingPatient();if(patient)restoreStateFromPatient(patient);integrate(normalizeAlerts(patient?.alerts||[]))}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,0),{once:true});else setTimeout(boot,0);
@@ -24407,7 +24423,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 
   function boot(){refreshGateway()}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-  window.ClinicalCopilotFramework={version:'RC1.2.8',refresh:refreshGateway,revealArrhythmias};
+  window.ClinicalCopilotFramework={version:'RC1.2.9',refresh:refreshGateway,revealArrhythmias};
 })();
 </script>
 <script id="foundation-rc121-card-hierarchy-refinement-script">
@@ -24452,7 +24468,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
       focusClinicalModule(key);
     },delay));
   },true);
-  window.ClinicalCopilotCardHierarchy={version:'RC1.2.8',focusModule:focusClinicalModule};
+  window.ClinicalCopilotCardHierarchy={version:'RC1.2.9',focusModule:focusClinicalModule};
 })();
 </script>
 <style id="foundation-rc122-view-edit-progressive-disclosure-style">
@@ -24580,7 +24596,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 <script id="foundation-rc122-view-edit-progressive-disclosure-script">
 (function(){
   'use strict';
-  const VERSION='RC1.2.8';
+  const VERSION='RC1.2.9';
   const PANEL_ID='arrhythmiasCleanWrap';
   const CATALOG_BUTTON_ID='rc122AddClinicalAssistant';
   const $=id=>document.getElementById(id);
@@ -24953,7 +24969,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 <script id="foundation-rc123-density-selection-flow-script">
 (function(){
   'use strict';
-  const VERSION='RC1.2.8';
+  const VERSION='RC1.2.9';
   const $=id=>document.getElementById(id);
   let syncScheduled=false;
   const eyeIcon='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>';
@@ -25138,7 +25154,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 <script id="foundation-rc124-direct-open-icon-actions-script">
 (function(){
   'use strict';
-  const VERSION='RC1.2.8';
+  const VERSION='RC1.2.9';
   const $=id=>document.getElementById(id);
   const PANEL_BY_MODULE={
     'Dispositivos':'devicesDetailWrap',
@@ -25277,7 +25293,7 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 <script id="foundation-rc127-hosted-desktop-bridge-script">
 (function(){
   'use strict';
-  const VERSION='RC1.2.8';
+  const VERSION='RC1.2.9';
   const $=id=>document.getElementById(id);
   const PANEL_BY_MODULE={
     'Dispositivos':'devicesDetailWrap','DVA':'dvaDetailWrap','Sedoanalgesia':'sedoWrap',

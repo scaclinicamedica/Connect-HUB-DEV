@@ -19,11 +19,33 @@ test('visualização de Arritmias não modifica dados nem solicita escrita', asy
   );
   await expect(app.arrhythmiasPanel).toHaveAttribute('data-rc122-mode', 'view');
   await expect(app.arrhythmiasPanel.locator('[data-rc122-readonly]')).toContainText('Arritmias');
+  const hydratedState = await app.page.evaluate(() => window.ArrhythmiasCleanBase.getState());
+  await app.page.waitForTimeout(1100);
+  expect(await app.firebaseSnapshot()).toEqual(before);
+  expect(await app.firebaseWrites()).toEqual([]);
+
   await app.arrhythmiasPanel.locator('[data-rc122-arr-action="view"]').click();
   await expect(app.arrhythmiasPanel).toHaveAttribute('data-rc122-mode', 'collapsed');
+  await app.page.waitForTimeout(1100);
 
   const after = await app.firebaseSnapshot();
   const writes = await app.firebaseWrites();
   expect(after).toEqual(before);
   expect(writes).toEqual([]);
+  expect(await app.page.evaluate(() => window.ArrhythmiasCleanBase.getState())).toEqual(hydratedState);
+});
+
+test('hidratação e reconstruções tardias não escrevem nem modificam o paciente', async ({ app }) => {
+  await app.goto({ patients: [arrhythmiaCompleted] });
+  await app.clearFirebaseWrites();
+  const before = await app.firebaseSnapshot();
+
+  await app.openPatientById(arrhythmiaCompleted.id);
+  await app.page.waitForTimeout(1100);
+
+  expect(await app.firebaseSnapshot()).toEqual(before);
+  expect(await app.firebaseWrites()).toEqual([]);
+  const state = await app.page.evaluate(() => window.ArrhythmiasCleanBase.getState());
+  expect(state.episodePattern).toBe('first');
+  expect(state.finalized).toBe(true);
 });

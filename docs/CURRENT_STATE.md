@@ -7,7 +7,10 @@ Atualizado em: 16/07/2026
 - Produto: Connect HUB — Passagem de Plantão.
 - Componente em foco: Clinical Copilot — Assistente de Arritmias.
 - Base: FOUNDATION 1.0.
-- Release de referência: RC1.2.8 — Completion State Semantic Alignment.
+- Release funcional em preparação: RC1.2.9 — persistência intermediária de
+  Arritmias.
+- Baseline publicado imediatamente anterior: RC1.2.8 — Completion State
+  Semantic Alignment.
 - Arquivo publicado: `passagem.html`.
 - Commit de referência na `main`:
   `cb51ae8cc666246c19e02dc74867f2478fc377da`.
@@ -44,6 +47,20 @@ O fluxo validado contempla:
 
 O Assistente de Profilaxia de TEV é considerado homologado na V1. O Clinical
 Copilot também consolida Antimicrobianos quando selecionado.
+
+### Persistência intermediária — RC1.2.9
+
+- Cada decisão válida de Arritmias solicita persistência depois de atualizar o
+  estado em memória e executar o Auto Advance aplicável.
+- Arritmias incompleta pode ser persistida somente pelo Auto Save originado em
+  evento real do usuário.
+- O salvamento manual permanece bloqueado enquanto o módulo estiver incompleto.
+- Ao reabrir, o fluxo restaura as respostas persistidas e posiciona a primeira
+  microetapa ainda incompleta.
+- Antes de `Finalizar perfil`, `finalized` e `clinicalProfile.completed`
+  permanecem `false`, e o estado continua `Em andamento`.
+- Visualização, recolhimento e hidratação não modificam o objeto do paciente nem
+  produzem escrita, inclusive após os temporizadores conhecidos.
 
 ## Hierarquia homologada do card
 
@@ -93,7 +110,7 @@ antes de abrir o primeiro módulo selecionado.
 
 ## Compatibilidade mobile e desktop
 
-A RC1.2.8 preserva as correções das RC1.2.5 a RC1.2.7:
+A RC1.2.9 preserva as correções das RC1.2.5 a RC1.2.8:
 
 - ações manuais prevalecem sobre temporizadores antigos;
 - abrir, recolher, visualizar e selecionar não são revertidos por uma
@@ -105,6 +122,16 @@ A RC1.2.8 preserva as correções das RC1.2.5 a RC1.2.7:
   abertos no ambiente hospedado.
 
 Larguras registradas: 390, 494, 768, 1180 e 1440 px.
+
+Pendências responsivas registradas separadamente para a V1:
+
+- interceptação do opener do Assistente de Arritmias no card horizontal em
+  390 px;
+- overflow horizontal em 761 px;
+- overflow horizontal em 768 px.
+
+Essas pendências não são critérios concluídos da RC1.2.9 e não alteram a
+homologação da correção de persistência intermediária.
 
 ## Semântica dos estados
 
@@ -141,17 +168,17 @@ informado` em vez de assumir estabilidade.
   blocos `<script>`.
 - O estado é majoritariamente global; a persistência combina Firebase
   Auth/Firestore e fallback por `localStorage`.
-- O repositório não possui uma suíte permanente e reproduzível de regressão.
-- As validações da release foram realizadas em artefatos locais e registradas
-  nos relatórios de RC.
+- O repositório possui uma suíte portátil de caracterização com Playwright,
+  Chromium gerenciado, Firebase em memória e rede restrita a localhost.
+- Os testes fortalecidos da RC1.2.9 cobrem Auto Save intermediário,
+  reabertura, conclusão explícita, visualização, recolhimento, hidratação e
+  isolamento entre pacientes, sempre com `retries: 0`.
 - O teste histórico `test_rc128.cjs` não é portátil: depende de Playwright do
   ambiente e de um Chromium localizado em caminho temporário absoluto.
-- Em observação local, o teste de recuperação desktop em 1440 px alternou
-  entre falha e sucesso em execuções diferentes. Isso deve ser tratado como
-  dívida de confiabilidade sensível a temporização até existir uma suíte
-  determinística.
-- Antes de uma refatoração ampla, os cenários homologados devem ser
-  convertidos em testes de caracterização dentro do repositório.
+- A estabilidade desktop em 1440 px permanece protegida por 50 repetições,
+  um worker e nenhum retry.
+- Antes de uma refatoração ampla, os cenários homologados devem permanecer
+  protegidos pelos testes de caracterização do repositório.
 
 ## Restrições de manutenção
 
