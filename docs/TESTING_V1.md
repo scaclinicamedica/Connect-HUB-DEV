@@ -6,9 +6,11 @@ ou navegador instalado manualmente.
 
 Todos os pacientes usados nos testes são explicitamente fictícios. Não copie
 informações de prontuário para fixtures, traces, screenshots ou PDFs.
+Datas de previsão usadas para exercitar pacientes não atrasados devem ser
+determinísticas e permanecer no futuro, sem depender da data de execução.
 
 A identificação funcional atualmente caracterizada é
-`FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX`.
+`FOUNDATION-1.0-RC1.3.0-OUTCOMES`.
 
 ## Pré-requisitos
 
@@ -68,6 +70,29 @@ npm run verify:integrity
 
 A configuração global e os cenários de estabilidade permanecem com
 `retries: 0`.
+
+## Cobertura de Desfecho na RC1.3.0
+
+- substituição da ação Excluir por Desfecho no card e no drawer;
+- ausência de escrita ao abrir ou cancelar;
+- enumeração fechada Tratado, Óbito e Transferido;
+- CID principal obrigatório somente no Óbito;
+- persistência do médico responsável, setor, especialidade, DIH e permanência;
+- preservação integral do snapshot clínico;
+- transação condicional, atômica e idempotente entre histórico e retirada do
+  paciente ativo;
+- estado `Encerrando atendimento...` enquanto o commit está pendente;
+- falha atômica mantendo o paciente e permitindo retry;
+- retry após perda de confirmação sem sobrescrever o registro imutável;
+- atualização concorrente mantendo campos administrativos e snapshot
+  consistentes entre si;
+- coordenação com autosave, salvamento manual e reordenação em voo sem
+  recriação tardia;
+- preservação visual durante o eco local otimista do Firestore;
+- datas de permanência inválidas, futuras e no mesmo dia;
+- falha fechada quando o histórico local está corrompido;
+- limpeza de dados TEV desmarcados no snapshot do drawer;
+- modal sem overflow na matriz responsiva.
 
 ## Isolamento
 

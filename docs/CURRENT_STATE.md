@@ -1,6 +1,6 @@
 # Estado atual do projeto
 
-Atualizado em: 17/07/2026
+Atualizado em: 24/07/2026
 
 ## Baseline
 
@@ -47,6 +47,33 @@ O fluxo validado contempla:
 
 O Assistente de Profilaxia de TEV é considerado homologado na V1. O Clinical
 Copilot também consolida Antimicrobianos quando selecionado.
+
+### Desfecho — RC1.3.0
+
+- A ação destrutiva `Excluir` foi substituída por `Desfecho` no card e no
+  drawer.
+- As opções fechadas são Tratado, Óbito e Transferido.
+- Óbito exige CID principal; todos os Desfechos exigem médico responsável
+  explicitamente confirmado.
+- Abertura, navegação e cancelamento não criam evento de Desfecho.
+- A confirmação preserva o objeto clínico integral em
+  `historico_eventos` com `type: patient_outcome`.
+- Registro histórico e retirada do paciente ativo usam uma única transação
+  atômica, de criação condicional e idempotente.
+- A interface exibe `Encerrando atendimento...` e só retira o paciente depois
+  da confirmação da persistência.
+- Falha mantém o paciente no HUB e permite nova tentativa.
+- As mutações de paciente desta versão consultam o Desfecho determinístico
+  antes de gravar. Autosave, salvamento manual, remanejamento, migração,
+  divisão e reordenação em voo são aguardados e não recriam o paciente depois
+  do encerramento.
+- O eco local otimista do Firestore não retira o card antes da confirmação.
+- A garantia contra clientes antigos ou gravações externas ainda requer Rules
+  imutáveis no projeto Firebase; elas não estão versionadas neste repositório.
+- A Área Administrativa ainda não foi modificada para apresentar os novos
+  indicadores.
+
+Consulte `docs/OUTCOMES_SPEC.md`.
 
 ### Persistência intermediária — RC1.2.9
 
@@ -177,8 +204,8 @@ informado` em vez de assumir estabilidade.
 ## Limitações técnicas atuais
 
 - `passagem.html` é monolítico e concentra interface, estilos e scripts.
-- O artefato de referência possui 25.417 linhas, 104 blocos `<style>` e 60
-  blocos `<script>`.
+- O artefato RC1.3.0 possui 26.182 linhas, 105 blocos `<style>` e 61 blocos
+  `<script>`.
 - O estado é majoritariamente global; a persistência combina Firebase
   Auth/Firestore e fallback por `localStorage`.
 - O repositório possui uma suíte portátil de caracterização com Playwright,

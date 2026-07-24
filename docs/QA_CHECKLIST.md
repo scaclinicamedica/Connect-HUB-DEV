@@ -101,7 +101,27 @@ Em todas as larguras:
 - [ ] O cenário homologado de oito pacientes cabe em uma página A4.
 - [ ] O modo horizontal da tela não altera indevidamente a impressão.
 
-## 9. Revisão do PR
+## 9. Desfecho
+
+- [ ] Card e drawer apresentam `Desfecho`, sem ação `Excluir` do paciente.
+- [ ] Existem somente Tratado, Óbito e Transferido.
+- [ ] Abrir, navegar e cancelar não criam escrita de Desfecho.
+- [ ] Óbito exige CID principal; os demais não persistem CID.
+- [ ] Médico responsável é obrigatório e explicitamente confirmado.
+- [ ] `Encerrando atendimento...` permanece visível durante a persistência.
+- [ ] O paciente permanece ativo quando a persistência falha.
+- [ ] Histórico e retirada do ativo são atômicos e idempotentes no Firebase.
+- [ ] Retry após perda de confirmação não sobrescreve o primeiro registro.
+- [ ] `patientSnapshot` preserva os dados clínicos integrais.
+- [ ] Autosave, salvamento manual e reordenação em voo não recriam o paciente
+      encerrado.
+- [ ] O eco local otimista do Firestore não oculta o card antes do ACK.
+- [ ] Histórico local corrompido não é sobrescrito e mantém o paciente ativo.
+- [ ] DIH inválida ou futura produz permanência `null`; mesmo dia produz `1`.
+- [ ] As Rules publicadas impedem update/delete do evento `patient_outcome`.
+- [ ] O modal permanece utilizável e sem overflow nas larguras obrigatórias.
+
+## 10. Revisão do PR
 
 - [ ] Diff limitado ao escopo da tarefa.
 - [ ] Nenhum dado real de paciente foi incluído.
@@ -112,7 +132,7 @@ Em todas as larguras:
 - [ ] Documentação e changelog foram atualizados quando necessário.
 - [ ] Existe plano de rollback para mudança publicada.
 
-## 10. Dívida do teste histórico
+## 11. Dívida do teste histórico
 
 O comando `node test_rc128.cjs` foi usado na workspace de homologação, mas
 esse teste ainda não faz parte de uma suíte portátil do repositório: depende

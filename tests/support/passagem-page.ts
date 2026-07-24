@@ -5,6 +5,7 @@ type Seed = {
   patients?: unknown[];
   meta?: Record<string, unknown>;
   confirmations?: unknown[];
+  historyEvents?: unknown[];
 };
 
 export class PassagemPage {
@@ -17,6 +18,8 @@ export class PassagemPage {
   get catalog(){ return this.page.locator('#alertChecks'); }
   get arrhythmiasPanel(){ return this.page.locator('#arrhythmiasCleanWrap'); }
   get cards(){ return this.page.locator('#cards .card'); }
+  get outcomeDialog(){ return this.page.locator('#patientOutcomeDialog'); }
+  get outcomeConfirmButton(){ return this.page.locator('#patientOutcomeConfirmBtn'); }
 
   async goto(seed: Seed = {}){
     await this.page.addInitScript(value => {
@@ -57,7 +60,7 @@ export class PassagemPage {
       await expect(bed).not.toHaveValue('');
     }
     await this.page.locator('#name').fill(`PACIENTE FICTÍCIO ${suffix}`);
-    await this.page.locator('#dischargeForecast').fill('2026-07-20');
+    await this.page.locator('#dischargeForecast').fill('2099-12-31');
     await this.page.locator('#diagnosis').fill('HIPÓTESE FICTÍCIA PARA TESTE');
   }
 
@@ -80,8 +83,41 @@ export class PassagemPage {
   }
 
   async openPatientById(id: string){
-    await this.page.locator(`.card[data-id="${id}"]`).click();
+    const card = this.page.locator(`.card[data-id="${id}"]`);
+    await expect(card).toBeVisible();
+    await card.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    const box = await card.boundingBox();
+    if(!box) throw new Error(`O card ${id} não possui área clicável.`);
+    await this.page.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 28));
     await expect(this.drawer).toHaveClass(/open/);
+  }
+
+  async openOutcomeFromCard(id: string){
+    const button = this.page.locator(`.card[data-id="${id}"] .outcome-action`);
+    await expect(button).toBeVisible();
+    await button.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    const box = await button.boundingBox();
+    if(!box) throw new Error(`O botão Desfecho do paciente ${id} não possui área clicável.`);
+    await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(this.outcomeDialog).toHaveClass(/is-open/);
+  }
+
+  async selectOutcome(value: 'treated' | 'death' | 'transferred'){
+    await this.page.locator(`input[name="patientOutcomeType"][value="${value}"]`).check();
+  }
+
+  async fillOutcomeResponsible(name: string){
+    await this.page.locator('#patientOutcomeResponsibleDoctor').fill(name);
+  }
+
+  async waitForAutosaveHydration(){
+    await expect.poll(() => this.page.evaluate(() => {
+      try {
+        return window.eval('patientAutosaveHydrating === false');
+      } catch {
+        return false;
+      }
+    })).toBe(true);
   }
 
   async firebaseSnapshot(){
@@ -99,6 +135,49 @@ export class PassagemPage {
   async persistedPatient(id: string){
     return this.page.evaluate(patientId => window.__firebaseTestHarness.document(`connect_hub_v55/emergencia/pacientes/${patientId}`), id);
   }
+
+  async firebaseDocument(path: string){
+    return this.page.evaluate(documentPath => window.__firebaseTestHarness.document(documentPath), path);
+  }
+
+  async replaceFirebaseDocumentSilently(path: string, data: Record<string, unknown>){
+    await this.page.evaluate(
+      ({ documentPath, documentData }) =>
+        window.__firebaseTestHarness.replaceDocumentSilently(documentPath, documentData),
+      { documentPath: path, documentData: data }
+    );
+  }
+
+  async delayNextFirebaseWrite(operation: 'set' | 'delete', pathIncludes: string, delayMs = 250){
+    return this.page.evaluate(
+      ({ op, path, delay }) => window.__firebaseTestHarness.delayNext(op, path, delay),
+      { op: operation, path: pathIncludes, delay: delayMs }
+    );
+  }
+
+  async waitForFirebaseControl(controlId: string, state: 'scheduled' | 'pending'){
+    await expect.poll(
+      () => this.page.evaluate(
+        id => window.__firebaseTestHarness.pendingControls()
+          .find(control => control.id === id)?.state || '',
+        controlId
+      )
+    ).toBe(state);
+  }
+
+  async failNextFirebaseWrite(operation: 'set' | 'delete', pathIncludes: string, message?: string){
+    return this.page.evaluate(
+      ({ op, path, failureMessage }) => window.__firebaseTestHarness.failNext(op, path, failureMessage),
+      { op: operation, path: pathIncludes, failureMessage: message }
+    );
+  }
+
+  async failAfterNextFirebaseTransactionCommit(message?: string){
+    return this.page.evaluate(
+      failureMessage => window.__firebaseTestHarness.failAfterNextTransactionCommit(failureMessage),
+      message
+    );
+  }
 }
 
 declare global {
@@ -111,6 +190,11 @@ declare global {
       writes(): Array<Record<string, unknown>>;
       clearWrites(): void;
       document(path: string): Record<string, unknown> | undefined;
+      replaceDocumentSilently(path: string, data: Record<string, unknown>): void;
+      delayNext(operation: string, pathIncludes: string, delayMs?: number): string;
+      failNext(operation: string, pathIncludes: string, message?: string): string;
+      failAfterNextTransactionCommit(message?: string): void;
+      pendingControls(): Array<Record<string, unknown>>;
     };
   }
 }

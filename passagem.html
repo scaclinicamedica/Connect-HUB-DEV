@@ -6018,10 +6018,43 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 <div class="drawer-actions">
 <button id="savePatientBtn" onclick="savePatient()">Salvar agora</button>
 <button class="light" id="saveAddAnotherBtn" onclick="savePatient(true)">Salvar e adicionar outro</button>
-<button class="danger" id="deletePatientBtn" onclick="deletePatient()">Excluir</button>
+<button class="outcome-action" id="outcomePatientBtn" onclick="openPatientOutcomeFromDrawer()">Desfecho</button>
 </div>
 </div>
 </aside>
+<div aria-hidden="true" class="patient-outcome-backdrop" id="patientOutcomeDialog" role="dialog" aria-labelledby="patientOutcomeTitle" aria-modal="true">
+<section class="patient-outcome-dialog" tabindex="-1">
+<div class="patient-outcome-header">
+<div>
+<span class="patient-outcome-eyebrow">Encerramento do atendimento</span>
+<h2 id="patientOutcomeTitle">Registrar desfecho</h2>
+</div>
+<button aria-label="Fechar registro de desfecho" class="patient-outcome-close" id="patientOutcomeCloseBtn" onclick="closePatientOutcomeDialog()" title="Fechar" type="button">×</button>
+</div>
+<div class="patient-outcome-body">
+<p class="patient-outcome-patient" id="patientOutcomePatientLabel"></p>
+<fieldset class="patient-outcome-options">
+<legend>Selecione o desfecho <span class="required-mark">*</span></legend>
+<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="treated"/><span><strong>Tratado</strong><small>Atendimento concluído neste HUB.</small></span></label>
+<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="death"/><span><strong>Óbito</strong><small>Exige o CID principal para concluir.</small></span></label>
+<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="transferred"/><span><strong>Transferido</strong><small>Continuidade do cuidado em outro serviço.</small></span></label>
+</fieldset>
+<div class="patient-outcome-field">
+<label for="patientOutcomeResponsibleDoctor">Médico responsável pelo desfecho <span class="required-mark">*</span></label>
+<input autocomplete="name" id="patientOutcomeResponsibleDoctor" oninput="updatePatientOutcomeForm()" placeholder="Nome do médico responsável"/>
+</div>
+<div class="patient-outcome-field is-hidden" id="patientOutcomeCidWrap">
+<label for="patientOutcomePrimaryCid">CID principal do óbito <span class="required-mark">*</span></label>
+<input autocapitalize="characters" id="patientOutcomePrimaryCid" oninput="updatePatientOutcomeForm()" placeholder="Ex.: I21.9"/>
+</div>
+<p aria-live="polite" class="patient-outcome-status" id="patientOutcomeStatus"></p>
+</div>
+<div class="patient-outcome-actions">
+<button class="light" id="patientOutcomeCancelBtn" onclick="closePatientOutcomeDialog()" type="button">Cancelar</button>
+<button class="outcome-action" disabled="" id="patientOutcomeConfirmBtn" onclick="confirmPatientOutcome()" type="button">Confirmar desfecho</button>
+</div>
+</section>
+</div>
 <div class="toast" id="toast"></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
@@ -6218,6 +6251,7 @@ const CURRENT_SECTOR = SECTOR_CONFIG[SECTOR_KEY] || SECTOR_CONFIG.emergencia;
 const STORAGE_KEY = 'sbar_breve_santa_casa_v1_' + CURRENT_SECTOR.firestoreUnit;
 const META_KEY = 'sbar_breve_santa_casa_meta_v1_' + CURRENT_SECTOR.firestoreUnit;
 const CONFIRMATIONS_KEY = 'sbar_breve_santa_casa_confirmacoes_v1_' + CURRENT_SECTOR.firestoreUnit;
+const OUTCOMES_KEY = 'sbar_breve_santa_casa_desfechos_v1_' + CURRENT_SECTOR.firestoreUnit;
 const ADMIN_HISTORY_ACCESS_KEY = 'sbar_admin_history_unlocked_v1';
 const ADMIN_HISTORY_CODE = 'SCACM2026';
 const FIRESTORE_ROOT = 'connect_hub_v55';
@@ -6329,6 +6363,95 @@ let patientAutosaveLastSignature = '';
 let patientAutosaveBound = false;
 let patientAutosaveHydrationEpoch = 0;
 let patientAutosaveHydrating = false;
+let patientOutcomeClosingPatientId = '';
+let patientOutcomeRemovalConfirmedPatientId = '';
+let patientOutcomeDeferredPatientsSnapshot = null;
+let patientOutcomeDeferredSnapshotPending = false;
+let patientAutosaveScheduledOptions = null;
+const patientMutationPromises = new Map();
+
+function patientMutationIds(ids=[]) {
+  return [...new Set((Array.isArray(ids) ? ids : [ids]).map(id => String(id || '')).filter(Boolean))];
+}
+function isPatientMutationLocked(id) {
+  return Boolean(id && patientOutcomeClosingPatientId === String(id));
+}
+function trackPatientMutation(ids, operationPromise) {
+  const trackedIds = patientMutationIds(ids);
+  const trackedPromise = Promise.resolve(operationPromise);
+  trackedIds.forEach(id => {
+    if(!patientMutationPromises.has(id)) patientMutationPromises.set(id, new Set());
+    patientMutationPromises.get(id).add(trackedPromise);
+  });
+  const cleanup = () => {
+    trackedIds.forEach(id => {
+      const pending = patientMutationPromises.get(id);
+      if(!pending) return;
+      pending.delete(trackedPromise);
+      if(!pending.size) patientMutationPromises.delete(id);
+    });
+  };
+  trackedPromise.then(cleanup, cleanup);
+  return trackedPromise;
+}
+async function waitForPatientMutations(id, timeoutMs=15000) {
+  const patientId = String(id || '');
+  const deadline = Date.now() + timeoutMs;
+  while(patientId) {
+    const pending = [...(patientMutationPromises.get(patientId) || [])];
+    if(!pending.length) return;
+    const remaining = deadline - Date.now();
+    if(remaining <= 0) throw new Error('Ainda há uma atualização do paciente em andamento.');
+    let timeoutHandle = null;
+    try {
+      await Promise.race([
+        Promise.allSettled(pending),
+        new Promise((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error('Ainda há uma atualização do paciente em andamento.')), remaining);
+        })
+      ]);
+    } finally {
+      if(timeoutHandle) clearTimeout(timeoutHandle);
+    }
+  }
+}
+function patientOutcomeHistoryDocumentId(patientId, sectorUnit=CURRENT_SECTOR.firestoreUnit) {
+  return `patient_outcome_${sectorUnit}_${encodeURIComponent(String(patientId || ''))}`;
+}
+function patientOutcomeHistoryReference(patientId, sectorUnit=CURRENT_SECTOR.firestoreUnit) {
+  return db.collection(HISTORY_COLLECTION_V41).doc(patientOutcomeHistoryDocumentId(patientId, sectorUnit));
+}
+async function commitGuardedPatientMutation(ids, applyWrites, {guardTargets=[]}={}) {
+  const mutationIds = patientMutationIds(ids);
+  if(!mutationIds.length) throw new Error('Paciente inválido para atualização.');
+  if(!db || typeof db.runTransaction !== 'function') {
+    throw new Error('Transações do Firebase indisponíveis.');
+  }
+  const targets = guardTargets.length
+    ? guardTargets
+    : mutationIds.map(patientId => ({patientId,sectorUnit:CURRENT_SECTOR.firestoreUnit}));
+  const uniqueTargets = [...new Map(targets.map(target => {
+    const patientId=String(target?.patientId||'');
+    const sectorUnit=String(target?.sectorUnit||'');
+    return [`${sectorUnit}\u0000${patientId}`,{patientId,sectorUnit}];
+  })).values()].filter(target => target.patientId&&target.sectorUnit);
+  if(!uniqueTargets.length) throw new Error('Guard de Desfecho inválido.');
+  const operation = db.runTransaction(async transaction => {
+    const guardSnapshots = [];
+    for(const target of uniqueTargets) {
+      guardSnapshots.push(await transaction.get(
+        patientOutcomeHistoryReference(target.patientId,target.sectorUnit)
+      ));
+    }
+    if(guardSnapshots.some(snapshot => snapshot.exists)) {
+      const error = new Error('Este paciente já possui desfecho registrado.');
+      error.code = 'connect-hub/patient-outcome-closed';
+      throw error;
+    }
+    return applyWrites(transaction);
+  });
+  return trackPatientMutation(mutationIds, operation);
+}
 
 function makeId() {
   return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id_' + Date.now() + '_' + Math.random().toString(16).slice(2);
@@ -7319,19 +7442,22 @@ function renderWardManagement() {
 async function persistWardAssignments(updatedPatients, successMessage) {
   if(!isEnfermariaSector()) return;
   if(!ensureFirebaseReady('atualizar divisão da enfermaria')) return;
+  const mutationIds = patientMutationIds(updatedPatients.map(patient => patient.id));
+  if(mutationIds.some(isPatientMutationLocked)) {
+    showToast('Aguarde a conclusão do desfecho antes de alterar a divisão.');
+    return;
+  }
   patients = updatedPatients;
   render();
   if(firebaseActive && patientsRef && db) {
     try {
-      const batch = db.batch();
-      updatedPatients.forEach(p => {
-        batch.set(patientsRef.doc(p.id), {
+      await commitGuardedPatientMutation(mutationIds, transaction => {
+        updatedPatients.forEach(p => transaction.set(patientsRef.doc(p.id), {
           wardTeam: wardPatientTeam(p),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAtLocal: new Date().toISOString()
-        }, { merge:true });
+        }, { merge:true }));
       });
-      await batch.commit();
       showToast(successMessage);
     } catch(error) {
       console.error('Erro ao atualizar divisão da enfermaria:', error);
@@ -7415,20 +7541,23 @@ function obsTextLine(p={}) {
 async function persistObservationAssignments(updatedPatients, successMessage) {
   if(!isObservationSusSector()) return;
   if(!ensureFirebaseReady('atualizar divisão de pacientes')) return;
+  const mutationIds = patientMutationIds(updatedPatients.map(patient => patient.id));
+  if(mutationIds.some(isPatientMutationLocked)) {
+    showToast('Aguarde a conclusão do desfecho antes de alterar a divisão.');
+    return;
+  }
   patients = updatedPatients;
   render();
   if(firebaseActive && patientsRef && db) {
     try {
-      const batch = db.batch();
-      updatedPatients.forEach(p => {
-        batch.set(patientsRef.doc(p.id), {
+      await commitGuardedPatientMutation(mutationIds, transaction => {
+        updatedPatients.forEach(p => transaction.set(patientsRef.doc(p.id), {
           obsLocation: obsPatientLocation(p),
           shiftResponsible: obsPatientResponsible(p),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAtLocal: new Date().toISOString()
-        }, { merge:true });
+        }, { merge:true }));
       });
-      await batch.commit();
       showToast(successMessage);
     } catch(error) {
       console.error('Erro ao atualizar divisão:', error);
@@ -7560,7 +7689,21 @@ async function initFirebase() {
 
 function bindFirebase() {
   unsubscribePatients = patientsRef.onSnapshot(snapshot => {
-    patients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const nextPatients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const closingPatientId = patientOutcomeClosingPatientId;
+    if(closingPatientId && patientOutcomeRemovalConfirmedPatientId !== closingPatientId) {
+      const incomingClosingPatient = nextPatients.find(patient => patient.id === closingPatientId);
+      const currentClosingPatient = patients.find(patient => patient.id === closingPatientId);
+      if(!incomingClosingPatient && currentClosingPatient) {
+        patientOutcomeDeferredPatientsSnapshot = nextPatients.map(patient => ({...patient}));
+        patientOutcomeDeferredSnapshotPending = snapshot.metadata?.hasPendingWrites === true;
+        nextPatients.push(currentClosingPatient);
+      } else if(incomingClosingPatient) {
+        patientOutcomeDeferredPatientsSnapshot = null;
+        patientOutcomeDeferredSnapshotPending = false;
+      }
+    }
+    patients = nextPatients;
     render();
     setSyncStatus('Firebase conectado • ' + patients.length + ' paciente(s) • setor: ' + CURRENT_SECTOR.name + ' • ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
   }, error => {
@@ -9818,6 +9961,10 @@ function applyMigrationAdjustments(patient={}, target={}) {
 }
 async function remanejarPacienteNoMesmoSetorV39(id, target={}) {
   if(!id || !ensureFirebaseReady('remanejar paciente')) return;
+  if(isPatientMutationLocked(id)) {
+    showToast('Aguarde a conclusão do desfecho antes de remanejar o paciente.');
+    return;
+  }
   const p = patients.find(x => x.id === id);
   if(!p) { showToast('Paciente não encontrado.'); return; }
 
@@ -9863,7 +10010,9 @@ async function remanejarPacienteNoMesmoSetorV39(id, target={}) {
 
   if(firebaseActive && db && patientsRef) {
     try {
-      await patientsRef.doc(id).set(updated, { merge:true });
+      await commitGuardedPatientMutation(id, transaction => {
+        transaction.set(patientsRef.doc(id), updated, { merge:true });
+      });
       const index = patients.findIndex(x => x.id === id);
       if(index >= 0) patients[index] = updated;
       cancelMigration();
@@ -9879,6 +10028,10 @@ async function remanejarPacienteNoMesmoSetorV39(id, target={}) {
 async function migratePatientToSector(id, targetUnit='') {
   if(!id) return;
   if(!ensureFirebaseReady('migrar paciente')) return;
+  if(isPatientMutationLocked(id)) {
+    showToast('Aguarde a conclusão do desfecho antes de migrar o paciente.');
+    return;
+  }
   const p = patients.find(x => x.id === id);
   if(!p) { showToast('Paciente não encontrado.'); return; }
 
@@ -9902,14 +10055,25 @@ async function migratePatientToSector(id, targetUnit='') {
   if(firebaseActive && db && patientsRef) {
     try {
       const targetRef = db.collection(FIRESTORE_ROOT).doc(target.unit).collection('pacientes').doc(id);
-      const batch = db.batch();
-      batch.set(targetRef, {
-        ...migratedPatient,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        migratedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge:true });
-      batch.delete(patientsRef.doc(id));
-      await batch.commit();
+      await commitGuardedPatientMutation(id, async transaction => {
+        const targetSnapshot=await transaction.get(targetRef);
+        if(targetSnapshot.exists){
+          const conflict=new Error('Já existe um paciente com este identificador no setor de destino.');
+          conflict.code='connect-hub/migration-target-conflict';
+          throw conflict;
+        }
+        transaction.set(targetRef, {
+          ...migratedPatient,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          migratedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge:true });
+        transaction.delete(patientsRef.doc(id));
+      }, {
+        guardTargets:[
+          {patientId:id,sectorUnit:CURRENT_SECTOR.firestoreUnit},
+          {patientId:id,sectorUnit:target.unit}
+        ]
+      });
       openMigrationPatientId = null;
       selectedMigrationTarget = '';
       showToast(`Paciente migrado para ${target.name}.`);
@@ -9995,16 +10159,16 @@ function render() {
       </div>
       ${renderClinicalCopilotSummary(p)}
       <div class="tags">${(isDischargeOverdue(p) ? ['Previsão de alta vencida'] : (isDischargeToday(p) ? ['Previsão de Alta'] : [])).concat(residualAlertList(p)).map(label => renderTag(label, p)).join('')}</div>
-      <div class="card-actions" onclick="event.stopPropagation()"><button onclick="openCard('${p.id}')">Editar</button>${migrationActionButton(p)}<button class="danger" onclick="deletePatientById('${p.id}')">Excluir</button></div>${renderMigrationChooser(p)}
+      <div class="card-actions" onclick="event.stopPropagation()"><button onclick="openCard('${p.id}')">Editar</button>${migrationActionButton(p)}<button class="outcome-action" onclick="openPatientOutcomeDialog('${p.id}', this)">Desfecho</button></div>${renderMigrationChooser(p)}
     </article>`).join('');
 }
 function setDrawerMode(isEditing=false) {
   const saveBtn = document.getElementById('savePatientBtn');
   const saveAddBtn = document.getElementById('saveAddAnotherBtn');
-  const deleteBtn = document.getElementById('deletePatientBtn');
+  const outcomeBtn = document.getElementById('outcomePatientBtn');
   if(saveBtn) saveBtn.innerText = 'Salvar agora';
   if(saveAddBtn) { saveAddBtn.innerText = 'Salvar e novo'; saveAddBtn.style.display = isEditing ? 'none' : 'inline-block'; }
-  if(deleteBtn) deleteBtn.style.display = isEditing ? 'inline-block' : 'none';
+  if(outcomeBtn) outcomeBtn.style.display = isEditing ? 'inline-block' : 'none';
 }
 function openDrawer(id=null) {
   beginPatientAutosaveHydration();
@@ -10082,6 +10246,7 @@ function openDrawer(id=null) {
 }
 function closeDrawer() {
   if(patientAutosaveTimer) { clearTimeout(patientAutosaveTimer); patientAutosaveTimer = null; }
+  patientAutosaveScheduledOptions = null;
   document.getElementById('drawer').classList.remove('open');
   document.getElementById('overlay').classList.remove('show');
 }
@@ -10159,6 +10324,7 @@ function beginPatientAutosaveHydration() {
   const epoch = ++patientAutosaveHydrationEpoch;
   patientAutosaveHydrating = true;
   if(patientAutosaveTimer) { clearTimeout(patientAutosaveTimer); patientAutosaveTimer = null; }
+  patientAutosaveScheduledOptions = null;
   setTimeout(() => {
     if(epoch === patientAutosaveHydrationEpoch) patientAutosaveHydrating = false;
   }, 1000);
@@ -10177,17 +10343,27 @@ function bindPatientAutosave() {
   drawer.addEventListener('input', (event) => schedulePatientAutosave(900, { userInitiated:event.isTrusted, allowIncompleteArrhythmiaAutosave:event.isTrusted }));
   drawer.addEventListener('change', (event) => schedulePatientAutosave(900, { userInitiated:event.isTrusted, allowIncompleteArrhythmiaAutosave:event.isTrusted }));
   drawer.addEventListener('click', (event) => {
-    if(event.target && event.target.closest && event.target.closest('#savePatientBtn,#saveAddAnotherBtn,#deletePatientBtn')) return;
+    if(event.target && event.target.closest && event.target.closest('#savePatientBtn,#saveAddAnotherBtn,#outcomePatientBtn')) return;
     if(event.target && event.target.closest && event.target.closest('#arrhythmiasCleanWrap.rc122-mode-view,[data-rc122-arr-action],[data-rc122-compact-action]')) return;
     schedulePatientAutosave(650, { userInitiated:event.isTrusted, allowIncompleteArrhythmiaAutosave:event.isTrusted });
   }, true);
 }
 function schedulePatientAutosave(delay=900, { userInitiated=false, allowIncompleteArrhythmiaAutosave=false }={}) {
   if(!drawerIsOpen()) return;
+  if(patientOutcomeClosingPatientId && val('patientId') === patientOutcomeClosingPatientId) return;
   if(patientAutosaveHydrating && !userInitiated) return;
   if(patientAutosaveTimer) clearTimeout(patientAutosaveTimer);
   const allowIncompleteAutosave = userInitiated && allowIncompleteArrhythmiaAutosave === true;
-  patientAutosaveTimer = setTimeout(() => savePatient(false, { auto:true, allowIncompleteArrhythmiaAutosave:allowIncompleteAutosave }), delay);
+  patientAutosaveScheduledOptions = {
+    userInitiated:!!userInitiated,
+    allowIncompleteArrhythmiaAutosave:allowIncompleteAutosave
+  };
+  patientAutosaveTimer = setTimeout(() => {
+    const scheduledOptions = patientAutosaveScheduledOptions || {};
+    patientAutosaveTimer = null;
+    patientAutosaveScheduledOptions = null;
+    savePatient(false, { auto:true, allowIncompleteArrhythmiaAutosave:scheduledOptions.allowIncompleteArrhythmiaAutosave === true });
+  }, delay);
 }
 function patientDraftSignature(p) {
   if(!p) return '';
@@ -10301,6 +10477,12 @@ function validatePatientDraftForSave(selectedAlerts, { silent=false }={}) {
 async function savePatient(keepOpen=false, options={}) {
   const auto = !!(options && options.auto);
   if(auto && !drawerIsOpen()) return false;
+  const editingId = val('patientId');
+  if(isPatientMutationLocked(editingId)) {
+    if(auto) setAutosaveStatus('waiting', 'Salvamento automático pausado durante o desfecho');
+    else showToast('Aguarde a conclusão do desfecho antes de salvar.');
+    return false;
+  }
   if(auto && patientAutosaveBusy) {
     patientAutosaveQueued = true;
     return false;
@@ -10313,7 +10495,6 @@ async function savePatient(keepOpen=false, options={}) {
     if(!ensureFirebaseReady('salvar paciente')) return false;
   } else if(!ensureFirebaseReady('salvar paciente')) return false;
 
-  const editingId = val('patientId');
   const isEditing = Boolean(editingId);
   if(isEditing) keepOpen = false;
   const selectedAlerts = normalizeAlertList(Array.from(document.querySelectorAll('.alertCheck:checked')).map(c => c.value));
@@ -10344,7 +10525,12 @@ async function savePatient(keepOpen=false, options={}) {
 
   if(firebaseActive && patientsRef) {
     try {
-      await patientsRef.doc(id).set({...p, updatedAt: firebase.firestore.FieldValue.serverTimestamp()}, { merge:false });
+      await commitGuardedPatientMutation(id, transaction => {
+        transaction.set(patientsRef.doc(id), {
+          ...p,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge:false });
+      });
       patientAutosaveLastSignature = signature;
       if(auto) {
         document.getElementById('drawerTitle').innerText = 'Editar paciente';
@@ -10427,6 +10613,10 @@ function handleDragEnd(event) {
 }
 async function reorderPatients(sourceId, targetId) {
   const ordered = orderedPatients();
+  if(ordered.some(patient => isPatientMutationLocked(patient.id))) {
+    showToast('Aguarde a conclusão do desfecho antes de reordenar os pacientes.');
+    return;
+  }
   const from = ordered.findIndex(p => p.id === sourceId);
   const to = ordered.findIndex(p => p.id === targetId);
   if(from < 0 || to < 0) return;
@@ -10437,9 +10627,13 @@ async function reorderPatients(sourceId, targetId) {
   render();
   if(firebaseActive && patientsRef && db) {
     try {
-      const batch = db.batch();
-      ordered.forEach((p, index) => batch.set(patientsRef.doc(p.id), { sortOrder: index }, { merge:true }));
-      await batch.commit();
+      await commitGuardedPatientMutation(ordered.map(patient => patient.id), transaction => {
+        ordered.forEach((p, index) => transaction.set(
+          patientsRef.doc(p.id),
+          { sortOrder: index },
+          { merge:true }
+        ));
+      });
       showToast('Ordem atualizada.');
     } catch(error) {
       console.error('Erro ao salvar ordem:', error);
@@ -10449,36 +10643,6 @@ async function reorderPatients(sourceId, targetId) {
     save();
     showToast('Ordem atualizada.');
   }
-}
-async function deletePatientById(id, closeAfter=false) {
-  if(!id) return;
-  if(!ensureFirebaseReady('excluir paciente')) return;
-  const p = patients.find(x => x.id === id);
-  const label = p ? `${p.bed || 'Leito não informado'} — ${p.name || 'Paciente sem nome'}` : 'este paciente';
-  if(!confirm(`Excluir ${label}?`)) return;
-
-  if(firebaseActive && patientsRef) {
-    try {
-      await patientsRef.doc(id).delete();
-      if(closeAfter) closeDrawer();
-      showToast('Paciente excluído da nuvem.');
-    } catch(error) {
-      console.error('Erro ao excluir paciente:', error);
-      showToast('Erro ao excluir no Firebase.');
-    }
-    return;
-  }
-
-  patients = patients.filter(x => x.id !== id);
-  save();
-  render();
-  if(closeAfter) closeDrawer();
-  showToast('Paciente excluído.');
-}
-function deletePatient() {
-  const id = val('patientId');
-  if(!id) { closeDrawer(); return; }
-  deletePatientById(id, true);
 }
 function sbarText(p) {
   return `${p.bed} — ${p.name}, ${p.age} anos${p.admissionDate ? ' — DIH ' + formatDateBR(p.admissionDate) : ''} — ${severityLabel(effectiveSeverity(p))} — ${effectiveStatus(p)}
@@ -17145,24 +17309,6 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
     try{ remanejarPacienteNoMesmoSetorV39=wrappedInternalMoveV41; }catch(e){}
   }
 
-  const oldDeletePatientV41 = window.deletePatient || (typeof deletePatient==='function' ? deletePatient : null);
-  if(typeof oldDeletePatientV41 === 'function' && !oldDeletePatientV41.__v41){
-    const wrappedDeletePatientV41 = async function(id){
-      const before = patients.find(p=>p.id===id) || {};
-      const result = await oldDeletePatientV41.apply(this,arguments);
-      await logHistoryEventV41('patient_deleted',before,{
-        description:'Paciente excluído/alta',
-        fromSectorUnit:CURRENT_SECTOR.firestoreUnit || '',
-        fromSectorName:CURRENT_SECTOR.name || '',
-        fromUnit:before.inpatientUnit || before.wardUnit || before.unit || before.obsLocation || '',
-        fromBed:before.bed || ''
-      });
-      return result;
-    };
-    wrappedDeletePatientV41.__v41=true;
-    window.deletePatient=wrappedDeletePatientV41;
-    try{ deletePatient=wrappedDeletePatientV41; }catch(e){}
-  }
 })();
 </script>
 <style id="v42-selecao-leitos">
@@ -25427,6 +25573,609 @@ input[type="date"].date-picker-input-v6{cursor:pointer!important}
 
   document.documentElement.dataset.rc127HostedDesktopBridge='ready';
   window.ClinicalHostedDesktopBridge={version:VERSION,forceAssistantOpen,repairModuleOpen};
+})();
+</script>
+<style id="v66-patient-outcomes">
+button.outcome-action{
+  background:#facc15!important;
+  color:#422006!important;
+  border:1px solid #fde047!important;
+  box-shadow:none!important;
+}
+button.outcome-action:hover:not(:disabled){background:#fde047!important}
+button.outcome-action:focus-visible{
+  outline:3px solid #7dd3fc!important;
+  outline-offset:2px!important;
+}
+button.outcome-action:disabled{opacity:.55!important;cursor:not-allowed!important}
+body.patient-outcome-open{overflow:hidden!important}
+.patient-outcome-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:120;
+  display:none;
+  place-items:center;
+  padding:20px;
+  background:rgba(2,8,23,.78);
+  backdrop-filter:blur(4px);
+}
+.patient-outcome-backdrop.is-open{display:grid}
+.patient-outcome-dialog{
+  width:min(560px,100%);
+  max-height:calc(100vh - 40px);
+  overflow:auto;
+  border:1px solid #2f6fa7;
+  border-radius:18px;
+  background:linear-gradient(180deg,#0b1a2c,#071827);
+  color:#eef6ff;
+  box-shadow:0 24px 70px rgba(0,0,0,.48);
+}
+.patient-outcome-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:18px 18px 14px;
+  border-bottom:1px solid #24537f;
+}
+.patient-outcome-header h2{margin:3px 0 0;font-size:21px}
+.patient-outcome-eyebrow{
+  display:block;
+  color:#7dd3fc;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.patient-outcome-close{
+  width:38px;
+  height:38px;
+  padding:0;
+  border:1px solid #2f6fa7;
+  border-radius:10px;
+  background:#0b223d;
+  color:#eef6ff;
+  font-size:24px;
+  line-height:1;
+}
+.patient-outcome-body{padding:16px 18px}
+.patient-outcome-patient{
+  margin:0 0 14px;
+  padding:11px 12px;
+  border:1px solid #24537f;
+  border-radius:11px;
+  background:#081523;
+  color:#dbeafe;
+  font-weight:850;
+  line-height:1.4;
+}
+.patient-outcome-options{
+  display:grid;
+  gap:9px;
+  margin:0;
+  padding:0;
+  border:0;
+}
+.patient-outcome-options legend{
+  margin-bottom:8px;
+  color:#eef6ff;
+  font-weight:900;
+}
+.patient-outcome-options>label{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  min-height:58px;
+  padding:10px 12px;
+  border:1px solid #24537f;
+  border-radius:12px;
+  background:#081523;
+  cursor:pointer;
+}
+.patient-outcome-options>label:has(input:checked){
+  border-color:#facc15;
+  background:#3f2d08;
+}
+.patient-outcome-options input{width:18px;height:18px;accent-color:#facc15}
+.patient-outcome-options span{display:grid;gap:2px}
+.patient-outcome-options strong{color:#fff}
+.patient-outcome-options small{color:#9fb5ca;line-height:1.35}
+.patient-outcome-field{margin-top:14px}
+.patient-outcome-field.is-hidden{display:none!important}
+.patient-outcome-field label{
+  display:block;
+  margin-bottom:6px;
+  color:#dbeafe;
+  font-size:12px;
+  font-weight:900;
+}
+.patient-outcome-field input{
+  width:100%;
+  min-height:43px;
+  padding:9px 11px;
+  border:1px solid #2f6fa7;
+  border-radius:10px;
+  background:#06101d;
+  color:#eef6ff;
+}
+.patient-outcome-field input:focus{
+  outline:3px solid rgba(56,189,248,.25);
+  border-color:#7dd3fc;
+}
+.patient-outcome-status{
+  min-height:20px;
+  margin:13px 0 0;
+  color:#bae6fd;
+  font-size:12px;
+  font-weight:800;
+  line-height:1.4;
+}
+.patient-outcome-status.error{color:#fecaca}
+.patient-outcome-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:9px;
+  padding:14px 18px 18px;
+  border-top:1px solid #24537f;
+}
+.patient-outcome-actions button{min-height:42px}
+@media(max-width:620px){
+  .patient-outcome-backdrop{align-items:end;padding:0}
+  .patient-outcome-dialog{
+    width:100%;
+    max-height:92vh;
+    border-radius:18px 18px 0 0;
+  }
+  .patient-outcome-header,.patient-outcome-body{padding-left:14px;padding-right:14px}
+  .patient-outcome-actions{padding:12px 14px 16px}
+  .patient-outcome-actions button{flex:1}
+}
+@media print{
+  .patient-outcome-backdrop{display:none!important}
+}
+</style>
+<script id="v66-patient-outcomes">
+(function(){
+  const OUTCOME_TYPES_V66 = Object.freeze({
+    treated:{label:'Tratado'},
+    death:{label:'Óbito'},
+    transferred:{label:'Transferido'}
+  });
+  const OUTCOME_SOURCE_VERSION_V66 = 'FOUNDATION-1.0-RC1.3.0-OUTCOMES';
+  let outcomePatientIdV66 = '';
+  let outcomeIdV66 = '';
+  let outcomeBusyV66 = false;
+  let outcomeReturnFocusV66 = null;
+  let outcomeHadPendingAutosaveV66 = false;
+  let outcomeHadQueuedAutosaveV66 = false;
+  let outcomePendingAutosaveOptionsV66 = null;
+  let outcomeRecordV66 = null;
+  let outcomeRecordFormSignatureV66 = '';
+
+  function byIdV66(id){return document.getElementById(id)}
+  function dialogV66(){return byIdV66('patientOutcomeDialog')}
+  function selectedOutcomeTypeV66(){
+    return document.querySelector('input[name="patientOutcomeType"]:checked')?.value || '';
+  }
+  function outcomeStatusV66(message='',isError=false){
+    const status=byIdV66('patientOutcomeStatus');
+    if(!status)return;
+    status.textContent=message;
+    status.classList.toggle('error',!!isError);
+  }
+  function localDateV66(date){
+    const year=date.getFullYear();
+    const month=String(date.getMonth()+1).padStart(2,'0');
+    const day=String(date.getDate()).padStart(2,'0');
+    return `${year}-${month}-${day}`;
+  }
+  function lengthOfStayDaysV66(admissionDate,closedAt){
+    const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(admissionDate||''));
+    if(!match||!(closedAt instanceof Date)||!Number.isFinite(closedAt.getTime()))return null;
+    const year=Number(match[1]);
+    const month=Number(match[2]);
+    const day=Number(match[3]);
+    const normalizedAdmission=new Date(0);
+    normalizedAdmission.setUTCHours(0,0,0,0);
+    normalizedAdmission.setUTCFullYear(year,month-1,day);
+    const admissionUtc=normalizedAdmission.getTime();
+    const closedUtc=Date.UTC(closedAt.getFullYear(),closedAt.getMonth(),closedAt.getDate());
+    if(
+      normalizedAdmission.getUTCFullYear()!==year||
+      normalizedAdmission.getUTCMonth()!==month-1||
+      normalizedAdmission.getUTCDate()!==day
+    )return null;
+    if(!Number.isFinite(admissionUtc)||admissionUtc>closedUtc)return null;
+    const inclusiveDays=Math.floor((closedUtc-admissionUtc)/86400000)+1;
+    return inclusiveDays>0?inclusiveDays:null;
+  }
+  function suggestedResponsibleDoctorV66(){
+    return String(safeInputValue?.('currentDoctor')||'').trim();
+  }
+  function stableOutcomeIdV66(patientId){
+    return patientOutcomeHistoryDocumentId(patientId);
+  }
+  function patientOutcomeLocationV66(patient={}){
+    return patient.inpatientUnit||patient.wardUnit||patient.unit||patient.obsLocation||'';
+  }
+  function withOutcomePatientFieldsV66(record,patient){
+    const closedAt=new Date(record.createdAtLocal);
+    return {
+      ...record,
+      patientId:patient.id||'',
+      patientName:patient.name||'',
+      unit:patientOutcomeLocationV66(patient),
+      bed:patient.bed||'',
+      specialty:patient.specialty||'',
+      admissionDate:patient.admissionDate||'',
+      lengthOfStayDays:lengthOfStayDaysV66(patient.admissionDate,closedAt),
+      status:patient.status||'',
+      severity:patient.severity||'',
+      alerts:Array.isArray(patient.alerts)?[...patient.alerts]:[],
+      patientSnapshot:{...patient}
+    };
+  }
+  function setOutcomeBusyV66(busy){
+    outcomeBusyV66=!!busy;
+    const dialog=dialogV66();
+    const confirmButton=byIdV66('patientOutcomeConfirmBtn');
+    const cancelButton=byIdV66('patientOutcomeCancelBtn');
+    const closeButton=byIdV66('patientOutcomeCloseBtn');
+    if(dialog)dialog.setAttribute('aria-busy',busy?'true':'false');
+    document.querySelectorAll('#patientOutcomeDialog input').forEach(input=>{input.disabled=!!busy});
+    if(cancelButton)cancelButton.disabled=!!busy;
+    if(closeButton)closeButton.disabled=!!busy;
+    if(confirmButton){
+      confirmButton.textContent=busy?'Encerrando atendimento...':'Confirmar desfecho';
+      if(busy)confirmButton.disabled=true;
+    }
+  }
+  function latestPatientSnapshotV66(patientId){
+    const persisted=patients.find(patient=>patient.id===patientId);
+    if(!persisted)return null;
+    if(!drawerIsOpen()||val('patientId')!==patientId)return {...persisted};
+    try{
+      const draft=buildPatientDraftFromForm();
+      const snapshot={...persisted,...draft,id:patientId,sortOrder:persisted.sortOrder};
+      if(!draft.alerts?.includes('Profilaxia de TEV')){
+        delete snapshot.tevProtocol;
+        delete snapshot.improveBleedingScore;
+        delete snapshot.capriniScore;
+        delete snapshot.tevProtocolStatus;
+      }
+      return snapshot;
+    }catch(error){
+      console.warn('Não foi possível incorporar o formulário atual ao desfecho:',error);
+      return {...persisted};
+    }
+  }
+  function buildPatientOutcomeRecordV66(patient,form){
+    const definition=OUTCOME_TYPES_V66[form.outcomeType];
+    if(!patient||!definition)throw new Error('Desfecho ou paciente inválido.');
+    const now=new Date();
+    return withOutcomePatientFieldsV66({
+      schemaVersion:1,
+      sourceVersion:OUTCOME_SOURCE_VERSION_V66,
+      outcomeId:outcomeIdV66,
+      type:'patient_outcome',
+      outcomeType:form.outcomeType,
+      outcomeLabel:definition.label,
+      createdAt:firebaseActive&&window.firebase?.firestore
+        ? firebase.firestore.FieldValue.serverTimestamp()
+        : now.toISOString(),
+      createdAtLocal:now.toISOString(),
+      dateLocal:localDateV66(now),
+      sectorUnit:CURRENT_SECTOR.firestoreUnit||'',
+      sectorName:CURRENT_SECTOR.name||'',
+      lengthOfStayMethod:'inclusive_calendar_days',
+      responsibleDoctor:form.responsibleDoctor,
+      actor:form.responsibleDoctor,
+      primaryIcdCode:form.outcomeType==='death'?form.primaryIcdCode:'',
+    },patient);
+  }
+  async function waitForPatientWritesV66(){
+    if(patientAutosaveTimer){
+      clearTimeout(patientAutosaveTimer);
+      patientAutosaveTimer=null;
+      patientAutosaveScheduledOptions=null;
+    }
+    patientAutosaveQueued=false;
+    await waitForPatientMutations(outcomePatientIdV66);
+    const deadline=Date.now()+15000;
+    while(patientAutosaveBusy&&Date.now()<deadline){
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    if(patientAutosaveBusy)throw new Error('O salvamento automático ainda está em andamento.');
+    if(patientAutosaveTimer){
+      clearTimeout(patientAutosaveTimer);
+      patientAutosaveTimer=null;
+      patientAutosaveScheduledOptions=null;
+    }
+    patientAutosaveQueued=false;
+  }
+  async function persistPatientOutcomeFirebaseV66(record,{preferLocalSnapshot=false}={}){
+    if(!firebaseActive||!db||!patientsRef)throw new Error('Firebase indisponível.');
+    const historyRef=db.collection(HISTORY_COLLECTION_V41).doc(record.outcomeId);
+    const patientRef=patientsRef.doc(record.patientId);
+    const operation=db.runTransaction(async transaction=>{
+      const historySnapshot=await transaction.get(historyRef);
+      const patientSnapshot=await transaction.get(patientRef);
+      if(historySnapshot.exists){
+        const existing=historySnapshot.data()||{};
+        if(
+          existing.type==='patient_outcome'&&
+          existing.patientId===record.patientId&&
+          existing.sectorUnit===record.sectorUnit&&
+          !patientSnapshot.exists
+        ){
+          return {record:existing,alreadyCommitted:true};
+        }
+        const conflict=new Error('Já existe um registro de desfecho conflitante para este paciente.');
+        conflict.code='connect-hub/outcome-conflict';
+        throw conflict;
+      }
+      if(!patientSnapshot.exists){
+        const missing=new Error('O paciente não está mais disponível neste setor.');
+        missing.code='connect-hub/patient-missing';
+        throw missing;
+      }
+      const currentPatient=patientSnapshot.data()||{};
+      const mergedPatientSnapshot=preferLocalSnapshot
+        ? {...currentPatient,...record.patientSnapshot,id:record.patientId}
+        : {...record.patientSnapshot,...currentPatient,id:record.patientId};
+      if(preferLocalSnapshot&&!record.patientSnapshot?.alerts?.includes('Profilaxia de TEV')){
+        delete mergedPatientSnapshot.tevProtocol;
+        delete mergedPatientSnapshot.improveBleedingScore;
+        delete mergedPatientSnapshot.capriniScore;
+        delete mergedPatientSnapshot.tevProtocolStatus;
+      }
+      const immutableRecord=withOutcomePatientFieldsV66(record,mergedPatientSnapshot);
+      transaction.set(historyRef,immutableRecord,{merge:false});
+      transaction.delete(patientRef);
+      return {record:immutableRecord,alreadyCommitted:false};
+    });
+    return trackPatientMutation(record.patientId,operation);
+  }
+  function restoreLocalOutcomesV66(previous){
+    if(previous===null)localStorage.removeItem(OUTCOMES_KEY);
+    else localStorage.setItem(OUTCOMES_KEY,previous);
+  }
+  function persistPatientOutcomeLocalV66(record){
+    const previousOutcomes=localStorage.getItem(OUTCOMES_KEY);
+    let outcomes=[];
+    try{
+      const parsed=JSON.parse(previousOutcomes||'[]');
+      if(!Array.isArray(parsed))throw new Error('Histórico local de desfechos inválido.');
+      outcomes=parsed;
+    }catch(error){
+      const invalid=new Error('O histórico local de desfechos precisa ser recuperado antes de continuar.');
+      invalid.cause=error;
+      throw invalid;
+    }
+    const existing=outcomes.find(item=>item?.outcomeId===record.outcomeId);
+    if(existing){
+      if(!patients.some(patient=>patient.id===record.patientId))return existing;
+      throw new Error('Já existe um desfecho para este paciente no histórico local.');
+    }
+    const nextOutcomes=outcomes.concat(record);
+    const nextPatients=patients.filter(patient=>patient.id!==record.patientId);
+    localStorage.setItem(OUTCOMES_KEY,JSON.stringify(nextOutcomes));
+    try{
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(nextPatients));
+    }catch(error){
+      restoreLocalOutcomesV66(previousOutcomes);
+      throw error;
+    }
+    patients=nextPatients;
+    return record;
+  }
+  function removePatientAfterOutcomeV66(patientId){
+    patients=patients.filter(patient=>patient.id!==patientId);
+    render();
+  }
+  function resetOutcomeDialogV66(){
+    document.querySelectorAll('input[name="patientOutcomeType"]').forEach(input=>{input.checked=false});
+    const responsible=byIdV66('patientOutcomeResponsibleDoctor');
+    const cid=byIdV66('patientOutcomePrimaryCid');
+    if(responsible)responsible.value=suggestedResponsibleDoctorV66();
+    if(cid)cid.value='';
+    outcomeStatusV66('');
+    setOutcomeBusyV66(false);
+    window.updatePatientOutcomeForm();
+  }
+  function releaseOutcomeLockV66({resumeAutosave=false}={}){
+    const patientId=outcomePatientIdV66;
+    const removalConfirmed=patientOutcomeRemovalConfirmedPatientId===patientId;
+    if(patientOutcomeClosingPatientId===patientId)patientOutcomeClosingPatientId='';
+    const shouldResume=resumeAutosave&&(outcomeHadPendingAutosaveV66||outcomeHadQueuedAutosaveV66)
+      &&drawerIsOpen()&&val('patientId')===patientId;
+    outcomeHadPendingAutosaveV66=false;
+    outcomeHadQueuedAutosaveV66=false;
+    if(shouldResume){
+      schedulePatientAutosave(0,outcomePendingAutosaveOptionsV66||{});
+    }
+    outcomePendingAutosaveOptionsV66=null;
+    patientOutcomeRemovalConfirmedPatientId='';
+    if(!removalConfirmed&&patientOutcomeDeferredPatientsSnapshot&&!patientOutcomeDeferredSnapshotPending){
+      patients=patientOutcomeDeferredPatientsSnapshot;
+      render();
+    }
+    patientOutcomeDeferredPatientsSnapshot=null;
+    patientOutcomeDeferredSnapshotPending=false;
+  }
+
+  window.updatePatientOutcomeForm=function(){
+    const type=selectedOutcomeTypeV66();
+    const responsible=String(byIdV66('patientOutcomeResponsibleDoctor')?.value||'').trim();
+    const cid=String(byIdV66('patientOutcomePrimaryCid')?.value||'').trim();
+    const cidWrap=byIdV66('patientOutcomeCidWrap');
+    const cidInput=byIdV66('patientOutcomePrimaryCid');
+    const confirmButton=byIdV66('patientOutcomeConfirmBtn');
+    const isDeath=type==='death';
+    cidWrap?.classList.toggle('is-hidden',!isDeath);
+    if(cidInput){
+      cidInput.required=isDeath;
+      if(!isDeath)cidInput.value='';
+    }
+    if(confirmButton&&!outcomeBusyV66){
+      confirmButton.disabled=!(type&&responsible&&(!isDeath||cid));
+    }
+    if(!outcomeBusyV66)outcomeStatusV66('');
+  };
+
+  window.openPatientOutcomeDialog=function(patientId,trigger=null){
+    if(outcomeBusyV66)return;
+    const patient=patients.find(item=>item.id===patientId);
+    if(!patient){showToast('Paciente não encontrado.');return}
+    outcomePatientIdV66=patientId;
+    outcomeIdV66=stableOutcomeIdV66(patientId);
+    outcomeRecordV66=null;
+    outcomeRecordFormSignatureV66='';
+    outcomeReturnFocusV66=trigger||document.activeElement;
+    outcomeHadPendingAutosaveV66=!!patientAutosaveTimer;
+    outcomeHadQueuedAutosaveV66=!!patientAutosaveQueued;
+    outcomePendingAutosaveOptionsV66=patientAutosaveScheduledOptions
+      ? {...patientAutosaveScheduledOptions}
+      : null;
+    if(patientAutosaveTimer){
+      clearTimeout(patientAutosaveTimer);
+      patientAutosaveTimer=null;
+      patientAutosaveScheduledOptions=null;
+    }
+    patientAutosaveQueued=false;
+    patientOutcomeClosingPatientId=patientId;
+    patientOutcomeRemovalConfirmedPatientId='';
+    patientOutcomeDeferredPatientsSnapshot=null;
+    patientOutcomeDeferredSnapshotPending=false;
+    const label=byIdV66('patientOutcomePatientLabel');
+    if(label)label.textContent=`${patient.bed||'Leito não informado'} — ${patient.name||'Paciente sem nome'}`;
+    resetOutcomeDialogV66();
+    const dialog=dialogV66();
+    dialog?.classList.add('is-open');
+    dialog?.setAttribute('aria-hidden','false');
+    document.body.classList.add('patient-outcome-open');
+    setTimeout(()=>document.querySelector('input[name="patientOutcomeType"]')?.focus(),30);
+  };
+
+  window.openPatientOutcomeFromDrawer=function(){
+    const patientId=val('patientId');
+    if(!patientId){showToast('Salve o paciente antes de registrar o desfecho.');return}
+    window.openPatientOutcomeDialog(patientId,byIdV66('outcomePatientBtn'));
+  };
+
+  window.closePatientOutcomeDialog=function(options={}){
+    const force=!!options.force;
+    if(outcomeBusyV66&&!force)return;
+    const dialog=dialogV66();
+    if(!dialog?.classList.contains('is-open'))return;
+    dialog.classList.remove('is-open');
+    dialog.setAttribute('aria-hidden','true');
+    document.body.classList.remove('patient-outcome-open');
+    releaseOutcomeLockV66({resumeAutosave:options.resumeAutosave!==false});
+    outcomePatientIdV66='';
+    outcomeIdV66='';
+    outcomeRecordV66=null;
+    outcomeRecordFormSignatureV66='';
+    outcomeBusyV66=false;
+    const returnFocus=outcomeReturnFocusV66;
+    outcomeReturnFocusV66=null;
+    if(returnFocus?.isConnected)setTimeout(()=>returnFocus.focus(),0);
+  };
+
+  window.confirmPatientOutcome=async function(){
+    if(outcomeBusyV66||!outcomePatientIdV66)return;
+    const outcomeType=selectedOutcomeTypeV66();
+    const responsibleDoctor=String(byIdV66('patientOutcomeResponsibleDoctor')?.value||'').trim();
+    const primaryIcdCode=String(byIdV66('patientOutcomePrimaryCid')?.value||'').trim().toUpperCase();
+    if(!OUTCOME_TYPES_V66[outcomeType]||!responsibleDoctor||(outcomeType==='death'&&!primaryIcdCode)){
+      window.updatePatientOutcomeForm();
+      outcomeStatusV66('Preencha os campos obrigatórios antes de confirmar.',true);
+      return;
+    }
+    setOutcomeBusyV66(true);
+    outcomeStatusV66('Encerrando atendimento...');
+    try{
+      if(isFirebaseConfigured()&&!firebaseActive){
+        throw new Error('A conexão com o Firebase não está disponível.');
+      }
+      const preferLocalSnapshot=drawerIsOpen()&&val('patientId')===outcomePatientIdV66;
+      const draftBeforeWait=preferLocalSnapshot
+        ? latestPatientSnapshotV66(outcomePatientIdV66)
+        : null;
+      await waitForPatientWritesV66();
+      const patient=draftBeforeWait||latestPatientSnapshotV66(outcomePatientIdV66);
+      if(!patient)throw new Error('O paciente não está mais disponível neste setor.');
+      const formSignature=JSON.stringify({outcomeType,responsibleDoctor,primaryIcdCode});
+      if(!outcomeRecordV66||outcomeRecordFormSignatureV66!==formSignature){
+        outcomeRecordV66=buildPatientOutcomeRecordV66(patient,{outcomeType,responsibleDoctor,primaryIcdCode});
+        outcomeRecordFormSignatureV66=formSignature;
+      }
+      let record=outcomeRecordV66;
+      if(firebaseActive){
+        const result=await persistPatientOutcomeFirebaseV66(record,{preferLocalSnapshot});
+        record=result.record;
+        patientOutcomeRemovalConfirmedPatientId=record.patientId;
+        removePatientAfterOutcomeV66(record.patientId);
+      }else{
+        record=persistPatientOutcomeLocalV66(record);
+        patientOutcomeRemovalConfirmedPatientId=record.patientId;
+        render();
+      }
+      const completedPatientId=record.patientId;
+      const label=record.outcomeLabel;
+      outcomeBusyV66=false;
+      window.closePatientOutcomeDialog({force:true,resumeAutosave:false});
+      if(drawerIsOpen()&&val('patientId')===completedPatientId)closeDrawer();
+      showToast(`Desfecho registrado: ${label}.`);
+    }catch(error){
+      console.warn('Falha ao registrar desfecho:',error);
+      setOutcomeBusyV66(false);
+      outcomeStatusV66('Não foi possível registrar o desfecho. O paciente permanece no HUB. Tente novamente.',true);
+      const confirmButton=byIdV66('patientOutcomeConfirmBtn');
+      if(confirmButton)confirmButton.disabled=false;
+    }
+  };
+
+  document.addEventListener('keydown',event=>{
+    const dialog=dialogV66();
+    if(!dialog?.classList.contains('is-open'))return;
+    if(event.key==='Escape'&&!outcomeBusyV66){
+      event.preventDefault();
+      window.closePatientOutcomeDialog();
+      return;
+    }
+    if(event.key==='Tab'){
+      const focusable=[...dialog.querySelectorAll(
+        'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+      )].filter(element=>element.getClientRects().length>0);
+      if(!focusable.length){
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first=focusable[0];
+      const last=focusable[focusable.length-1];
+      if(event.shiftKey&&document.activeElement===first){
+        event.preventDefault();
+        last.focus();
+      }else if(!event.shiftKey&&document.activeElement===last){
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  });
+  dialogV66()?.addEventListener('click',event=>{
+    if(event.target===dialogV66()&&!outcomeBusyV66)window.closePatientOutcomeDialog();
+  });
+
+  window.PatientOutcomeFramework={
+    version:'1.0.0',
+    buildRecord:buildPatientOutcomeRecordV66,
+    persistFirebase:persistPatientOutcomeFirebaseV66,
+    persistLocal:persistPatientOutcomeLocalV66,
+    lengthOfStayDays:lengthOfStayDaysV66,
+    stableOutcomeId:stableOutcomeIdV66
+  };
 })();
 </script>
 </body>

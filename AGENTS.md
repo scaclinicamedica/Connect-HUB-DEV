@@ -15,10 +15,12 @@ Antes de propor ou implementar alterações, leia:
 1. `docs/PROJECT_CONTEXT.md`;
 2. `docs/CURRENT_STATE.md`;
 3. `docs/ARRHYTHMIAS_SPEC.md` quando Arritmias estiver no escopo;
-4. `docs/QA_CHECKLIST.md`;
-5. `docs/ROADMAP_PHOENIX.md` para trabalhos da V2;
-6. `docs/CODEX_ONBOARDING.md` para configuração do ambiente;
-7. `CHANGELOG.md`.
+4. `docs/OUTCOMES_SPEC.md` quando Desfecho ou indicadores administrativos
+   estiverem no escopo;
+5. `docs/QA_CHECKLIST.md`;
+6. `docs/ROADMAP_PHOENIX.md` para trabalhos da V2;
+7. `docs/CODEX_ONBOARDING.md` para configuração do ambiente;
+8. `CHANGELOG.md`.
 
 ## Regras obrigatórias
 
@@ -99,8 +101,9 @@ corpo do resumo e a cor âmbar pode preservar o histórico de risco.
 
 ## Execução e validação
 
-O repositório ainda não possui um processo padronizado de build ou uma suíte
-automatizada permanente. Não invente comandos como se já fossem oficiais.
+A V1 não possui etapa de build. A suíte portátil e os comandos oficiais de
+validação estão descritos em `docs/TESTING_V1.md`; não substitua esses comandos
+por dependências ou caminhos específicos da máquina local.
 
 Para uma visualização local simples, a aplicação estática pode ser servida na
 raiz do repositório, por exemplo:
