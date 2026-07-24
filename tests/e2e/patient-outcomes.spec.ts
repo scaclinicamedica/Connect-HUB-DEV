@@ -3,8 +3,13 @@ import { OUTCOME_TEST_DOCTOR, outcomePatient } from '../fixtures/outcomes';
 
 const historyPath = (patientId: string) =>
   `historico_eventos/patient_outcome_emergencia_${encodeURIComponent(patientId)}`;
+const adminOutcomePath = (patientId: string) =>
+  `admin_outcomes/patient_outcome_emergencia_${encodeURIComponent(patientId)}`;
 const patientPath = (patientId: string) =>
   `connect_hub_v55/emergencia/pacientes/${patientId}`;
+const tombstonePath = (patientId: string) =>
+  `connect_hub_v55/emergencia/closed_patients/${patientId}`;
+const FIREBASE_TEST_UID = 'fixture-anonymous-user';
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-07-24T15:00:00.000Z'));
@@ -70,6 +75,8 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
   const writes = await app.firebaseWrites();
   expect(writes.map(write => ({ operation: write.operation, path: write.path }))).toEqual([
     { operation: 'set', path: historyPath(patient.id) },
+    { operation: 'set', path: adminOutcomePath(patient.id) },
+    { operation: 'set', path: tombstonePath(patient.id) },
     { operation: 'delete', path: `connect_hub_v55/emergencia/pacientes/${patient.id}` }
   ]);
 
@@ -89,6 +96,7 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
     lengthOfStayMethod: 'inclusive_calendar_days',
     responsibleDoctor: OUTCOME_TEST_DOCTOR,
     actor: OUTCOME_TEST_DOCTOR,
+    actorUid: FIREBASE_TEST_UID,
     primaryIcdCode: '',
     patientSnapshot: {
       id: patient.id,
@@ -98,6 +106,65 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
       arrhythmiasCleanData: patient.arrhythmiasCleanData
     }
   });
+  expect(await app.firebaseDocument(tombstonePath(patient.id))).toEqual({
+    schemaVersion: 1,
+    type: 'patient_closed',
+    patientId: patient.id,
+    sectorUnit: 'emergencia',
+    outcomeId: `patient_outcome_emergencia_${encodeURIComponent(patient.id)}`,
+    outcomeType: 'treated',
+    closedAt: { $timestamp: expect.any(String) },
+    closedByUid: FIREBASE_TEST_UID
+  });
+  const adminRecord = await app.firebaseDocument(adminOutcomePath(patient.id));
+  expect(Object.keys(adminRecord).sort()).toEqual([
+    'schemaVersion',
+    'sourceVersion',
+    'type',
+    'outcomeId',
+    'outcomeType',
+    'outcomeLabel',
+    'createdAt',
+    'patientId',
+    'patientName',
+    'sectorUnit',
+    'sectorName',
+    'unit',
+    'bed',
+    'specialty',
+    'admissionDate',
+    'lengthOfStayDays',
+    'lengthOfStayMethod',
+    'responsibleDoctor',
+    'primaryIcdCode',
+    'actorUid'
+  ].sort());
+  expect(adminRecord).toEqual({
+    schemaVersion: 1,
+    sourceVersion: 'FOUNDATION-1.0-RC1.3.0-OUTCOMES',
+    type: 'patient_outcome_admin',
+    outcomeId: `patient_outcome_emergencia_${encodeURIComponent(patient.id)}`,
+    outcomeType: 'treated',
+    outcomeLabel: 'Tratado',
+    createdAt: { $timestamp: expect.any(String) },
+    patientId: patient.id,
+    patientName: patient.name,
+    sectorUnit: 'emergencia',
+    sectorName: 'Emergência',
+    unit: '',
+    bed: patient.bed,
+    specialty: patient.specialty,
+    admissionDate: patient.admissionDate,
+    lengthOfStayDays: 15,
+    lengthOfStayMethod: 'inclusive_calendar_days',
+    responsibleDoctor: OUTCOME_TEST_DOCTOR,
+    primaryIcdCode: '',
+    actorUid: FIREBASE_TEST_UID
+  });
+  expect((await app.firebaseReads()).map(read => read.path)).toEqual([
+    tombstonePath(patient.id),
+    patientPath(patient.id)
+  ]);
   expect(await app.persistedPatient(patient.id)).toBeUndefined();
 });
 
@@ -136,6 +203,14 @@ test('deriva os campos administrativos do paciente mais recente lido na transaç
     severity: concurrentPatient.severity,
     alerts: concurrentPatient.alerts,
     patientSnapshot: concurrentPatient
+  });
+  expect(await app.firebaseDocument(adminOutcomePath(patient.id))).toMatchObject({
+    patientName: concurrentPatient.name,
+    unit: concurrentPatient.inpatientUnit,
+    bed: concurrentPatient.bed,
+    specialty: concurrentPatient.specialty,
+    admissionDate: concurrentPatient.admissionDate,
+    lengthOfStayDays: 5
   });
 });
 
@@ -213,6 +288,8 @@ test('falha atômica mantém o paciente e permite tentar novamente', async ({ ap
   await expect(app.cards).toHaveCount(1);
   expect(await app.persistedPatient(patient.id)).toBeDefined();
   expect(await app.firebaseDocument(historyPath(patient.id))).toBeUndefined();
+  expect(await app.firebaseDocument(adminOutcomePath(patient.id))).toBeUndefined();
+  expect(await app.firebaseDocument(tombstonePath(patient.id))).toBeUndefined();
   expect(await app.firebaseWrites()).toEqual([]);
 
   await app.outcomeConfirmButton.click();
@@ -238,15 +315,15 @@ test('aguarda autosave em voo, preserva a última edição e não recria o pacie
   const pendingAutosave = await app.delayNextFirebaseWrite(
     'set',
     `connect_hub_v55/emergencia/pacientes/${patient.id}`,
-    500
+    1_000
   );
 
   const latestDiagnosis = 'HIPÓTESE FICTÍCIA ATUALIZADA ANTES DO DESFECHO';
   await app.page.locator('#diagnosis').fill(latestDiagnosis);
+  await app.waitForFirebaseControl(pendingAutosave, 'pending');
   await expect(app.page.locator('#autosaveStatus')).toContainText('Salvando automaticamente', {
     timeout: 3_000
   });
-  await app.waitForFirebaseControl(pendingAutosave, 'pending');
 
   await app.page.locator('#outcomePatientBtn').click();
   await app.selectOutcome('treated');
@@ -365,18 +442,84 @@ test('retry após perda do ACK reutiliza o registro imutável sem reescrever aud
   await expect(app.page.locator('#patientOutcomeStatus')).toContainText('paciente permanece no HUB');
   await expect(app.cards).toHaveCount(1);
   const firstRecord = await app.firebaseDocument(historyPath(patient.id));
+  const firstAdminRecord = await app.firebaseDocument(adminOutcomePath(patient.id));
   expect(firstRecord).toMatchObject({
     outcomeType: 'death',
     primaryIcdCode: 'J18.9',
-    responsibleDoctor: OUTCOME_TEST_DOCTOR
+    responsibleDoctor: OUTCOME_TEST_DOCTOR,
+    actorUid: FIREBASE_TEST_UID
   });
   expect(await app.persistedPatient(patient.id)).toBeUndefined();
-  expect(await app.firebaseWrites()).toHaveLength(2);
+  const firstTombstone = await app.firebaseDocument(tombstonePath(patient.id));
+  expect(firstTombstone).toEqual({
+    schemaVersion: 1,
+    type: 'patient_closed',
+    patientId: patient.id,
+    sectorUnit: 'emergencia',
+    outcomeId: `patient_outcome_emergencia_${encodeURIComponent(patient.id)}`,
+    outcomeType: 'death',
+    closedAt: { $timestamp: expect.any(String) },
+    closedByUid: FIREBASE_TEST_UID
+  });
+  const writesBeforeRetry = await app.firebaseWrites();
+  expect(writesBeforeRetry).toHaveLength(4);
+  await app.clearFirebaseReads();
 
   await app.outcomeConfirmButton.click();
   await expect(app.cards).toHaveCount(0);
   expect(await app.firebaseDocument(historyPath(patient.id))).toEqual(firstRecord);
-  expect(await app.firebaseWrites()).toHaveLength(2);
+  expect(await app.firebaseDocument(adminOutcomePath(patient.id))).toEqual(firstAdminRecord);
+  expect(await app.firebaseDocument(tombstonePath(patient.id))).toEqual(firstTombstone);
+  expect(await app.firebaseWrites()).toEqual(writesBeforeRetry);
+  const retryReadPaths = (await app.firebaseReads()).map(read => read.path);
+  expect(retryReadPaths).toEqual([
+    tombstonePath(patient.id)
+  ]);
+  expect(retryReadPaths).not.toContain(historyPath(patient.id));
+  expect(retryReadPaths).not.toContain(adminOutcomePath(patient.id));
+});
+
+test('rejeita como conflito uma lápide criada por outro UID sem consultar auditoria', async ({ app }) => {
+  const patient = outcomePatient('fixture-outcome-other-session');
+  const outcomeId = `patient_outcome_emergencia_${encodeURIComponent(patient.id)}`;
+  await app.goto({
+    patients: [patient],
+    meta: { currentDoctor: OUTCOME_TEST_DOCTOR },
+    closedPatients: [{
+      id: patient.id,
+      schemaVersion: 1,
+      type: 'patient_closed',
+      patientId: patient.id,
+      sectorUnit: 'emergencia',
+      outcomeId,
+      outcomeType: 'death',
+      closedAt: '2026-07-24T14:00:00.000Z',
+      closedByUid: 'fixture-other-session-user'
+    }]
+  });
+  await app.clearFirebaseWrites();
+  await app.clearFirebaseReads();
+
+  await app.openOutcomeFromCard(patient.id);
+  await app.selectOutcome('death');
+  await app.fillOutcomeResponsible('MÉDICO FICTÍCIO DESTA SESSÃO');
+  await app.page.locator('#patientOutcomePrimaryCid').fill('i21.9');
+  await app.outcomeConfirmButton.click();
+
+  const status = app.page.locator('#patientOutcomeStatus');
+  await expect(status).toContainText(
+    'Não foi possível registrar o desfecho. O paciente permanece no HUB.'
+  );
+  await expect(status).not.toContainText('MÉDICO FICTÍCIO DESTA SESSÃO');
+  await expect(status).not.toContainText('I21.9');
+  await expect(app.outcomeDialog).toHaveClass(/is-open/);
+  await expect(app.cards).toHaveCount(1);
+  expect(await app.persistedPatient(patient.id)).toBeDefined();
+  expect(await app.firebaseWrites()).toEqual([]);
+  const readPaths = (await app.firebaseReads()).map(read => read.path);
+  expect(readPaths).toEqual([tombstonePath(patient.id)]);
+  expect(readPaths).not.toContain(historyPath(patient.id));
+  expect(readPaths).not.toContain(adminOutcomePath(patient.id));
 });
 
 test('guard de Desfecho rejeita salvamento tardio de outro cliente', async ({ app }) => {
@@ -393,11 +536,24 @@ test('guard de Desfecho rejeita salvamento tardio de outro cliente', async ({ ap
     createdAtLocal: '2026-07-24T14:00:00.000Z',
     patientSnapshot: patient
   };
+  const existingTombstone = {
+    id: patient.id,
+    schemaVersion: 1,
+    type: 'patient_closed',
+    patientId: patient.id,
+    sectorUnit: 'emergencia',
+    outcomeId: existingOutcome.id,
+    outcomeType: 'treated',
+    closedAt: '2026-07-24T14:00:00.000Z',
+    closedByUid: FIREBASE_TEST_UID
+  };
   await app.goto({
     patients: [patient],
+    closedPatients: [existingTombstone],
     historyEvents: [existingOutcome]
   });
   await app.clearFirebaseWrites();
+  await app.clearFirebaseReads();
 
   const errorCode = await app.page.evaluate(async patientId => {
     const browserWindow = window as unknown as {
@@ -436,6 +592,9 @@ test('guard de Desfecho rejeita salvamento tardio de outro cliente', async ({ ap
 
   expect(errorCode).toBe('connect-hub/patient-outcome-closed');
   expect(await app.firebaseWrites()).toEqual([]);
+  expect((await app.firebaseReads()).map(read => read.path)).toEqual([
+    tombstonePath(patient.id)
+  ]);
   expect(await app.persistedPatient(patient.id)).toEqual(expect.objectContaining({
     id: patient.id,
     diagnosis: patient.diagnosis

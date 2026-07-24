@@ -6,6 +6,7 @@
   const listeners = new Set();
   const documentListeners = new Set();
   const writeLog = [];
+  const readLog = [];
   const operationControls = [];
   const transactionFailuresAfterCommit = [];
   let generatedId = 0;
@@ -119,7 +120,17 @@
 
   function querySnapshot(query, hasPendingWrites = false){
     let rows = directChildren(query.path);
+    for(const filter of query.filters){
+      rows = rows.filter(row => {
+        const hasField = Object.prototype.hasOwnProperty.call(row.data || {}, filter.field);
+        const fieldValue = row.data?.[filter.field];
+        if(filter.operator === '!=') return hasField && fieldValue !== filter.value;
+        if(filter.operator === '==') return hasField && fieldValue === filter.value;
+        throw new Error(`Unsupported fixture query operator: ${filter.operator}`);
+      });
+    }
     if(query.orderField) {
+      rows = rows.filter(row => Object.prototype.hasOwnProperty.call(row.data || {}, query.orderField));
       rows.sort((left, right) => {
         const a = left.data?.[query.orderField];
         const b = right.data?.[query.orderField];
@@ -135,7 +146,8 @@
       docs,
       empty: docs.length === 0,
       size: docs.length,
-      metadata: { hasPendingWrites }
+      metadata: { hasPendingWrites },
+      forEach(callback){ docs.forEach(callback); }
     };
   }
 
@@ -158,14 +170,37 @@
       this.orderField = options.orderField || '';
       this.orderDirection = options.orderDirection || 'asc';
       this.limitCount = options.limitCount;
+      this.filters = Array.isArray(options.filters) ? options.filters : [];
     }
     orderBy(field, direction = 'asc'){
       return new QueryReference(this.path, { ...this, orderField: field, orderDirection: direction });
     }
+    where(field, operator, value){
+      return new QueryReference(this.path, {
+        ...this,
+        filters: [...this.filters, { field, operator, value }]
+      });
+    }
     limit(count){
       return new QueryReference(this.path, { ...this, limitCount: count });
     }
-    async get(){ return querySnapshot(this); }
+    async get(){
+      await applyOperationControl('get', this.path);
+      const snapshot = querySnapshot(this);
+      readLog.push({
+        operation: 'get',
+        path: this.path,
+        query: true,
+        transaction: false,
+        filters: clone(this.filters),
+        orderField: this.orderField,
+        orderDirection: this.orderDirection,
+        limitCount: this.limitCount,
+        returnedPaths: snapshot.docs.map(doc => doc.ref.path),
+        at: performance.now()
+      });
+      return snapshot;
+    }
     onSnapshot(success, error){
       const listener = { query: this, success, error };
       listeners.add(listener);
@@ -189,7 +224,11 @@
   class DocumentReference {
     constructor(path){ this.path = path; this.id = path.split('/').pop(); }
     collection(name){ return new CollectionReference(`${this.path}/${name}`); }
-    async get(){ return docSnapshot(this.path, documents.get(this.path)); }
+    async get(){
+      await applyOperationControl('get', this.path);
+      readLog.push({ operation: 'get', path: this.path, query: false, transaction: false, at: performance.now() });
+      return docSnapshot(this.path, documents.get(this.path));
+    }
     onSnapshot(success, error){
       const listener = { path: this.path, success, error };
       documentListeners.add(listener);
@@ -279,6 +318,13 @@
         const operations = [];
         const transaction = {
           async get(reference){
+            readLog.push({
+              operation: 'get',
+              path: reference.path,
+              query: false,
+              transaction: true,
+              at: performance.now()
+            });
             return docSnapshot(reference.path, snapshotDocuments.get(reference.path));
           },
           set(reference, data, options = {}){
@@ -349,21 +395,104 @@
     }
   };
 
+  const authInstances = new Map();
+  const authLog = [];
+  const adminAccounts = Array.isArray(seed.adminAccounts) ? seed.adminAccounts : [];
+
+  function notifyAuthObservers(instance){
+    for(const observer of instance.__observers){
+      setTimeout(() => {
+        try { observer.success(instance.currentUser); }
+        catch(error) { if(observer.failure) observer.failure(error); }
+      }, 0);
+    }
+  }
+
+  function authForApp(appName = '[DEFAULT]'){
+    if(authInstances.has(appName)) return authInstances.get(appName);
+    const instance = {
+      __appName: appName,
+      __observers: new Set(),
+      currentUser: appName === '[DEFAULT]' && seed.authUid
+        ? { uid: seed.authUid, isAnonymous: true }
+        : null,
+      async setPersistence(value){
+        authLog.push({ operation: 'setPersistence', appName, value: String(value) });
+      },
+      onAuthStateChanged(success, failure){
+        const observer = { success, failure };
+        instance.__observers.add(observer);
+        setTimeout(() => {
+          try { success(instance.currentUser); }
+          catch(error) { if(failure) failure(error); }
+        }, 0);
+        return () => instance.__observers.delete(observer);
+      },
+      async signInAnonymously(){
+        const user = { uid: seed.authUid || 'fixture-anonymous-user', isAnonymous: true };
+        instance.currentUser = user;
+        authLog.push({ operation: 'signInAnonymously', appName, uid: user.uid });
+        notifyAuthObservers(instance);
+        return { user };
+      },
+      async signInWithEmailAndPassword(email, password){
+        const account = adminAccounts.find(candidate => (
+          String(candidate.email || '').toLowerCase() === String(email || '').toLowerCase() &&
+          String(candidate.password || '') === String(password || '')
+        ));
+        if(!account){
+          const error = new Error('Credencial administrativa inválida.');
+          error.code = 'auth/invalid-credential';
+          throw error;
+        }
+        const user = {
+          uid: account.uid,
+          email: account.email,
+          isAnonymous: false
+        };
+        instance.currentUser = user;
+        authLog.push({ operation: 'signInWithEmailAndPassword', appName, uid: user.uid });
+        notifyAuthObservers(instance);
+        return { user };
+      },
+      async signOut(){
+        const uid = instance.currentUser?.uid || null;
+        instance.currentUser = null;
+        authLog.push({ operation: 'signOut', appName, uid });
+        notifyAuthObservers(instance);
+      }
+    };
+    authInstances.set(appName, instance);
+    return instance;
+  }
+
   const firebase = {
     apps: [],
-    initializeApp(config){
-      const app = { options: clone(config) };
+    initializeApp(config, requestedName){
+      const name = requestedName || '[DEFAULT]';
+      const existing = firebase.apps.find(candidate => candidate.name === name);
+      if(existing) return existing;
+      const app = {
+        name,
+        options: clone(config),
+        auth(){ return authForApp(name); },
+        firestore(){ return database; }
+      };
       firebase.apps.push(app);
       return app;
     },
-    auth(){
-      return { async signInAnonymously(){ return { user: { uid: 'fixture-anonymous-user' } }; } };
-    },
+    auth(){ return authForApp('[DEFAULT]'); },
     firestore(){ return database; }
+  };
+  firebase.auth.Auth = {
+    Persistence: {
+      SESSION: 'session'
+    }
   };
   firebase.firestore.FieldValue = {
     serverTimestamp(){ return { __serverTimestamp: true }; }
   };
+  if(seed.authUid) authForApp('[DEFAULT]');
 
   function seedCollection(path, values){
     for(const value of values || []) documents.set(`${path}/${value.id}`, materialize(clone(value)));
@@ -372,9 +501,23 @@
   const unit = seed.unit || 'emergencia';
   const root = `connect_hub_v55/${unit}`;
   seedCollection(`${root}/pacientes`, seed.patients);
+  for(const [sectorUnit, patients] of Object.entries(seed.patientsByUnit || {})){
+    seedCollection(`connect_hub_v55/${sectorUnit}/pacientes`, patients);
+  }
   if(seed.meta) documents.set(`${root}/meta/atual`, materialize(clone(seed.meta)));
   seedCollection(`${root}/confirmacoes`, seed.confirmations);
+  seedCollection(`${root}/closed_patients`, seed.closedPatients);
   seedCollection('historico_eventos', seed.historyEvents);
+  seedCollection('admin_outcomes', seed.adminOutcomes);
+  seedCollection('admin_users', seed.adminUsers);
+  for(const failure of seed.readFailures || []){
+    scheduleOperationControl({
+      operation: 'get',
+      pathIncludes: failure.pathIncludes || '',
+      failureMessage: failure.message || 'Falha de leitura simulada.',
+      failureCode: failure.code || 'fixture/read-failed'
+    });
+  }
 
   window.firebase = firebase;
   window.__firebaseTestHarness = {
@@ -382,7 +525,18 @@
       return Object.fromEntries([...documents.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([path, data]) => [path, serialize(data)]));
     },
     writes(){ return clone(writeLog); },
+    reads(){ return clone(readLog); },
+    authLog(){ return clone(authLog); },
+    authState(){
+      return Object.fromEntries([...authInstances.entries()].map(([name, instance]) => [
+        name,
+        instance.currentUser
+          ? { uid: instance.currentUser.uid, email: instance.currentUser.email || '', isAnonymous: Boolean(instance.currentUser.isAnonymous) }
+          : null
+      ]));
+    },
     clearWrites(){ writeLog.length = 0; },
+    clearReads(){ readLog.length = 0; },
     document(path){ return serialize(documents.get(path)); },
     replaceDocumentSilently(path, data){
       documents.set(path, materialize(clone(data)));

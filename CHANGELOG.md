@@ -1,5 +1,87 @@
 # Changelog
 
+## [Não publicado — segurança de Desfecho e acesso administrativo] — 2026-07-24
+
+### Segurança do Desfecho
+
+- Separado o guard operacional mínimo
+  `connect_hub_v55/<setor>/closed_patients/<patientId>` do evento clínico
+  privado `historico_eventos/<outcomeId>`.
+- O encerramento passa a exigir evento privado, projeção administrativa
+  mínima, lápide e exclusão do paciente ativo na mesma transação atômica.
+- A lápide não contém nome, CID, diagnóstico, alertas nem `patientSnapshot`.
+- `actorUid` e `closedByUid` vinculam as quatro partes à sessão Firebase que
+  confirmou a operação.
+- Retry idempotente consulta apenas a lápide e não lê nem reescreve o histórico
+  privado.
+- Rules versionadas tornam evento e lápide imutáveis, negam delete avulso e
+  bloqueiam recriação do mesmo ID em qualquer setor conhecido.
+- Migrações válidas, atualizações em lote e eventos legados reconhecidos
+  permanecem compatíveis.
+
+### Acesso administrativo
+
+- Removidos o código compartilhado, a autorização por `sessionStorage` e o
+  login anônimo da Área Administrativa.
+- Adicionado login Firebase por e-mail e senha, com perfil
+  `admin_users/<uid>` ativo e papel `admin` ou `coordinator`.
+- A autenticação administrativa usa a instância nomeada `connect-hub-admin`
+  para preservar a sessão anônima clínica.
+- O atalho da tela clínica deixa de usar código compartilhado e passa a abrir
+  o login administrativo real.
+- Histórico integral e listagem de lápides ficam restritos a usuário
+  não-anônimo e autorizado; o clínico pode apenas consultar uma lápide
+  individual.
+- Logout e perda de autorização limpam os dados administrativos.
+- Falha ou truncamento da leitura histórica invalida relatórios anteriores e
+  bloqueia geração/exportação incompleta.
+- Conteúdo persistido é escapado antes da renderização privilegiada; Chart.js
+  e XLSX foram fixados com SRI.
+- Adicionada aba Desfechos com período inicial de 30 dias, filtros por período,
+  setor, especialidade e tipo, contagens, permanência média/mediana com
+  cobertura, proporção de Óbitos entre Desfechos, CIDs e auditoria.
+- A proporção de Óbitos é distinguida de mortalidade institucional.
+- A aba Desfechos consulta somente `admin_outcomes`, uma projeção materializada
+  sem `patientSnapshot`, diagnóstico, alertas ou estado clínico.
+- Período, ordenação, auditoria e permanência usam o `createdAt` do servidor,
+  convertido para a data civil de `America/Sao_Paulo`; campos locais do
+  navegador não participam das métricas.
+- O setor legado `uti` passa a integrar consultas e totais administrativos.
+- Confirmações de transição de cuidados recebem esquema, setor, UID e
+  timestamp do servidor e se tornam imutáveis nas Rules e na interface em
+  nuvem. Um contrato legado estrito preserva abas antigas durante a transição.
+
+### Testes e publicação
+
+- Adicionada suíte de 21 cenários de Firestore Rules no Emulator, cobrindo
+  atomicidade, imutabilidade, perfis, ressurreição, migração e compatibilidade.
+- `firebase-tools` atualizado para 15.24.0; a auditoria deixou de apresentar
+  vulnerabilidades altas ou críticas nas dependências de desenvolvimento.
+- Adicionada caracterização Playwright do login, autorização, isolamento de
+  sessão, logout, falhas históricas, escape de conteúdo e responsividade do
+  painel.
+- Adicionados testes funcionais e responsivos da aba Desfechos para período,
+  filtros, métricas, CIDs, auditoria, estados seguros e descarte do snapshot.
+- Validação isolada da Área Administrativa: 25/25 cenários funcionais e 16/16
+  cenários da matriz responsiva.
+- Validação funcional de Desfecho: 15/15, incluindo conflito entre sessões.
+- Validação integrada: suíte principal 123/123, impressão A4 1/1 e estabilidade
+  desktop 50/50, sem retries.
+- A publicação exige habilitar Email/Password, criar a conta institucional,
+  cadastrar `admin_users/<uid>` e publicar `firestore.rules` antes do merge da
+  aplicação.
+- As Rules estão versionadas e testadas, mas ainda não estão publicadas no
+  projeto Firebase.
+
+### Limitação conhecida
+
+- Os usuários clínicos continuam anônimos. Os UIDs registram a sessão do
+  Desfecho, mas não comprovam autoria nominal nem a autenticidade individual
+  de cada campo do paciente ativo.
+- Como o site atual é público, essa autenticação anônima permanece um
+  bloqueador de produção até existir autenticação clínica nominal ou uma
+  barreira institucional de acesso comprovada.
+
 ## [FOUNDATION 1.0 RC1.3.0 — OUTCOMES] — 2026-07-24
 
 ### Adicionado

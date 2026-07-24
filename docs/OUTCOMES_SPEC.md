@@ -8,8 +8,9 @@ Encerrar a participação de um paciente no HUB sem apagar definitivamente os
 dados clínicos registrados. O Desfecho substitui a antiga ação `Excluir` nos
 cards e no drawer de edição.
 
-Esta primeira entrega cria a fonte histórica que será consumida pela próxima
-etapa da Área Administrativa. Ela não altera o dashboard administrativo.
+Esta entrega cria a fonte histórica e a visão correspondente na Área
+Administrativa. O painel só apresenta os indicadores de Desfechos depois de
+autenticação e autorização reais.
 
 ## Opções homologadas
 
@@ -40,37 +41,53 @@ usado apenas como sugestão editável.
 
 ## Persistência Firebase
 
-O registro é salvo em:
+O Desfecho separa o marcador operacional mínimo do histórico clínico privado:
 
 ```text
+connect_hub_v55/<sectorUnit>/closed_patients/<patientId>
 historico_eventos/<outcomeId>
+admin_outcomes/<outcomeId>
+connect_hub_v55/<sectorUnit>/pacientes/<patientId>
 ```
 
-com `type: "patient_outcome"`.
+O primeiro documento é uma lápide mínima com `type: "patient_closed"`. Ele não
+contém nome, diagnóstico, CID, alertas nem `patientSnapshot` e pode ser lido por
+um cliente clínico autenticado somente por `get`, para impedir uma gravação
+tardia. O segundo documento é o evento privado `patient_outcome`, com o
+snapshot clínico integral. O terceiro é a projeção administrativa mínima
+`patient_outcome_admin`, sem snapshot ou estado clínico.
 
-O registro histórico e a retirada de
-`connect_hub_v55/<sectorUnit>/pacientes/<patientId>` fazem parte da mesma
-transação atômica. A transação lê primeiro o registro histórico determinístico
-e o paciente ativo:
+A confirmação executa quatro mutações na mesma transação atômica:
 
-- sem histórico e com paciente ativo, cria o evento e retira o ativo;
-- com histórico já confirmado e paciente já ausente, retorna o primeiro evento
-  sem reescrevê-lo;
+1. cria o evento privado em `historico_eventos`;
+2. cria a projeção mínima em `admin_outcomes`;
+3. cria a lápide mínima em `closed_patients`;
+4. exclui o paciente da coleção ativa.
+
+As Firestore Rules negam qualquer parte isolada ou combinação incompleta. A
+transação lê primeiro a lápide determinística e o paciente ativo:
+
+- sem lápide e com paciente ativo, cria o evento e a lápide e retira o ativo;
+- com lápide compatível já confirmada e paciente já ausente, trata a repetição
+  como idempotente, sem ler nem reescrever o histórico privado;
 - qualquer combinação conflitante falha de forma fechada.
 
 O identificador estável torna o retry idempotente. A interface mantém um
 snapshot visual durante o eco local otimista e só libera a retirada depois que
 `runTransaction()` confirma a operação.
 
-Os campos administrativos de primeiro nível e `patientSnapshot` são derivados
+O evento privado, a projeção administrativa e `patientSnapshot` são derivados
 do mesmo paciente autoritativo lido dentro da transação. Se outro cliente
-atualizar o paciente antes do commit, a repetição transacional recalcula ambos
-a partir do mesmo estado e evita métricas divergentes do snapshot histórico.
+atualizar o paciente antes do commit, a repetição transacional recalcula os
+documentos a partir do mesmo estado e evita divergência entre auditoria e
+snapshot histórico.
 
 Todas as mutações de pacientes desta versão — salvamento automático ou manual,
-divisão, reordenação, remanejamento e migração — leem esse mesmo guard antes de
-escrever. Uma transação concorrente é repetida pelo Firestore e falha se o
-Desfecho tiver sido confirmado primeiro.
+divisão, reordenação, remanejamento e migração — consultam a lápide mínima
+antes de escrever. Uma transação concorrente é repetida pelo Firestore e falha
+se o Desfecho tiver sido confirmado primeiro. As Rules também negam a criação
+de um paciente com o mesmo identificador quando existe uma lápide em qualquer
+setor conhecido.
 
 Campos do contrato:
 
@@ -91,12 +108,43 @@ Campos do contrato:
 | `lengthOfStayDays` | Permanência inclusiva em dias ou `null` |
 | `lengthOfStayMethod` | `inclusive_calendar_days` |
 | `responsibleDoctor`, `actor` | Médico confirmado |
+| `actorUid` | UID Firebase que confirmou a operação |
 | `primaryIcdCode` | CID no Óbito; vazio nos demais |
 | `status`, `severity`, `alerts` | Estado imediatamente anterior |
 | `patientSnapshot` | Cópia integral e imutável do paciente |
 
 Permanência no mesmo dia equivale a um dia. DIH ausente, inválida ou futura
 produz `null`, sem inferência.
+
+Contrato da lápide mínima:
+
+| Campo | Conteúdo |
+|---|---|
+| `schemaVersion` | `1` |
+| `type` | `patient_closed` |
+| `patientId`, `sectorUnit` | Identificadores do registro encerrado |
+| `outcomeId`, `outcomeType` | Referência e tipo do Desfecho |
+| `closedAt` | Timestamp do servidor |
+| `closedByUid` | UID Firebase que confirmou a operação |
+
+Nenhum dado clínico ou identificador nominal pode ser acrescentado à lápide.
+
+Contrato da projeção administrativa:
+
+| Campo | Conteúdo |
+|---|---|
+| `schemaVersion`, `sourceVersion` | Versão do esquema e release de origem |
+| `type` | `patient_outcome_admin` |
+| `outcomeId`, `outcomeType`, `outcomeLabel` | Identificação e tipo do Desfecho |
+| `createdAt` | Timestamp autoritativo do servidor |
+| `patientId`, `patientName` | Identificação administrativa |
+| `sectorUnit`, `sectorName`, `unit`, `bed` | Local do encerramento |
+| `specialty`, `admissionDate` | Especialidade e DIH |
+| `lengthOfStayDays`, `lengthOfStayMethod` | Valor persistido de compatibilidade |
+| `responsibleDoctor`, `primaryIcdCode`, `actorUid` | Responsável, CID e sessão |
+
+A projeção não aceita `patientSnapshot`, diagnóstico, alertas, gravidade,
+status, `createdAtLocal` ou `dateLocal`.
 
 ## Modo local
 
@@ -106,8 +154,8 @@ Quando o Firebase não está configurado, os registros usam:
 sbar_breve_santa_casa_desfechos_v1_<sectorUnit>
 ```
 
-A Área Administrativa atual não consolida `localStorage`. Esse dado só poderá
-aparecer no painel após sincronização ou suporte explícito na segunda entrega.
+A Área Administrativa não consolida `localStorage`. Esses registros só poderão
+aparecer no painel após uma etapa futura de sincronização explícita.
 Se o histórico local existente não puder ser interpretado como uma lista, o
 fluxo falha sem sobrescrever o conteúdo e sem retirar o paciente.
 
@@ -117,10 +165,96 @@ fluxo falha sem sobrescrever o conteúdo e sem retirar o paciente.
 - O Desfecho preserva campos clínicos desconhecidos dentro de
   `patientSnapshot`.
 - Os códigos persistidos não devem ser traduzidos nem renomeados.
-- A futura Área Administrativa deve derivar contagens e taxas, sem gravá-las
-  novamente em cada evento.
-- A transação protege os clientes desta versão. A imutabilidade contra clientes
-  antigos, código externo ou escrita maliciosa depende de Rules publicadas no
-  Firebase que permitam criar `patient_outcome`, mas neguem update e delete.
-  Essas Rules não estão versionadas neste repositório e devem ser validadas
-  antes da publicação em produção.
+- A Área Administrativa deriva contagens e taxas sem gravá-las novamente em
+  cada evento.
+- As Rules preservam criação de eventos legados reconhecidos e migrações
+  atômicas válidas, sem liberar leitura clínica do histórico nem alteração de
+  eventos já criados.
+
+## Acesso administrativo
+
+`area_administrativa.html` não usa mais código compartilhado em JavaScript nem
+`sessionStorage` como autorização. O acesso exige:
+
+1. autenticação Firebase por e-mail e senha;
+2. documento `admin_users/<uid>` com `active: true`;
+3. `role` igual a `admin` ou `coordinator`.
+
+A Área Administrativa usa uma instância Firebase nomeada
+`connect-hub-admin`, com persistência de sessão, para não substituir nem
+encerrar a sessão anônima da aplicação clínica. O painel consulta os dados
+somente depois de validar o próprio perfil. Logout, acesso negado ou falha de
+autorização limpam os dados administrativos da memória e da interface.
+
+As Rules permitem leitura do histórico integral somente para usuário
+não-anônimo, ativo e com um dos dois papéis administrativos. O cliente clínico
+anônimo pode consultar uma lápide individual, mas não listar lápides nem ler
+`historico_eventos`.
+
+## Área Administrativa — Desfechos
+
+A aba `Desfechos` consome somente projeções `patient_outcome_admin` de
+`schemaVersion: 1` e tipos homologados. O período inicial corresponde aos
+últimos 30 dias. Os filtros disponíveis são:
+
+- data inicial e final;
+- setor;
+- especialidade;
+- tipo de Desfecho.
+
+A visão apresenta:
+
+- total, Tratados, Óbitos e Transferidos;
+- proporção de Óbitos entre os Desfechos filtrados;
+- permanência média e mediana inclusivas, sempre com cobertura;
+- consolidação por setor e por especialidade;
+- CIDs principais mais frequentes nos Óbitos filtrados;
+- tabela de auditoria com data/hora, `outcomeId`, paciente, Desfecho, setor,
+  especialidade, DIH, permanência, médico responsável e CID quando aplicável.
+
+A proporção de Óbitos não representa mortalidade institucional: o denominador
+contém somente os Desfechos registrados nesta ferramenta. Permanência sem valor
+válido fica fora da média e mediana e continua explícita na cobertura.
+O filtro por período, a ordenação e a auditoria usam exclusivamente
+`createdAt`, gravado pelo servidor e convertido para a data civil de
+`America/Sao_Paulo`. Registros sem timestamp válido não entram nas métricas.
+A permanência é recalculada de `admissionDate` até essa data civil, sem confiar
+no relógio do navegador nem no `lengthOfStayDays` persistido.
+
+O painel diferencia os estados carregando, pronto, sem dados, sem resultado
+para o filtro, acesso negado, erro e histórico truncado. Se a leitura falhar ou
+ultrapassar o limite seguro de 5.000 eventos, indicadores e exportações
+históricas são bloqueados em vez de apresentar números parciais.
+
+O cliente consulta diretamente a coleção materializada `admin_outcomes`.
+Eventos privados `patient_outcome`, incluindo `patientSnapshot`, são excluídos
+da consulta histórica no servidor e não trafegam para a aba Desfechos.
+
+## Gate de publicação
+
+As Rules estão versionadas em `firestore.rules` e possuem 21 testes no
+Firestore Emulator. Isso não significa que já estejam publicadas no projeto
+Firebase. Antes de integrar ou publicar a aplicação:
+
+1. resolver o acesso clínico anônimo no site público com autenticação nominal
+   ou barreira institucional comprovada;
+2. habilitar o provedor Email/Password no Firebase Authentication;
+3. criar a conta institucional no Authentication;
+4. criar `admin_users/<uid>` com `active: true` e papel `admin` ou
+   `coordinator`, por ferramenta administrativa privilegiada;
+5. publicar `firestore.rules`;
+6. validar login autorizado, acesso negado, Desfecho e tentativa de
+   ressurreição em ambiente controlado.
+
+Nunca registrar senha, token ou outra credencial no repositório. O procedimento
+completo está em `docs/FIRESTORE_SECURITY.md`.
+
+## Limitação residual de identidade
+
+A aplicação clínica continua usando Firebase Auth anônimo. `actorUid` e
+`closedByUid` vinculam o Desfecho à sessão Firebase que fez o commit, mas não
+identificam individualmente o profissional. Além disso, as Rules atuais
+preservam a compatibilidade da V1 permitindo que clientes anônimos autenticados
+editem campos do paciente ativo. Portanto, a autenticidade de cada campo do
+snapshot não é individualmente atribuível; elevar essa garantia exige
+autenticação clínica nominal e uma política de autorização própria.

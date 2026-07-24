@@ -2,10 +2,16 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 type Seed = {
   unit?: string;
+  authUid?: string;
   patients?: unknown[];
+  patientsByUnit?: Record<string, unknown[]>;
   meta?: Record<string, unknown>;
   confirmations?: unknown[];
+  closedPatients?: unknown[];
   historyEvents?: unknown[];
+  adminUsers?: unknown[];
+  adminAccounts?: Array<{ uid: string; email: string; password: string }>;
+  readFailures?: Array<{ pathIncludes?: string; message?: string; code?: string }>;
 };
 
 export class PassagemPage {
@@ -128,8 +134,16 @@ export class PassagemPage {
     return this.page.evaluate(() => window.__firebaseTestHarness.writes());
   }
 
+  async firebaseReads(){
+    return this.page.evaluate(() => window.__firebaseTestHarness.reads());
+  }
+
   async clearFirebaseWrites(){
     await this.page.evaluate(() => window.__firebaseTestHarness.clearWrites());
+  }
+
+  async clearFirebaseReads(){
+    await this.page.evaluate(() => window.__firebaseTestHarness.clearReads());
   }
 
   async persistedPatient(id: string){
@@ -188,7 +202,11 @@ declare global {
     __firebaseTestHarness: {
       snapshot(): Record<string, unknown>;
       writes(): Array<Record<string, unknown>>;
+      reads(): Array<Record<string, unknown>>;
+      authLog(): Array<Record<string, unknown>>;
+      authState(): Record<string, Record<string, unknown> | null>;
       clearWrites(): void;
+      clearReads(): void;
       document(path: string): Record<string, unknown> | undefined;
       replaceDocumentSilently(path: string, data: Record<string, unknown>): void;
       delayNext(operation: string, pathIncludes: string, delayMs?: number): string;
