@@ -1,5 +1,55 @@
 # Changelog
 
+## [FOUNDATION 1.0 RC1.3.0 — OUTCOMES] — 2026-07-24
+
+### Adicionado
+
+- Fluxo de Desfecho com Tratado, Óbito e Transferido.
+- Médico responsável obrigatório e CID principal obrigatório no Óbito.
+- Registro `patient_outcome` compatível com o histórico administrativo.
+- Snapshot clínico integral, setor, especialidade, DIH e permanência.
+- Estado bloqueante `Encerrando atendimento...`.
+
+### Segurança de dados
+
+- A antiga exclusão direta do paciente foi removida do card e do drawer.
+- Histórico e retirada do registro ativo usam transação atômica e idempotente
+  no Firebase.
+- O identificador determinístico impede duplicatas e o primeiro registro
+  confirmado não é sobrescrito em retries.
+- Falha de persistência mantém o paciente no HUB.
+- Autosave, salvamento manual, remanejamento, migração, divisão e reordenação
+  em voo são coordenados para impedir recriação tardia.
+- Todas as mutações desta versão consultam o registro de Desfecho antes de
+  escrever um paciente.
+- Campos administrativos e `patientSnapshot` são derivados do mesmo paciente
+  autoritativo lido pela transação, inclusive após atualização concorrente.
+- O listener preserva o card durante o eco local otimista do Firestore e só
+  aplica a retirada após a confirmação.
+- Histórico local ilegível falha de forma fechada, sem apagar o valor anterior
+  nem retirar o paciente.
+
+### Testes
+
+- Cobertura funcional para cancelamento sem escrita, três Desfechos, CID,
+  persistência, snapshot, falha atômica, retry idempotente, autosave,
+  salvamento manual e reordenação concorrentes.
+- Cobertura de datas de permanência, limpeza de dados TEV desmarcados e
+  histórico local corrompido.
+- Cobertura de atualização concorrente antes da confirmação do Desfecho.
+- Cobertura responsiva do modal em todos os viewports da matriz.
+- Test double do Firebase passa a representar transações atômicas, eco local
+  otimista, falhas, atrasos e perda de confirmação determinísticos.
+- Datas fictícias de previsão foram fixadas no futuro para que animações de
+  atraso não tornem a suíte dependente do dia em que ela é executada.
+
+### Preservado
+
+- O Clinical Copilot e os Assistentes Clínicos permanecem funcionalmente
+  congelados.
+- A Área Administrativa ainda não foi alterada; esta entrega cria sua fonte
+  histórica real.
+
 ## [FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX] — 2026-07-17
 
 ### Correção responsiva
