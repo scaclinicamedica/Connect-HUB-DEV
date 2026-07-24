@@ -110,18 +110,92 @@ Em todas as larguras:
 - [ ] Médico responsável é obrigatório e explicitamente confirmado.
 - [ ] `Encerrando atendimento...` permanece visível durante a persistência.
 - [ ] O paciente permanece ativo quando a persistência falha.
-- [ ] Histórico e retirada do ativo são atômicos e idempotentes no Firebase.
+- [ ] Evento privado, lápide mínima e retirada do ativo são atômicos e
+      idempotentes no Firebase.
+- [ ] A lápide contém somente identificadores técnicos, tipo, timestamps e
+      `closedByUid`, sem nome, CID, diagnóstico, alertas ou snapshot.
 - [ ] Retry após perda de confirmação não sobrescreve o primeiro registro.
+- [ ] Retry confirmado consulta somente a lápide e não lê nem reescreve o
+      histórico privado.
+- [ ] `actorUid` e `closedByUid` correspondem ao UID Firebase autenticado.
 - [ ] `patientSnapshot` preserva os dados clínicos integrais.
 - [ ] Autosave, salvamento manual e reordenação em voo não recriam o paciente
       encerrado.
 - [ ] O eco local otimista do Firestore não oculta o card antes do ACK.
 - [ ] Histórico local corrompido não é sobrescrito e mantém o paciente ativo.
 - [ ] DIH inválida ou futura produz permanência `null`; mesmo dia produz `1`.
-- [ ] As Rules publicadas impedem update/delete do evento `patient_outcome`.
+- [ ] As Rules negam evento, lápide ou exclusão isolados e combinações
+      incompletas.
+- [ ] As Rules impedem update/delete de `patient_outcome` e
+      `patient_closed`.
+- [ ] As Rules impedem recriar o mesmo `patientId` no setor original e nos
+      demais setores conhecidos.
+- [ ] Migração válida e atualizações em lote de pacientes ativos continuam
+      permitidas.
 - [ ] O modal permanece utilizável e sem overflow nas larguras obrigatórias.
 
-## 10. Revisão do PR
+## 10. Firestore e Área Administrativa
+
+- [ ] `npm run test:rules` conclui os 21 cenários no Firestore Emulator.
+- [ ] Cliente clínico anônimo pode consultar por `get` uma lápide conhecida,
+      mas não pode listar lápides nem ler/listar `historico_eventos`.
+- [ ] Usuário não-anônimo com `admin_users/<uid>` ativo e papel `admin` lê o
+      histórico.
+- [ ] Usuário não-anônimo com papel `coordinator` ativo lê o histórico.
+- [ ] Perfil ausente, inativo ou com outro papel é negado antes da consulta de
+      pacientes.
+- [ ] Não existe código compartilhado, senha, token ou credencial administrativa
+      no HTML, testes ou documentação.
+- [ ] O login usa e-mail e senha, persistência de sessão e a instância Firebase
+      nomeada `connect-hub-admin`.
+- [ ] Login/logout administrativo não substitui nem encerra a sessão anônima
+      clínica.
+- [ ] O atalho administrativo da tela clínica abre o login real e não revela
+      histórico protegido ou código compartilhado.
+- [ ] Confirmações de transição podem ser criadas e lidas, mas update/delete
+      são negados pelas Rules.
+- [ ] O contrato legado estrito mantém abas antigas funcionais na janela
+      Rules-first e nega campos extras ou timestamp do cliente.
+- [ ] Logout ou perda de autorização limpa pacientes, histórico, gráficos,
+      tabelas e relatórios administrativos.
+- [ ] Falha ou truncamento do histórico invalida relatório anterior e bloqueia
+      geração/exportação incompleta.
+- [ ] Conteúdo persistido é escapado antes de ser inserido no HTML do painel.
+- [ ] A aba Desfechos consulta somente `admin_outcomes` com
+      `patient_outcome_admin` versão 1 e tipos homologados.
+- [ ] O período padrão cobre 30 dias e os filtros por data, setor,
+      especialidade e tipo funcionam em conjunto.
+- [ ] Hoje e D-29 entram no período padrão; D-30 fica fora, e intervalo
+      invertido exibe erro sem métricas.
+- [ ] Período, ordenação e auditoria usam exclusivamente `createdAt` do
+      servidor convertido para `America/Sao_Paulo`.
+- [ ] Permanência é recalculada de `admissionDate` até o timestamp do servidor
+      e ignora `lengthOfStayDays` ou datas locais adulteradas.
+- [ ] Total, Tratados, Óbitos, Transferidos, média, mediana e cobertura usam
+      somente os registros filtrados.
+- [ ] A proporção de Óbitos é rotulada como proporção entre Desfechos e não
+      como mortalidade institucional.
+- [ ] Consolidações por setor/especialidade, CIDs de Óbitos e auditoria
+      correspondem ao mesmo conjunto filtrado.
+- [ ] A auditoria permite rastrear cada linha pelo `outcomeId`.
+- [ ] Estados carregando, pronto, vazio, filtro vazio, negado, erro e truncado
+      não exibem números parciais ou antigos.
+- [ ] Falha na leitura de pacientes ou do histórico encerra o estado de
+      carregamento e apresenta erro.
+- [ ] `patientSnapshot` e eventos privados de Desfecho não são retornados pela
+      consulta da aba; somente a projeção mínima permanece em memória.
+- [ ] O setor legado `uti` participa de consultas, filtros e totais.
+- [ ] Login e painel permanecem acessíveis e sem overflow nas larguras
+      obrigatórias.
+- [ ] Email/Password está habilitado no Firebase Authentication.
+- [ ] A conta institucional foi criada e seu UID foi cadastrado em
+      `admin_users/<uid>` com `active: true` e papel permitido.
+- [ ] O acesso clínico anônimo do site público foi substituído por autenticação
+      nominal ou protegido por barreira institucional comprovada.
+- [ ] `firestore.rules` foi publicado e o smoke test pós-deploy de
+      `docs/FIRESTORE_SECURITY.md` passou antes do merge da aplicação.
+
+## 11. Revisão do PR
 
 - [ ] Diff limitado ao escopo da tarefa.
 - [ ] Nenhum dado real de paciente foi incluído.
@@ -132,7 +206,7 @@ Em todas as larguras:
 - [ ] Documentação e changelog foram atualizados quando necessário.
 - [ ] Existe plano de rollback para mudança publicada.
 
-## 11. Dívida do teste histórico
+## 12. Dívida do teste histórico
 
 O comando `node test_rc128.cjs` foi usado na workspace de homologação, mas
 esse teste ainda não faz parte de uma suíte portátil do repositório: depende

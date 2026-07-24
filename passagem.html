@@ -5515,8 +5515,8 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 </div>
 <div class="confirmed" id="confirmedBox"></div>
 <div class="admin-history-access" id="adminHistoryAccess">
-<button class="secondary" onclick="requestHistoryAccess()">Área administrativa</button>
-<small>Histórico de confirmações oculto na rotina assistencial.</small>
+<button class="secondary" onclick="location.href='./area_administrativa.html'">Área administrativa</button>
+<small>Acesso institucional autenticado em uma área separada.</small>
 </div>
 <div aria-hidden="true" class="confirmation-history admin-history-panel is-hidden" id="adminHistoryPanel">
 <div class="history-title">
@@ -5524,7 +5524,7 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 <div class="history-title-actions">
 <small id="confirmationCount">0 registro(s)</small>
 <button class="secondary" onclick="hideHistoryPanel()">Ocultar</button>
-<button class="danger" onclick="clearConfirmationHistory()">Excluir histórico</button>
+<button class="danger" id="clearConfirmationHistoryBtn" onclick="clearConfirmationHistory()">Excluir histórico</button>
 </div>
 </div>
 <div class="history-list" id="confirmationHistory">
@@ -6252,8 +6252,6 @@ const STORAGE_KEY = 'sbar_breve_santa_casa_v1_' + CURRENT_SECTOR.firestoreUnit;
 const META_KEY = 'sbar_breve_santa_casa_meta_v1_' + CURRENT_SECTOR.firestoreUnit;
 const CONFIRMATIONS_KEY = 'sbar_breve_santa_casa_confirmacoes_v1_' + CURRENT_SECTOR.firestoreUnit;
 const OUTCOMES_KEY = 'sbar_breve_santa_casa_desfechos_v1_' + CURRENT_SECTOR.firestoreUnit;
-const ADMIN_HISTORY_ACCESS_KEY = 'sbar_admin_history_unlocked_v1';
-const ADMIN_HISTORY_CODE = 'SCACM2026';
 const FIRESTORE_ROOT = 'connect_hub_v55';
 
 const HISTORY_COLLECTION_V41 = 'historico_eventos';
@@ -6418,8 +6416,11 @@ async function waitForPatientMutations(id, timeoutMs=15000) {
 function patientOutcomeHistoryDocumentId(patientId, sectorUnit=CURRENT_SECTOR.firestoreUnit) {
   return `patient_outcome_${sectorUnit}_${encodeURIComponent(String(patientId || ''))}`;
 }
-function patientOutcomeHistoryReference(patientId, sectorUnit=CURRENT_SECTOR.firestoreUnit) {
-  return db.collection(HISTORY_COLLECTION_V41).doc(patientOutcomeHistoryDocumentId(patientId, sectorUnit));
+function patientClosedTombstoneReference(patientId, sectorUnit=CURRENT_SECTOR.firestoreUnit) {
+  return db.collection(FIRESTORE_ROOT)
+    .doc(sectorUnit)
+    .collection('closed_patients')
+    .doc(String(patientId || ''));
 }
 async function commitGuardedPatientMutation(ids, applyWrites, {guardTargets=[]}={}) {
   const mutationIds = patientMutationIds(ids);
@@ -6440,7 +6441,7 @@ async function commitGuardedPatientMutation(ids, applyWrites, {guardTargets=[]}=
     const guardSnapshots = [];
     for(const target of uniqueTargets) {
       guardSnapshots.push(await transaction.get(
-        patientOutcomeHistoryReference(target.patientId,target.sectorUnit)
+        patientClosedTombstoneReference(target.patientId,target.sectorUnit)
       ));
     }
     if(guardSnapshots.some(snapshot => snapshot.exists)) {
@@ -7601,25 +7602,12 @@ function setHistoryPanelVisible(visible) {
   if(access) access.classList.toggle('is-hidden', visible);
 }
 function initializeHistoryAccess() {
-  const params = new URLSearchParams(window.location.search);
-  const unlockByUrl = params.get('admin') === '1' || params.get('historico') === '1';
-  const unlocked = localStorage.getItem(ADMIN_HISTORY_ACCESS_KEY) === '1';
-  setHistoryPanelVisible(unlockByUrl || unlocked);
-  if(unlockByUrl) localStorage.setItem(ADMIN_HISTORY_ACCESS_KEY, '1');
+  setHistoryPanelVisible(false);
 }
 function requestHistoryAccess() {
-  const code = prompt('Digite o código administrativo para visualizar o histórico de confirmações:');
-  if(code === null) return;
-  if(code.trim() === ADMIN_HISTORY_CODE) {
-    localStorage.setItem(ADMIN_HISTORY_ACCESS_KEY, '1');
-    setHistoryPanelVisible(true);
-    showToast('Histórico administrativo liberado.');
-    return;
-  }
-  showToast('Código administrativo inválido.');
+  window.location.href='./area_administrativa.html';
 }
 function hideHistoryPanel() {
-  localStorage.removeItem(ADMIN_HISTORY_ACCESS_KEY);
   setHistoryPanelVisible(false);
   showToast('Histórico ocultado.');
 }
@@ -7813,7 +7801,13 @@ function formatConfirmationDate(c) {
 function renderConfirmations() {
   const list = document.getElementById('confirmationHistory');
   const count = document.getElementById('confirmationCount');
+  const clearButton = document.getElementById('clearConfirmationHistoryBtn');
   if(!list) return;
+  const canDeleteConfirmations = !firebaseActive && !isFirebaseConfigured();
+  if(clearButton) {
+    clearButton.hidden = !canDeleteConfirmations;
+    clearButton.disabled = !canDeleteConfirmations;
+  }
   const total = confirmations.length;
   if(count) count.innerText = total + ' registro(s)';
   if(!total) {
@@ -7831,7 +7825,7 @@ function renderConfirmations() {
     return `<div class="history-item">
       <div class="history-item-head">
         <div><strong>${escapeHtml(stamp)}</strong> · ${escapeHtml(c.handoverDoctorsText || ('Check-in: ' + (c.receiverDoctor || 'Não informado')))}</div>
-        <button class="danger" onclick="deleteConfirmationById('${safeId}')">Excluir</button>
+        ${canDeleteConfirmations ? `<button class="danger" onclick="deleteConfirmationById('${safeId}')">Excluir</button>` : ''}
       </div>
       <small>Plantão: ${escapeHtml(c.shift || 'Não informado')} · Setor: ${escapeHtml(c.sector || 'Não informado')}</small>
       <small>Pacientes: ${escapeHtml(String(totalPacientes))} · ${escapeHtml(c.severityMetricLabel || 'Críticos')}: ${escapeHtml(String(criticos))} · ${escapeHtml(statusLabel)}: ${escapeHtml(String(uti))}</small>
@@ -7843,20 +7837,13 @@ function renderConfirmations() {
 async function deleteConfirmationById(id) {
   if(!id) return;
   if(!ensureFirebaseReady('excluir confirmação')) return;
-  if(!confirm('Excluir este registro de confirmação?')) return;
 
   if(firebaseActive && confirmationsRef) {
-    try {
-      await confirmationsRef.doc(id).delete();
-      showToast('Confirmação excluída da nuvem.');
-    } catch(error) {
-      console.error('Erro ao excluir confirmação:', error);
-      const code = error && error.code ? error.code : 'erro';
-      showToast('Erro ao excluir confirmação: ' + code);
-    }
+    showToast('As confirmações registradas na nuvem são imutáveis.');
     return;
   }
 
+  if(!confirm('Excluir este registro de confirmação?')) return;
   confirmations = confirmations.filter(c => c.id !== id);
   saveConfirmationsLocal();
   renderConfirmations();
@@ -7864,36 +7851,14 @@ async function deleteConfirmationById(id) {
 }
 
 async function clearConfirmationHistory() {
-  if(!confirm('Excluir todo o histórico de confirmações? Essa ação não altera os pacientes cadastrados.')) return;
   if(!ensureFirebaseReady('excluir histórico')) return;
 
   if(firebaseActive && confirmationsRef) {
-    try {
-      const snapshot = await confirmationsRef.get();
-      if(snapshot.empty) { showToast('Histórico já está vazio.'); return; }
-      let batch = db.batch();
-      let count = 0;
-      let total = 0;
-      for (const doc of snapshot.docs) {
-        batch.delete(doc.ref);
-        count++;
-        total++;
-        if(count === 450) {
-          await batch.commit();
-          batch = db.batch();
-          count = 0;
-        }
-      }
-      if(count > 0) await batch.commit();
-      showToast(total + ' registro(s) excluído(s).');
-    } catch(error) {
-      console.error('Erro ao excluir histórico:', error);
-      const code = error && error.code ? error.code : 'erro';
-      showToast('Erro ao excluir histórico: ' + code);
-    }
+    showToast('As confirmações registradas na nuvem são imutáveis.');
     return;
   }
 
+  if(!confirm('Excluir todo o histórico de confirmações? Essa ação não altera os pacientes cadastrados.')) return;
   confirmations = [];
   saveConfirmationsLocal();
   renderConfirmations();
@@ -7908,7 +7873,7 @@ function buildTransitionText(stamp) {
   return `Transição de cuidados confirmada em ${stamp}. ${handoverDoctorsText()}. Plantão: ${val('shift') || 'não informado'} | Setor: ${val('sector') || 'não informado'}. Pacientes: ${total}; ${severityMetricLabel().toLowerCase()}: ${critical}; ${statusMetricLabel().toLowerCase()}: ${waitingIcu}; altas para hoje: ${dischargeToday}.`;
 }
 
-function buildConfirmationRecord(stamp) {
+function buildConfirmationRecord(stamp, actorUid='') {
   const compactPatients = orderedPatients().map(p => ({
     id: p.id || '',
     bed: p.bed || '',
@@ -7941,6 +7906,10 @@ function buildConfirmationRecord(stamp) {
   }));
   const transitionText = buildTransitionText(stamp);
   return {
+    schemaVersion: 1,
+    type: 'handover_confirmation',
+    sectorUnit: CURRENT_SECTOR.firestoreUnit || '',
+    actorUid: String(actorUid || '').trim(),
     handoverDate: getTodayISO(),
     shift: val('shift'),
     currentDoctor: val('currentDoctor'),
@@ -10674,13 +10643,25 @@ async function confirmHandover() {
     showToast(doctorValidationMessage);
     return;
   }
+  let actorUid = '';
+  if(firebaseActive) {
+    try {
+      actorUid = String(firebase.auth()?.currentUser?.uid || '').trim();
+    } catch(error) {
+      actorUid = '';
+    }
+    if(!actorUid) {
+      showToast('Não foi possível registrar a confirmação: usuário Firebase não identificado.');
+      return;
+    }
+  }
   const now = new Date();
   const stamp = now.toLocaleString('pt-BR');
   const text = buildTransitionText(stamp);
   const box = document.getElementById('confirmedBox');
   box.innerText = text;
   box.style.display='block';
-  const record = buildConfirmationRecord(stamp);
+  const record = buildConfirmationRecord(stamp, actorUid);
 
   if(firebaseActive && confirmationsRef) {
     try {
@@ -10983,8 +10964,8 @@ function showToast(msg) { const t=document.getElementById('toast'); t.innerText=
   };
 
   const originalBuildConfirmationRecord = buildConfirmationRecord;
-  buildConfirmationRecord = function(stamp){
-    const record = originalBuildConfirmationRecord(stamp);
+  buildConfirmationRecord = function(stamp, actorUid=''){
+    const record = originalBuildConfirmationRecord(stamp, actorUid);
     if(Array.isArray(record.patientsSnapshot)){
       record.patientsSnapshot = record.patientsSnapshot.map(p => {
         const full = patients.find(x => x.id === p.id) || {};
@@ -22195,7 +22176,7 @@ html body #atbDetailWrap #atb65SuspensionOther:-webkit-autofill:active{
   const originalValidate=window.validatePatientDraftForSave;window.validatePatientDraftForSave=function(alerts,options={}){if(!originalValidate(alerts,options))return false;if(alerts.includes('Profilaxia de TEV')){const v=validateTev(!options.silent);if(!paduaFinalized||!v.ok){if(options.silent)setAutosaveStatus?.('waiting','Salvamento automático • aguardando: conclusão do Protocolo TEV');else showPaduaRequired();return false;}}return true;};
   const originalOpen=window.openDrawer;window.openDrawer=function(id=null){const r=originalOpen(id);setTimeout(()=>{const p=id?patients.find(x=>x.id===id):null;if(p)restoreTevProtocol(p.tevProtocol||{patientType:'clinico',paduaFactors:p.paduaFactors||[],completed:!!p.paduaScore});else resetTevProtocol();},0);return r;};
   const originalDisplay=window.displayAlertList;window.displayAlertList=function(p={}){const list=originalDisplay(p),data=p.tevProtocol;return list.map(item=>{if(!String(item).startsWith('Profilaxia de TEV')||!data)return item;const status=data.status==='complete'?'Concluído':data.status==='inconsistent'?'Inconsistente':'Pendente';return`Profilaxia de TEV — ${status}: ${scoreSummary(data)}${conductLabel(data)?' • '+conductLabel(data):''}`;});};
-  const originalConfirmation=window.buildConfirmationRecord;window.buildConfirmationRecord=function(stamp){const rec=originalConfirmation(stamp);if(Array.isArray(rec?.patients))rec.patients.forEach(cp=>{const p=patients.find(x=>x.id===cp.id);if(p?.tevProtocol)cp.tevProtocol=p.tevProtocol;});return rec;};
+  const originalConfirmation=window.buildConfirmationRecord;window.buildConfirmationRecord=function(stamp,actorUid=''){const rec=originalConfirmation(stamp,actorUid);if(Array.isArray(rec?.patients))rec.patients.forEach(cp=>{const p=patients.find(x=>x.id===cp.id);if(p?.tevProtocol)cp.tevProtocol=p.tevProtocol;});return rec;};
   document.addEventListener('DOMContentLoaded',()=>{tevPatientTypeChanged();tevConductChanged();tevNoProphylaxisChanged();tevProtocolChanged();});
 })();
 </script>
@@ -25795,6 +25776,25 @@ body.patient-outcome-open{overflow:hidden!important}
   function stableOutcomeIdV66(patientId){
     return patientOutcomeHistoryDocumentId(patientId);
   }
+  function firebaseUserUidV66(){
+    try{
+      return String(window.firebase?.auth?.()?.currentUser?.uid||'').trim();
+    }catch(error){
+      return '';
+    }
+  }
+  function patientClosedTombstoneV66(record,closedByUid){
+    return {
+      schemaVersion:1,
+      type:'patient_closed',
+      patientId:record.patientId,
+      sectorUnit:record.sectorUnit,
+      outcomeId:record.outcomeId,
+      outcomeType:record.outcomeType,
+      closedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      closedByUid
+    };
+  }
   function patientOutcomeLocationV66(patient={}){
     return patient.inpatientUnit||patient.wardUnit||patient.unit||patient.obsLocation||'';
   }
@@ -25813,6 +25813,30 @@ body.patient-outcome-open{overflow:hidden!important}
       severity:patient.severity||'',
       alerts:Array.isArray(patient.alerts)?[...patient.alerts]:[],
       patientSnapshot:{...patient}
+    };
+  }
+  function patientOutcomeAdminProjectionV66(record){
+    return {
+      schemaVersion:record.schemaVersion,
+      sourceVersion:record.sourceVersion,
+      type:'patient_outcome_admin',
+      outcomeId:record.outcomeId,
+      outcomeType:record.outcomeType,
+      outcomeLabel:record.outcomeLabel,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      patientId:record.patientId,
+      patientName:record.patientName,
+      sectorUnit:record.sectorUnit,
+      sectorName:record.sectorName,
+      unit:record.unit,
+      bed:record.bed,
+      specialty:record.specialty,
+      admissionDate:record.admissionDate,
+      lengthOfStayDays:record.lengthOfStayDays,
+      lengthOfStayMethod:record.lengthOfStayMethod,
+      responsibleDoctor:record.responsibleDoctor,
+      primaryIcdCode:record.primaryIcdCode,
+      actorUid:record.actorUid
     };
   }
   function setOutcomeBusyV66(busy){
@@ -25895,25 +25919,37 @@ body.patient-outcome-open{overflow:hidden!important}
   }
   async function persistPatientOutcomeFirebaseV66(record,{preferLocalSnapshot=false}={}){
     if(!firebaseActive||!db||!patientsRef)throw new Error('Firebase indisponível.');
+    const actorUid=firebaseUserUidV66();
+    if(!actorUid){
+      const unauthenticated=new Error('Usuário Firebase não identificado para registrar o desfecho.');
+      unauthenticated.code='connect-hub/outcome-auth-required';
+      throw unauthenticated;
+    }
     const historyRef=db.collection(HISTORY_COLLECTION_V41).doc(record.outcomeId);
+    const adminOutcomeRef=db.collection('admin_outcomes').doc(record.outcomeId);
+    const tombstoneRef=patientClosedTombstoneReference(record.patientId,record.sectorUnit);
     const patientRef=patientsRef.doc(record.patientId);
+    const recordWithActorUid={...record,actorUid};
     const operation=db.runTransaction(async transaction=>{
-      const historySnapshot=await transaction.get(historyRef);
-      const patientSnapshot=await transaction.get(patientRef);
-      if(historySnapshot.exists){
-        const existing=historySnapshot.data()||{};
+      const tombstoneSnapshot=await transaction.get(tombstoneRef);
+      if(tombstoneSnapshot.exists){
+        const existing=tombstoneSnapshot.data()||{};
         if(
-          existing.type==='patient_outcome'&&
+          existing.schemaVersion===1&&
+          existing.type==='patient_closed'&&
           existing.patientId===record.patientId&&
           existing.sectorUnit===record.sectorUnit&&
-          !patientSnapshot.exists
+          existing.outcomeId===record.outcomeId&&
+          existing.outcomeType===record.outcomeType&&
+          existing.closedByUid===actorUid
         ){
-          return {record:existing,alreadyCommitted:true};
+          return {record:recordWithActorUid,alreadyCommitted:true};
         }
-        const conflict=new Error('Já existe um registro de desfecho conflitante para este paciente.');
+        const conflict=new Error('Já existe uma lápide de desfecho conflitante para este paciente.');
         conflict.code='connect-hub/outcome-conflict';
         throw conflict;
       }
+      const patientSnapshot=await transaction.get(patientRef);
       if(!patientSnapshot.exists){
         const missing=new Error('O paciente não está mais disponível neste setor.');
         missing.code='connect-hub/patient-missing';
@@ -25929,8 +25965,12 @@ body.patient-outcome-open{overflow:hidden!important}
         delete mergedPatientSnapshot.capriniScore;
         delete mergedPatientSnapshot.tevProtocolStatus;
       }
-      const immutableRecord=withOutcomePatientFieldsV66(record,mergedPatientSnapshot);
+      const immutableRecord=withOutcomePatientFieldsV66(recordWithActorUid,mergedPatientSnapshot);
+      const adminProjection=patientOutcomeAdminProjectionV66(immutableRecord);
+      const tombstone=patientClosedTombstoneV66(immutableRecord,actorUid);
       transaction.set(historyRef,immutableRecord,{merge:false});
+      transaction.set(adminOutcomeRef,adminProjection,{merge:false});
+      transaction.set(tombstoneRef,tombstone,{merge:false});
       transaction.delete(patientRef);
       return {record:immutableRecord,alreadyCommitted:false};
     });
