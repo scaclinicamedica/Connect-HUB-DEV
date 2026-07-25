@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 export async function expectNoHorizontalOverflow(page: Page){
   const dimensions = await page.evaluate(() => ({
-    viewport: window.innerWidth,
+    viewport: document.documentElement.clientWidth,
     document: document.documentElement.scrollWidth,
     body: document.body.scrollWidth
   }));
@@ -12,7 +12,7 @@ export async function expectNoHorizontalOverflow(page: Page){
 
 export async function expectStrictHorizontalNoOverflow(page: Page){
   const dimensions = await page.evaluate(() => ({
-    viewport: window.innerWidth,
+    viewport: document.documentElement.clientWidth,
     document: document.documentElement.scrollWidth,
     body: document.body.scrollWidth
   }));

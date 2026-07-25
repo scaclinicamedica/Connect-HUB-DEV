@@ -40,6 +40,7 @@ label{font-size:12px;font-weight:800;color:var(--cinza);text-transform:uppercase
 .controls{display:grid;grid-template-columns:minmax(180px,360px) auto;gap:10px;align-items:end;justify-content:start}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(315px,1fr));gap:12px}
 .card{background:white;border:1px solid var(--borda);border-left:8px solid var(--verde);border-radius:16px;padding:13px;box-shadow:0 3px 10px rgba(15,23,42,.06);cursor:pointer}
+#cards>.card{min-width:0;max-width:100%}
 .card.critico{border-left-color:var(--vermelho)} .card.atencao{border-left-color:var(--amarelo)} .card.estavel{border-left-color:var(--verde)} .card.observacao{border-left-color:var(--azul2)}
 .card-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
 .card-head-right{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;justify-content:flex-end}
@@ -1553,6 +1554,7 @@ label{color:#516173;font-size:11px;letter-spacing:.06em}
   min-width:0;
   overflow:hidden;
   text-overflow:ellipsis;
+  white-space:nowrap;
 }
 .leito-chip{
   flex:0 0 auto;
