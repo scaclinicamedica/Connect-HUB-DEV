@@ -1,6 +1,25 @@
 # Changelog
 
-## [Não publicado — segurança de Desfecho e acesso administrativo] — 2026-07-24
+## [Não publicado — login clínico nominal e segurança de Desfecho] — 2026-07-25
+
+### Login clínico nominal
+
+- Removido `signInAnonymously` do HUB e da Passagem.
+- Adicionado login institucional por e-mail/senha e perfil exato
+  `clinical_users/<uid>` com `active: true` e papel `clinician`.
+- O perfil é obtido do servidor antes de qualquer leitura clínica e observado
+  em tempo real para revogação imediata.
+- Persistência `SESSION` passa a ser obrigatória; configuração, autenticação
+  ou permissão ausente encerra qualquer credencial restaurada e falha fechada,
+  sem fallback clínico por `localStorage`.
+- Sessões anônimas legadas são encerradas.
+- Logout aguarda autosave, Desfecho, metadados, confirmação e auditoria em
+  voo; depois limpa listeners, pacientes, formulários, modal de Desfecho,
+  metadados, impressão e caches clínicos legados de todos os setores.
+- HUB e Passagem exibem o nome institucional com inserção textual segura.
+- Eventos comuns, confirmações e Desfechos vinculam a autoria ao UID nominal.
+- A sessão clínica padrão e a instância administrativa
+  `connect-hub-admin` permanecem isoladas nos dois sentidos.
 
 ### Segurança do Desfecho
 
@@ -16,8 +35,8 @@
   privado.
 - Rules versionadas tornam evento e lápide imutáveis, negam delete avulso e
   bloqueiam recriação do mesmo ID em qualquer setor conhecido.
-- Migrações válidas, atualizações em lote e eventos legados reconhecidos
-  permanecem compatíveis.
+- Migrações válidas, atualizações em lote e eventos comuns com `actorUid`
+  nominal permanecem compatíveis.
 
 ### Acesso administrativo
 
@@ -26,11 +45,11 @@
 - Adicionado login Firebase por e-mail e senha, com perfil
   `admin_users/<uid>` ativo e papel `admin` ou `coordinator`.
 - A autenticação administrativa usa a instância nomeada `connect-hub-admin`
-  para preservar a sessão anônima clínica.
+  para preservar a sessão clínica nominal.
 - O atalho da tela clínica deixa de usar código compartilhado e passa a abrir
   o login administrativo real.
 - Histórico integral e listagem de lápides ficam restritos a usuário
-  não-anônimo e autorizado; o clínico pode apenas consultar uma lápide
+  Email/Password autorizado; o clínico pode apenas consultar uma lápide
   individual.
 - Logout e perda de autorização limpam os dados administrativos.
 - Falha ou truncamento da leitura histórica invalida relatórios anteriores e
@@ -53,34 +72,39 @@
 
 ### Testes e publicação
 
-- Adicionada suíte de 21 cenários de Firestore Rules no Emulator, cobrindo
+- Adicionada suíte de 27 cenários de Firestore Rules no Emulator, cobrindo
   atomicidade, imutabilidade, perfis, ressurreição, migração e compatibilidade.
-- `firebase-tools` atualizado para 15.24.0; a auditoria deixou de apresentar
-  vulnerabilidades altas ou críticas nas dependências de desenvolvimento.
+- `firebase-tools` permanece fixado na versão atual 15.24.0. A auditoria do
+  artefato entregue ao navegador (`npm audit --omit=dev`) não apresenta
+  vulnerabilidades; a árvore completa ainda recebe alertas altos/moderados
+  transitivos do CLI de emulador, sem versão posterior disponível.
 - Adicionada caracterização Playwright do login, autorização, isolamento de
-  sessão, logout, falhas históricas, escape de conteúdo e responsividade do
-  painel.
+  sessão, revogação em tempo real, falha de persistência, logout, confirmação
+  concorrente, limpeza de conteúdo, escape e responsividade do painel.
 - Adicionados testes funcionais e responsivos da aba Desfechos para período,
   filtros, métricas, CIDs, auditoria, estados seguros e descarte do snapshot.
 - Validação isolada da Área Administrativa: 25/25 cenários funcionais e 16/16
   cenários da matriz responsiva.
 - Validação funcional de Desfecho: 15/15, incluindo conflito entre sessões.
-- Validação integrada: suíte principal 123/123, impressão A4 1/1 e estabilidade
-  desktop 50/50, sem retries.
+- O candidato nominal contém 173 testes descobertos: 172 na suíte principal e
+  um cenário de estabilidade repetido 50 vezes; a execução final deve ser
+  registrada no PR.
 - A publicação exige habilitar Email/Password, criar a conta institucional,
-  cadastrar `admin_users/<uid>` e publicar `firestore.rules` antes do merge da
-  aplicação.
+  cadastrar `clinical_users/<uid>` e `admin_users/<uid>` e publicar
+  `firestore.rules` em janela controlada antes do merge da aplicação.
 - As Rules estão versionadas e testadas, mas ainda não estão publicadas no
   projeto Firebase.
 
 ### Limitação conhecida
 
-- Os usuários clínicos continuam anônimos. Os UIDs registram a sessão do
-  Desfecho, mas não comprovam autoria nominal nem a autenticidade individual
-  de cada campo do paciente ativo.
-- Como o site atual é público, essa autenticação anônima permanece um
-  bloqueador de produção até existir autenticação clínica nominal ou uma
-  barreira institucional de acesso comprovada.
+- Todos os clínicos ativos ainda acessam todos os setores.
+- As Rules não validam campo a campo o paciente ativo nem comparam
+  integralmente o snapshot; login nominal não transforma a V1 em prontuário.
+- A implementação está pronta, mas produção continua bloqueada até
+  provisionamento institucional, deploy das Rules e smoke test controlado.
+- O CLI do Firebase é usado somente em CI/emulador com entrada controlada e
+  ainda traz alertas transitivos de desenvolvimento; não integra o HTML
+  entregue, mas deve ser reavaliado quando houver atualização do fornecedor.
 
 ## [FOUNDATION 1.0 RC1.3.0 — OUTCOMES] — 2026-07-24
 

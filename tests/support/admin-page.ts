@@ -2,11 +2,36 @@ import { expect, type Page } from '@playwright/test';
 
 export type AdminSeed = {
   authUid?: string;
-  adminAccounts?: Array<{ uid: string; email: string; password: string }>;
+  initialAuthUser?: {
+    uid: string;
+    email?: string;
+    isAnonymous?: boolean;
+  } | null;
+  initialAuthByApp?: Record<string, {
+    uid: string;
+    email?: string;
+    isAnonymous?: boolean;
+  } | null>;
+  authAccounts?: Array<{
+    uid: string;
+    email: string;
+    password: string;
+    disabled?: boolean;
+  }>;
+  authPersistenceUnavailable?: boolean;
+  adminAccounts?: Array<{
+    uid: string;
+    email: string;
+    password: string;
+    disabled?: boolean;
+  }>;
+  clinicalUsers?: Array<Record<string, unknown> & { id: string }>;
   adminUsers?: Array<Record<string, unknown> & { id: string }>;
   patientsByUnit?: Record<string, Array<Record<string, unknown> & { id: string }>>;
   historyEvents?: Array<Record<string, unknown> & { id: string }>;
   adminOutcomes?: Array<Record<string, unknown> & { id: string }>;
+  listenerDelays?: Array<{ pathIncludes?: string; delayMs?: number }>;
+  readDelays?: Array<{ pathIncludes?: string; delayMs?: number }>;
   readFailures?: Array<{ pathIncludes?: string; message?: string; code?: string }>;
 };
 

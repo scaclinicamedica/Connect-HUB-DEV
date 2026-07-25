@@ -9,6 +9,8 @@
   "scripts": {
     "test": "playwright test --project=functional-1180 --project=viewport-390 --project=viewport-494 --project=viewport-759 --project=viewport-760 --project=viewport-761 --project=viewport-768 --project=viewport-1180 --project=viewport-1440",
     "test:rules": "firebase emulators:exec --only firestore --project demo-connect-hub-rules \"node --test tests/firestore/firestore.rules.test.mjs\"",
+    "test:clinical-auth": "playwright test tests/e2e/clinical-auth.spec.ts --project=functional-1180",
+    "test:clinical-auth:matrix": "playwright test tests/e2e/clinical-auth.matrix.spec.ts",
     "test:stability": "playwright test --project=stability-1440 tests/e2e/timing-1440.stress.spec.ts --repeat-each=50 --workers=1 --retries=0",
     "test:print": "playwright test --project=functional-1180 tests/e2e/print-a4.spec.ts",
     "test:headed": "playwright test --project=functional-1180 --headed",

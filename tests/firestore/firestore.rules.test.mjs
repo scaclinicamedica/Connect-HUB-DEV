@@ -20,6 +20,7 @@ import {
 
 const PROJECT_ID = 'demo-connect-hub-rules';
 const CLINICIAN_UID = 'clinician-fixture';
+const CLINICIAN_EMAIL = `${CLINICIAN_UID}@example.invalid`;
 const ADMIN_UID = 'admin-fixture';
 const COORDINATOR_UID = 'coordinator-fixture';
 const SECTOR = 'emergencia';
@@ -38,7 +39,23 @@ function emulatorConnection() {
 
 function clinicianDb(uid = CLINICIAN_UID) {
   return testEnvironment.authenticatedContext(uid, {
+    email: `${uid}@example.invalid`,
+    email_verified: false,
+    firebase: { sign_in_provider: 'password' }
+  }).firestore();
+}
+
+function anonymousDb(uid = 'anonymous-fixture') {
+  return testEnvironment.authenticatedContext(uid, {
     firebase: { sign_in_provider: 'anonymous' }
+  }).firestore();
+}
+
+function providerDb(uid, provider) {
+  return testEnvironment.authenticatedContext(uid, {
+    email: `${uid}@example.invalid`,
+    email_verified: true,
+    firebase: { sign_in_provider: provider }
   }).firestore();
 }
 
@@ -245,6 +262,24 @@ async function seedAdmin(uid, role = 'admin', active = true) {
   await seedDocument(`admin_users/${uid}`, { active, role });
 }
 
+async function seedClinical(uid = CLINICIAN_UID, {
+  schemaVersion = 1,
+  active = true,
+  role = 'clinician',
+  displayName = 'PROFISSIONAL CLÍNICO FICTÍCIO',
+  email = `${uid}@example.invalid`,
+  extra = {}
+} = {}) {
+  await seedDocument(`clinical_users/${uid}`, {
+    schemaVersion,
+    active,
+    role,
+    displayName,
+    email,
+    ...extra
+  });
+}
+
 async function closePatient(db, patientId, {
   sectorUnit = SECTOR,
   actorUid = CLINICIAN_UID,
@@ -288,10 +323,186 @@ before(async () => {
 
 beforeEach(async () => {
   await testEnvironment.clearFirestore();
+  await seedClinical();
 });
 
 after(async () => {
   await testEnvironment?.cleanup();
+});
+
+describe('Autenticação clínica nominal', () => {
+  test('permite ao clínico password ler somente o próprio perfil imutável', async () => {
+    const db = clinicianDb();
+    const ownProfile = doc(db, `clinical_users/${CLINICIAN_UID}`);
+
+    const snapshot = await assertSucceeds(getDoc(ownProfile));
+    assert.equal(snapshot.data().email, CLINICIAN_EMAIL);
+    await assertFails(getDocs(collection(db, 'clinical_users')));
+    await assertFails(getDoc(doc(db, 'clinical_users/another-user')));
+    await assertFails(setDoc(doc(db, 'clinical_users/new-user'), {
+      schemaVersion: 1,
+      active: true,
+      role: 'clinician',
+      displayName: 'OUTRO PROFISSIONAL FICTÍCIO',
+      email: 'new-user@example.invalid'
+    }));
+    await assertFails(updateDoc(ownProfile, { active: false }));
+    await assertFails(deleteDoc(ownProfile));
+  });
+
+  test('nega todo acesso clínico para usuário ausente ou anônimo', async () => {
+    const patientId = 'fixture-anonymous-denied';
+    await seedPatient(patientId);
+    const unauthenticatedDb = testEnvironment.unauthenticatedContext().firestore();
+    const anonymous = anonymousDb();
+
+    for(const db of [unauthenticatedDb, anonymous]) {
+      await assertFails(getDoc(doc(db, patientPath(SECTOR, patientId))));
+      await assertFails(getDocs(
+        collection(db, `connect_hub_v55/${SECTOR}/pacientes`)
+      ));
+      await assertFails(getDoc(doc(
+        db,
+        `connect_hub_v55/${SECTOR}/meta/atual`
+      )));
+      await assertFails(getDocs(collection(
+        db,
+        `connect_hub_v55/${SECTOR}/confirmacoes`
+      )));
+      await assertFails(getDoc(doc(db, markerPath(SECTOR, patientId))));
+    }
+
+    await assertFails(getDoc(doc(
+      anonymous,
+      `clinical_users/${CLINICIAN_UID}`
+    )));
+    await assertFails(closePatient(
+      anonymous,
+      patientId,
+      { actorUid: 'anonymous-fixture' }
+    ));
+    await assertFails(setDoc(
+      doc(anonymous, patientPath(SECTOR, 'fixture-anonymous-create')),
+      fictitiousPatient('fixture-anonymous-create')
+    ));
+    await assertFails(updateDoc(
+      doc(anonymous, patientPath(SECTOR, patientId)),
+      { diagnosis: 'ALTERAÇÃO ANÔNIMA FICTÍCIA' }
+    ));
+    await assertFails(setDoc(
+      doc(anonymous, `connect_hub_v55/${SECTOR}/meta/atual`),
+      { currentDoctor: 'ANÔNIMO FICTÍCIO' }
+    ));
+    await assertFails(setDoc(
+      doc(
+        anonymous,
+        `connect_hub_v55/${SECTOR}/confirmacoes/fixture-anonymous`
+      ),
+      fictitiousConfirmation({ actorUid: 'anonymous-fixture' })
+    ));
+    await assertFails(setDoc(
+      doc(anonymous, 'historico_eventos/fixture-anonymous-legacy'),
+      {
+        type: 'patient_updated',
+        createdAt: serverTimestamp(),
+        createdAtLocal: '2026-07-24T15:00:00.000Z',
+        patientId,
+        sectorUnit: SECTOR,
+        actorUid: 'anonymous-fixture'
+      }
+    ));
+  });
+
+  test('nega perfil ausente, inativo, malformado, divergente ou de outro provedor', async () => {
+    const patientId = 'fixture-invalid-clinical-profile';
+    await seedPatient(patientId);
+    const cases = [
+      { uid: 'missing-clinical-profile' },
+      { uid: 'inactive-clinical-profile', profile: { active: false } },
+      { uid: 'wrong-role-clinical-profile', profile: { role: 'coordinator' } },
+      { uid: 'wrong-email-clinical-profile', profile: { email: 'different@example.invalid' } },
+      { uid: 'extra-field-clinical-profile', profile: { extra: { createdBy: 'fixture' } } },
+      { uid: 'wrong-schema-clinical-profile', profile: { schemaVersion: 2 } },
+      { uid: 'blank-name-clinical-profile', profile: { displayName: '   ' } },
+      { uid: 'long-name-clinical-profile', profile: { displayName: 'A'.repeat(121) } }
+    ];
+
+    for(const item of cases) {
+      if(item.profile) await seedClinical(item.uid, item.profile);
+      await assertFails(getDoc(doc(
+        clinicianDb(item.uid),
+        patientPath(SECTOR, patientId)
+      )));
+    }
+
+    const federatedUid = 'federated-clinical-profile';
+    await seedClinical(federatedUid);
+    await assertFails(getDoc(doc(
+      providerDb(federatedUid, 'google.com'),
+      patientPath(SECTOR, patientId)
+    )));
+  });
+
+  test('mantém leitura administrativa de pacientes sem conceder escrita clínica', async () => {
+    const patientId = 'fixture-admin-clinical-boundary';
+    await seedPatient(patientId);
+    await seedAdmin(ADMIN_UID, 'admin', true);
+    const adminDb = realUserDb(ADMIN_UID);
+
+    await assertSucceeds(getDoc(doc(
+      adminDb,
+      patientPath(SECTOR, patientId)
+    )));
+    await assertSucceeds(getDocs(collection(
+      adminDb,
+      `connect_hub_v55/${SECTOR}/pacientes`
+    )));
+    await assertFails(updateDoc(doc(
+      adminDb,
+      patientPath(SECTOR, patientId)
+    ), {
+      diagnosis: 'ALTERAÇÃO ADMINISTRATIVA FICTÍCIA'
+    }));
+    await assertFails(setDoc(doc(
+      adminDb,
+      patientPath(SECTOR, 'fixture-admin-create-denied')
+    ), fictitiousPatient('fixture-admin-create-denied')));
+    await assertFails(getDoc(doc(
+      adminDb,
+      `connect_hub_v55/${SECTOR}/meta/atual`
+    )));
+  });
+
+  test('acumula permissões somente quando o mesmo UID recebe os dois perfis', async () => {
+    const patientId = 'fixture-dual-profile';
+    const db = clinicianDb();
+    await seedPatient(patientId);
+    await assertSucceeds(closePatient(db, patientId));
+
+    await assertFails(getDoc(doc(db, outcomePath(SECTOR, patientId))));
+    await seedAdmin(CLINICIAN_UID, 'coordinator', true);
+    await assertSucceeds(getDoc(doc(db, outcomePath(SECTOR, patientId))));
+    await assertSucceeds(getDoc(doc(
+      db,
+      adminOutcomePath(SECTOR, patientId)
+    )));
+  });
+
+  test('revogação do perfil bloqueia a operação clínica seguinte', async () => {
+    const patientId = 'fixture-revoked-profile';
+    const db = clinicianDb();
+    await seedPatient(patientId);
+    await assertSucceeds(getDoc(doc(db, patientPath(SECTOR, patientId))));
+
+    await seedClinical(CLINICIAN_UID, { active: false });
+    await assertFails(getDoc(doc(db, patientPath(SECTOR, patientId))));
+    await assertFails(updateDoc(doc(
+      db,
+      patientPath(SECTOR, patientId)
+    ), {
+      diagnosis: 'ALTERAÇÃO APÓS REVOGAÇÃO'
+    }));
+  });
 });
 
 describe('Desfecho atômico', () => {
@@ -654,6 +865,20 @@ describe('Separação de leitura clínica e administrativa', () => {
       doc(db, adminOutcomePath(SECTOR, patientId))
     ));
     await assertFails(getDocs(collection(db, 'admin_outcomes')));
+
+    const unknownMarkerPath =
+      'connect_hub_v55/setor_desconhecido/closed_patients/fixture-unknown';
+    await seedDocument(unknownMarkerPath, {
+      schemaVersion: 1,
+      type: 'patient_closed',
+      patientId: 'fixture-unknown',
+      sectorUnit: 'setor_desconhecido',
+      outcomeId: 'fixture-unknown-outcome',
+      outcomeType: 'treated',
+      closedAt: serverTimestamp(),
+      closedByUid: CLINICIAN_UID
+    });
+    await assertFails(getDoc(doc(db, unknownMarkerPath)));
   });
 
   test('somente admin/coordenador real e ativo lê histórico e projeção', async () => {
@@ -664,12 +889,13 @@ describe('Separação de leitura clínica e administrativa', () => {
 
     await seedAdmin(ADMIN_UID, 'admin', true);
     await seedAdmin(COORDINATOR_UID, 'coordinator', true);
-    await seedAdmin(CLINICIAN_UID, 'admin', true);
     await seedAdmin('inactive-admin', 'admin', false);
+    await seedAdmin('federated-admin', 'admin', true);
 
     const adminDb = realUserDb(ADMIN_UID);
     const coordinatorDb = realUserDb(COORDINATOR_UID);
     const inactiveDb = realUserDb('inactive-admin');
+    const federatedAdminDb = providerDb('federated-admin', 'google.com');
 
     await assertSucceeds(getDoc(doc(adminDb, outcomePath(SECTOR, patientId))));
     await assertSucceeds(getDocs(collection(adminDb, 'historico_eventos')));
@@ -704,11 +930,23 @@ describe('Separação de leitura clínica e administrativa', () => {
       inactiveDb,
       adminOutcomePath(SECTOR, patientId)
     )));
+    await assertFails(getDoc(doc(
+      federatedAdminDb,
+      outcomePath(SECTOR, patientId)
+    )));
+    await assertFails(getDocs(collection(
+      federatedAdminDb,
+      `connect_hub_v55/${SECTOR}/pacientes`
+    )));
+    await assertFails(getDoc(doc(
+      federatedAdminDb,
+      'admin_users/federated-admin'
+    )));
   });
 });
 
 describe('Pacientes ativos e migração', () => {
-  test('mantém create, update, get e list para o clínico autenticado anônimo', async () => {
+  test('mantém create, update, get e list para o clínico nominal autorizado', async () => {
     const patientId = 'fixture-active-clinical';
     const db = clinicianDb();
     const patientRef = doc(db, patientPath(SECTOR, patientId));
@@ -810,6 +1048,7 @@ describe('Auditoria incremental existente', () => {
       createdAtLocal: '2026-07-24T15:00:00.000Z',
       dateLocal: '2026-07-24',
       actor: 'MÉDICO FICTÍCIO RULES',
+      actorUid: CLINICIAN_UID,
       patientId,
       patientName: 'PACIENTE FICTÍCIO RULES',
       sectorUnit: SECTOR,
@@ -824,6 +1063,22 @@ describe('Auditoria incremental existente', () => {
       description: 'ALTERAÇÃO FICTÍCIA'
     }));
     await assertFails(deleteDoc(eventRef));
+
+    await assertFails(setDoc(doc(collection(db, 'historico_eventos')), {
+      type: 'patient_updated',
+      createdAt: serverTimestamp(),
+      createdAtLocal: '2026-07-24T15:00:00.000Z',
+      patientId,
+      sectorUnit: SECTOR
+    }));
+    await assertFails(setDoc(doc(collection(db, 'historico_eventos')), {
+      type: 'patient_updated',
+      createdAt: serverTimestamp(),
+      createdAtLocal: '2026-07-24T15:00:00.000Z',
+      patientId,
+      sectorUnit: SECTOR,
+      actorUid: 'outro-clinico-ficticio'
+    }));
   });
 
   test('reserva o ID determinístico de Desfecho contra evento legado', async () => {

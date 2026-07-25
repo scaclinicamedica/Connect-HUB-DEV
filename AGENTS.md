@@ -73,8 +73,10 @@ corpo do resumo e a cor âmbar pode preservar o histórico de risco.
 
 - A V1 é uma aplicação web estática.
 - `passagem.html` concentra grande volume de HTML, CSS e JavaScript inline.
-- A persistência usa Firebase Auth anônimo/Firestore quando disponíveis e
-  `localStorage` como fallback.
+- HUB e Passagem exigem Firebase Auth Email/Password, perfil ativo em
+  `clinical_users/<uid>` e persistência `SESSION` antes de acessar o
+  Firestore. Falhas permanecem fechadas, sem fallback clínico por
+  `localStorage`.
 - O arquivo possui sucessivas camadas de compatibilidade; eventos e
   temporizadores podem competir entre si.
 - Uma correção local deve considerar handlers antigos, reconstruções do DOM,

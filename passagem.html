@@ -1975,7 +1975,7 @@ select option{background:#0b1626!important;color:#e5edf8!important}
   @page{size:A4 portrait;margin:7mm;}
   *{box-shadow:none!important;text-shadow:none!important;}
   html,body{background:#ffffff!important;color:#0f172a!important;width:100%!important;margin:0!important;padding:0!important;}
-  body > header, main > .handover-identification, main > .metrics, main > #obsSusManagement, main > .controls, main > #cards, main > .confirm-box, main > .footer-note, .drawer, .overlay, .toast{display:none!important;}
+  body > header, #clinicalAppShell > header, main > .handover-identification, main > .metrics, main > #obsSusManagement, main > .controls, main > #cards, main > .confirm-box, main > .footer-note, .drawer, .overlay, .toast{display:none!important;}
   main{max-width:none!important;margin:0!important;padding:0!important;}
   .print-area{display:block!important;background:#ffffff!important;color:#0f172a!important;}
   .print-page{height:283mm;page-break-after:always;break-after:page;display:flex;flex-direction:column;gap:2mm;overflow:hidden;}
@@ -5366,8 +5366,124 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 #arrhythmiasCleanWrap .arr-composite-chevron{flex:0 0 auto;color:#7dd3fc;font-size:30px;font-weight:500;line-height:1}
 @media(max-width:620px){#arrhythmiasCleanWrap .arr-profile-mini-stepper{grid-template-columns:repeat(5,minmax(70px,1fr));overflow-x:auto}#arrhythmiasCleanWrap .arr-profile-mini-stepper button{font-size:8px!important;padding-inline:3px!important}}
 </style>
+<style id="v67-clinical-auth">
+#clinicalAppShell[hidden],#clinicalAuthGate[hidden],.clinical-session[hidden]{display:none!important}
+.clinical-auth-gate{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  color:#eef6ff;
+  background:
+    radial-gradient(circle at 14% 8%,rgba(32,151,255,.18),transparent 32%),
+    radial-gradient(circle at 86% 12%,rgba(19,205,189,.12),transparent 30%),
+    linear-gradient(180deg,#03101d 0%,#061726 100%);
+}
+.clinical-auth-card{
+  width:min(100%,500px);
+  padding:26px;
+  border:1px solid #24537f;
+  border-radius:20px;
+  background:linear-gradient(180deg,#0b1a2c,#081827);
+  box-shadow:0 24px 60px rgba(0,0,0,.34);
+}
+.clinical-auth-brand{display:flex;align-items:center;gap:13px;margin-bottom:22px}
+.clinical-auth-mark{
+  width:52px;height:52px;display:grid;place-items:center;border-radius:16px;
+  background:linear-gradient(145deg,#0b6bcb,#0ea5b7);
+  color:#fff;font-size:19px;font-weight:950;letter-spacing:-.04em;
+  box-shadow:0 10px 24px rgba(14,165,233,.22)
+}
+.clinical-auth-brand strong{display:block;font-size:21px}
+.clinical-auth-brand small{display:block;margin-top:3px;color:#9fb5ca;font-size:12px}
+.clinical-auth-eyebrow{
+  display:inline-flex;margin-bottom:9px;padding:5px 9px;border:1px solid #2f6fa7;
+  border-radius:999px;background:#0f3f61;color:#bae6fd;font-size:10px;
+  font-weight:900;text-transform:uppercase;letter-spacing:.08em
+}
+.clinical-auth-card h1{margin:0;font-size:27px;line-height:1.15}
+.clinical-auth-help{margin:10px 0 0;color:#b7c9d8;font-size:14px;line-height:1.55}
+.clinical-auth-form{display:grid;gap:13px;margin-top:20px}
+.clinical-auth-field label{
+  display:block;margin-bottom:6px;color:#dbeafe!important;font-size:12px;
+  font-weight:850;text-transform:none;letter-spacing:0
+}
+.clinical-auth-field input{
+  width:100%;min-height:46px;padding:10px 12px;border:1px solid #315f89!important;
+  border-radius:11px;background:#06101d!important;color:#eef6ff!important
+}
+.clinical-auth-field input:focus-visible{
+  outline:3px solid rgba(56,189,248,.34)!important;outline-offset:2px;
+  border-color:#7dd3fc!important;box-shadow:none!important
+}
+.clinical-auth-submit{
+  min-height:46px!important;margin-top:2px;border:1px solid #60a5fa!important;
+  border-radius:11px!important;background:linear-gradient(135deg,#0b6bcb,#0e7490)!important;
+  color:#fff!important;font-weight:900!important
+}
+.clinical-auth-submit:disabled{cursor:wait!important;opacity:.62}
+.clinical-auth-status,.clinical-auth-error{
+  min-height:18px;margin:0;font-size:12px;line-height:1.45
+}
+.clinical-auth-status{color:#9fb5ca}
+.clinical-auth-error{padding:9px 10px;border:1px solid #ef4444;border-radius:10px;background:#3b1118;color:#fecaca}
+.clinical-auth-error[hidden]{display:none!important}
+.clinical-auth-note{margin:4px 0 0;color:#7f97ad;font-size:11px;line-height:1.45}
+.clinical-session{
+  display:flex;align-items:center;gap:9px;min-width:0;padding:6px 7px 6px 10px;
+  border:1px solid rgba(105,187,226,.28);border-radius:12px;
+  background:rgba(4,26,45,.54)
+}
+.clinical-session-copy{min-width:0;max-width:190px}
+.clinical-session-copy small{display:block!important;margin:0!important;color:#9fb5ca!important;font-size:9px!important;text-transform:uppercase;letter-spacing:.06em}
+.clinical-session-copy strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#eef6ff;font-size:12px}
+.clinical-session-logout{
+  min-height:34px!important;padding:6px 9px!important;border:1px solid #315f89!important;
+  border-radius:9px!important;background:#102b45!important;color:#dff3ff!important;
+  box-shadow:none!important;font-size:11px!important
+}
+.clinical-session-logout:disabled{cursor:wait!important;opacity:.65}
+@media(max-width:620px){
+  .clinical-auth-gate{align-items:start;padding:16px 12px}
+  .clinical-auth-card{margin-top:5vh;padding:20px 16px;border-radius:16px}
+  .clinical-auth-card h1{font-size:24px}
+  .clinical-session{width:100%;justify-content:space-between}
+  .clinical-session-copy{max-width:none}
+  .clinical-session-logout{min-width:82px!important;min-height:44px!important}
+}
+@media print{
+  #clinicalAuthGate,.clinical-session{display:none!important}
+  #clinicalAppShell{display:block!important}
+}
+</style>
 </head>
 <body>
+<section aria-labelledby="clinicalAuthTitle" aria-modal="true" class="clinical-auth-gate" id="clinicalAuthGate" role="dialog">
+<div class="clinical-auth-card">
+<div class="clinical-auth-brand">
+<div aria-hidden="true" class="clinical-auth-mark">CH</div>
+<div><strong>Connect HUB</strong><small>Integrando equipes. Conectando cuidados.</small></div>
+</div>
+<span class="clinical-auth-eyebrow">Acesso protegido</span>
+<h1 id="clinicalAuthTitle">Acesso clínico</h1>
+<p class="clinical-auth-help" id="clinicalAuthHelp">Entre com sua conta institucional para acessar os pacientes e a passagem de plantão.</p>
+<form aria-busy="true" class="clinical-auth-form" id="clinicalLoginForm" onsubmit="handleClinicalLogin(event)">
+<div class="clinical-auth-field">
+<label for="clinicalEmail">E-mail institucional</label>
+<input aria-describedby="clinicalAuthHelp" autocomplete="username" id="clinicalEmail" inputmode="email" required="" type="email"/>
+</div>
+<div class="clinical-auth-field">
+<label for="clinicalPassword">Senha</label>
+<input autocomplete="current-password" id="clinicalPassword" required="" type="password"/>
+</div>
+<button class="clinical-auth-submit" disabled="" id="clinicalLoginBtn" type="submit">Entrar</button>
+<p aria-live="polite" class="clinical-auth-status" id="clinicalAuthStatus" role="status">Inicializando autenticação...</p>
+<p aria-live="assertive" class="clinical-auth-error" hidden="" id="clinicalAuthError" role="alert"></p>
+<p class="clinical-auth-note">Não há cadastro público. O acesso é provisionado pela instituição.</p>
+</form>
+</div>
+</section>
+<div id="clinicalAppShell" hidden="">
 <header class="connect-header">
 <div class="connect-header-brand">
 <div aria-hidden="true" class="connect-logo">
@@ -5391,6 +5507,10 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 </div>
 <div class="header-actions connect-actions">
 <span class="sync-status" id="syncStatus">Modo local</span>
+<div class="clinical-session" hidden="" id="clinicalSessionPanel">
+<div class="clinical-session-copy"><small>Sessão clínica</small><strong id="clinicalSessionName"></strong></div>
+<button class="clinical-session-logout" id="clinicalSignOutBtn" onclick="handleClinicalSignOut()" type="button">Sair</button>
+</div>
 <button class="secondary connect-print" onclick="printHandover()">
 <span aria-hidden="true" class="print-icon">
 <svg viewbox="0 0 24 24">
@@ -5510,7 +5630,7 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 <small>Registro automático do check-out/check-in</small>
 </div>
 <div class="fast-confirm">
-<button onclick="confirmHandover()">Confirmar transição de cuidados</button>
+<button id="confirmHandoverBtn" onclick="confirmHandover()">Confirmar transição de cuidados</button>
 <div class="quick-note">Ao confirmar, o sistema registra automaticamente médico em check-out, médico em check-in, data/hora, total de pacientes, indicador de gravidade, status prioritário e altas previstas para hoje.</div>
 </div>
 <div class="confirmed" id="confirmedBox"></div>
@@ -6055,7 +6175,8 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 </div>
 </section>
 </div>
-<div class="toast" id="toast"></div>
+<div aria-live="polite" class="toast" id="toast" role="status"></div>
+</div>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -6065,8 +6186,9 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
   1) Crie um projeto no Firebase Console.
   2) Adicione um app Web.
   3) Copie o objeto firebaseConfig e substitua os campos abaixo.
-  4) Ative: Authentication > Anonymous e Firestore Database.
-  5) Publique as regras sugeridas no arquivo/instruções enviadas junto.
+  4) Ative Authentication > Email/Password e Firestore Database.
+  5) Provisione as contas e os perfis clinical_users/<uid> pela instituição.
+  6) Publique as regras sugeridas no arquivo/instruções enviadas junto.
 */
 const firebaseConfig = {
   apiKey: "AIzaSyDkkz0icUp8sbF7nWkE626fOgJvGL8lRc4",
@@ -6078,7 +6200,6 @@ const firebaseConfig = {
   measurementId: "G-JRZYZQ2TYL"
 };
 
-const ENABLE_ANONYMOUS_AUTH = true;
 const DEFAULT_SEVERITY_OPTIONS = [
   { value: 'critico', label: 'Crítico' },
   { value: 'atencao', label: 'Atenção' },
@@ -6248,13 +6369,30 @@ function resolveSectorKey() {
 }
 const SECTOR_KEY = resolveSectorKey();
 const CURRENT_SECTOR = SECTOR_CONFIG[SECTOR_KEY] || SECTOR_CONFIG.emergencia;
-const STORAGE_KEY = 'sbar_breve_santa_casa_v1_' + CURRENT_SECTOR.firestoreUnit;
-const META_KEY = 'sbar_breve_santa_casa_meta_v1_' + CURRENT_SECTOR.firestoreUnit;
-const CONFIRMATIONS_KEY = 'sbar_breve_santa_casa_confirmacoes_v1_' + CURRENT_SECTOR.firestoreUnit;
-const OUTCOMES_KEY = 'sbar_breve_santa_casa_desfechos_v1_' + CURRENT_SECTOR.firestoreUnit;
 const FIRESTORE_ROOT = 'connect_hub_v55';
+const CLINICAL_USERS_COLLECTION = 'clinical_users';
+const CLINICAL_PROFILE_SCHEMA_VERSION = 1;
+const CLINICAL_ROLE = 'clinician';
 
 const HISTORY_COLLECTION_V41 = 'historico_eventos';
+
+async function runClinicalAuxiliaryWriteV67(writeFactory){
+  clinicalAuxiliaryWriteCount += 1;
+  try{
+    return await writeFactory();
+  }finally{
+    clinicalAuxiliaryWriteCount = Math.max(0,clinicalAuxiliaryWriteCount - 1);
+  }
+}
+
+function scheduleClinicalHistoryTaskV67(task,delay=250){
+  const timer = setTimeout(async ()=>{
+    clinicalHistoryPendingTimers.delete(timer);
+    await task();
+  },delay);
+  clinicalHistoryPendingTimers.add(timer);
+  return timer;
+}
 
 function currentUserNameV41(){
   return (
@@ -6281,6 +6419,8 @@ function patientSnapshotForHistoryV41(patient={}){
 
 async function logHistoryEventV41(type, patient={}, details={}){
   if(!firebaseActive || !db) return;
+  const actorUid = authorizedClinicalUid();
+  if(!actorUid) return;
   try{
     const now = new Date();
     const baseData = patientSnapshotForHistoryV41(patient);
@@ -6291,9 +6431,12 @@ async function logHistoryEventV41(type, patient={}, details={}){
       dateLocal: todayISODateLocal ? todayISODateLocal() : getTodayISO(),
       actor: currentUserNameV41(),
       ...baseData,
-      ...details
+      ...details,
+      actorUid
     };
-    await db.collection(HISTORY_COLLECTION_V41).add(eventData);
+    await runClinicalAuxiliaryWriteV67(
+      ()=>db.collection(HISTORY_COLLECTION_V41).add(eventData)
+    );
   }catch(error){
     console.error('Falha ao registrar histórico:', error);
   }
@@ -6324,6 +6467,16 @@ const FIRESTORE_UNIT = CURRENT_SECTOR.firestoreUnit;
 
 let firebaseActive = false;
 let db = null;
+let clinicalFirebaseApp = null;
+let clinicalAuth = null;
+let authorizedClinical = null;
+let clinicalAuthReady = false;
+let clinicalLoginRequestInProgress = false;
+let clinicalAuthCheckSequence = 0;
+let clinicalDataSequence = 0;
+let pendingClinicalSignOutNotice = null;
+let clinicalAuthObserverUnsubscribe = null;
+let unsubscribeClinicalProfile = null;
 let patientsRef = null;
 let metaRef = null;
 let confirmationsRef = null;
@@ -6366,6 +6519,9 @@ let patientOutcomeRemovalConfirmedPatientId = '';
 let patientOutcomeDeferredPatientsSnapshot = null;
 let patientOutcomeDeferredSnapshotPending = false;
 let patientAutosaveScheduledOptions = null;
+let clinicalAuxiliaryWriteCount = 0;
+let clinicalConfirmationBusy = false;
+const clinicalHistoryPendingTimers = new Set();
 const patientMutationPromises = new Map();
 
 function patientMutationIds(ids=[]) {
@@ -7466,8 +7622,7 @@ async function persistWardAssignments(updatedPatients, successMessage) {
     }
     return;
   }
-  save();
-  showToast(successMessage);
+  showToast('Não foi possível atualizar a divisão: sessão clínica não autorizada.');
 }
 async function divideWardPatients() {
   if(!isEnfermariaSector()) return;
@@ -7566,8 +7721,7 @@ async function persistObservationAssignments(updatedPatients, successMessage) {
     }
     return;
   }
-  save();
-  showToast(successMessage);
+  showToast('Não foi possível atualizar a divisão: sessão clínica não autorizada.');
 }
 async function divideObservationPatientsDay() {
   if(!isObservationSusSector()) return;
@@ -7627,56 +7781,570 @@ async function load() {
   updateHandoverDoctorLayout();
   startDateAutoUpdate();
 
-  const started = await initFirebase();
-  if(started === true) {
-    bindFirebase();
-    return;
-  }
-  if(started === 'error') {
-    patients = [];
-    render();
-    return;
-  }
+  await initFirebase();
+}
 
-  const stored = localStorage.getItem(STORAGE_KEY);
-  patients = stored ? JSON.parse(stored) : [];
-  loadMetaLocal();
-  loadConfirmationsLocal();
+function setClinicalAuthFeedback(kind='status', message='') {
+  const status = document.getElementById('clinicalAuthStatus');
+  const error = document.getElementById('clinicalAuthError');
+  if(status) status.textContent = kind === 'status' ? message : '';
+  if(error) {
+    error.textContent = kind === 'error' ? message : '';
+    error.hidden = kind !== 'error' || !message;
+  }
+}
+
+function setClinicalLoginBusy(busy, label='Entrar') {
+  const form = document.getElementById('clinicalLoginForm');
+  const button = document.getElementById('clinicalLoginBtn');
+  const email = document.getElementById('clinicalEmail');
+  const password = document.getElementById('clinicalPassword');
+  if(form) form.setAttribute('aria-busy', busy ? 'true' : 'false');
+  if(button) {
+    button.disabled = !!busy || !clinicalAuthReady;
+    button.textContent = busy ? label : 'Entrar';
+  }
+  if(email) email.disabled = !!busy;
+  if(password) password.disabled = !!busy;
+}
+
+function setClinicalAppAuthorized(authorized) {
+  const gate = document.getElementById('clinicalAuthGate');
+  const shell = document.getElementById('clinicalAppShell');
+  if(gate) {
+    gate.hidden = !!authorized;
+    gate.setAttribute('aria-hidden', authorized ? 'true' : 'false');
+  }
+  if(shell) {
+    shell.hidden = !authorized;
+    shell.inert = !authorized;
+  }
+}
+
+function isAuthorizedClinicalSession(uid=authorizedClinical?.uid) {
+  return !!(
+    uid &&
+    authorizedClinical?.uid === uid &&
+    clinicalAuth?.currentUser?.uid === uid &&
+    clinicalAuth.currentUser.isAnonymous !== true &&
+    authorizedClinical.role === CLINICAL_ROLE
+  );
+}
+
+function authorizedClinicalUid() {
+  return isAuthorizedClinicalSession() ? authorizedClinical.uid : '';
+}
+
+function clinicalAuthErrorMessage(error) {
+  const code = String(error?.code || '').toLowerCase();
+  if(code.endsWith('/invalid-email')) return 'Informe um e-mail válido.';
+  if(code.endsWith('/user-disabled')) return 'Esta conta está desativada.';
+  if(
+    code.endsWith('/invalid-credential') ||
+    code.endsWith('/wrong-password') ||
+    code.endsWith('/user-not-found')
+  ) return 'E-mail ou senha inválidos.';
+  if(code.endsWith('/too-many-requests')) return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+  if(code.endsWith('/network-request-failed')) return 'Não foi possível conectar ao serviço de autenticação.';
+  return 'Não foi possível entrar. Verifique seus dados e tente novamente.';
+}
+
+function isPermissionDeniedV67(error) {
+  const code = String(error?.code || '').toLowerCase();
+  return code === 'permission-denied' || code.endsWith('/permission-denied');
+}
+
+function clinicalProfileV67(user, profile) {
+  if(!user || user.isAnonymous === true || !profile || typeof profile !== 'object') return null;
+  const keys = Object.keys(profile).sort();
+  const expectedKeys = ['active','displayName','email','role','schemaVersion'].sort();
+  if(
+    keys.length !== expectedKeys.length ||
+    keys.some((key, index) => key !== expectedKeys[index])
+  ) return null;
+  if(
+    typeof profile.displayName !== 'string' ||
+    typeof profile.email !== 'string' ||
+    typeof user.email !== 'string'
+  ) return null;
+  const displayName = profile.displayName;
+  const email = profile.email;
+  if(
+    profile.schemaVersion !== CLINICAL_PROFILE_SCHEMA_VERSION ||
+    profile.active !== true ||
+    profile.role !== CLINICAL_ROLE ||
+    !/\S/.test(displayName) ||
+    displayName.length > 120 ||
+    !email ||
+    email !== user.email
+  ) return null;
+  return Object.freeze({
+    uid: user.uid,
+    email,
+    displayName,
+    role: profile.role
+  });
+}
+
+function stopClinicalFirebaseListeners(includeProfile=true) {
+  clinicalDataSequence += 1;
+  [unsubscribePatients, unsubscribeMeta, unsubscribeConfirmations].forEach(unsubscribe => {
+    try { if(typeof unsubscribe === 'function') unsubscribe(); } catch(_error) {}
+  });
+  unsubscribePatients = null;
+  unsubscribeMeta = null;
+  unsubscribeConfirmations = null;
+  if(includeProfile) {
+    try {
+      if(typeof unsubscribeClinicalProfile === 'function') unsubscribeClinicalProfile();
+    } catch(_error) {}
+    unsubscribeClinicalProfile = null;
+  }
+}
+
+function clearClinicalInterfaceData() {
+  if(metaTimer) {
+    clearTimeout(metaTimer);
+    metaTimer = null;
+  }
+  if(patientAutosaveTimer) {
+    clearTimeout(patientAutosaveTimer);
+    patientAutosaveTimer = null;
+  }
+  patientAutosaveScheduledOptions = null;
+  patientAutosaveQueued = false;
+  patientAutosaveLastSignature = '';
+  patientAutosaveHydrationEpoch += 1;
+  patientAutosaveHydrating = false;
+  clinicalHistoryPendingTimers.forEach(timer => clearTimeout(timer));
+  clinicalHistoryPendingTimers.clear();
+  stopClinicalFirebaseListeners();
+  firebaseActive = false;
+  patientsRef = null;
+  metaRef = null;
+  confirmationsRef = null;
+  patients = [];
+  confirmations = [];
+  openMigrationPatientId = null;
+  selectedMigrationTarget = '';
+  selectedMigrationUnitV37 = '';
+  selectedMigrationBedV37 = '';
+  selectedMigrationObsV37 = '';
+  occupiedTargetBedsV37 = new Set();
+  loadingTargetBedsV37 = false;
+  patientOutcomeDeferredPatientsSnapshot = null;
+  patientOutcomeDeferredSnapshotPending = false;
+  try { window.clearPatientOutcomeSensitiveDataV67?.(); } catch(_error) {}
+  try { closeDrawer(); } catch(_error) {}
+  try { if(typeof clearForm === 'function') clearForm(); } catch(_error) {}
+  const search = document.getElementById('search');
+  if(search) search.value = '';
+  const confirmedBox = document.getElementById('confirmedBox');
+  if(confirmedBox) {
+    confirmedBox.textContent = '';
+    confirmedBox.style.display = 'none';
+  }
+  document.getElementById('printArea')?.replaceChildren();
+  [
+    'shift','currentDoctor','currentDoctor2','receiverDoctor','receiverDoctor2',
+    'wardAssist1R1','wardAssist2R1','wardGlobalR2','wardR2Chief',
+    'obsDoctor1','obsDoctor2','obsDoctorNight'
+  ].forEach(id => {
+    const field = document.getElementById(id);
+    if(field) field.value = '';
+  });
+  applyMeta({});
   render();
   renderConfirmations();
 }
 
-async function initFirebase() {
-  if(!isFirebaseConfigured()) {
-    firebaseActive = false;
-    setSyncStatus('Modo local');
-    return false;
-  }
+function clearLegacyClinicalLocalCacheV67() {
+  const clinicalPrefixes = [
+    'sbar_breve_santa_casa_v1_',
+    'sbar_breve_santa_casa_meta_v1_',
+    'sbar_breve_santa_casa_confirmacoes_v1_',
+    'sbar_breve_santa_casa_desfechos_v1_'
+  ];
   try {
-    setSyncStatus('Conectando...');
-    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    if(ENABLE_ANONYMOUS_AUTH) {
-      await firebase.auth().signInAnonymously();
+    const keys = [];
+    for(let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if(key && clinicalPrefixes.some(prefix => key.startsWith(prefix))) keys.push(key);
     }
-    db = firebase.firestore();
-    patientsRef = db.collection(FIRESTORE_ROOT).doc(FIRESTORE_UNIT).collection('pacientes');
-    metaRef = db.collection(FIRESTORE_ROOT).doc(FIRESTORE_UNIT).collection('meta').doc('atual');
-    confirmationsRef = db.collection(FIRESTORE_ROOT).doc(FIRESTORE_UNIT).collection('confirmacoes');
-    firebaseActive = true;
-    setSyncStatus('Firebase conectado • setor: ' + CURRENT_SECTOR.name);
-    return true;
-  } catch (error) {
-    console.error('Erro ao iniciar Firebase:', error);
-    firebaseActive = false;
-    const code = error && error.code ? error.code : 'erro desconhecido';
-    setSyncStatus('Erro Firebase: ' + code);
-    showToast('Firebase não conectado. Verifique Authentication, Firestore e Rules.');
-    return 'error';
+    keys.forEach(key => localStorage.removeItem(key));
+  } catch(_error) {}
+}
+
+function showClinicalSignedOutInterface(notice=null) {
+  authorizedClinical = null;
+  clinicalLoginRequestInProgress = false;
+  clearClinicalInterfaceData();
+  clearLegacyClinicalLocalCacheV67();
+  setClinicalAppAuthorized(false);
+  const sessionPanel = document.getElementById('clinicalSessionPanel');
+  if(sessionPanel) sessionPanel.hidden = true;
+  const sessionName = document.getElementById('clinicalSessionName');
+  if(sessionName) sessionName.textContent = '';
+  const signOutButton = document.getElementById('clinicalSignOutBtn');
+  if(signOutButton) {
+    signOutButton.disabled = false;
+    signOutButton.textContent = 'Sair';
+  }
+  const email = document.getElementById('clinicalEmail');
+  const password = document.getElementById('clinicalPassword');
+  if(email) email.value = '';
+  if(password) password.value = '';
+  setClinicalLoginBusy(false);
+  if(notice?.kind && notice.message) {
+    setClinicalAuthFeedback(notice.kind, notice.message);
+  } else {
+    setClinicalAuthFeedback('status', 'Entre com seu e-mail e sua senha institucionais.');
+  }
+  window.setTimeout(() => document.getElementById('clinicalEmail')?.focus(), 0);
+}
+
+function showAuthorizedClinical() {
+  if(!isAuthorizedClinicalSession()) return;
+  setClinicalAppAuthorized(true);
+  const sessionPanel = document.getElementById('clinicalSessionPanel');
+  if(sessionPanel) sessionPanel.hidden = false;
+  const sessionName = document.getElementById('clinicalSessionName');
+  if(sessionName) sessionName.textContent = authorizedClinical.displayName;
+  const signOutButton = document.getElementById('clinicalSignOutBtn');
+  if(signOutButton) {
+    signOutButton.disabled = false;
+    signOutButton.textContent = 'Sair';
+  }
+  const password = document.getElementById('clinicalPassword');
+  if(password) password.value = '';
+  setClinicalLoginBusy(false);
+  setClinicalAuthFeedback('status', '');
+  window.setTimeout(() => {
+    const title = document.getElementById('handoverIdentificationTitle');
+    if(title) {
+      title.tabIndex = -1;
+      title.focus();
+    }
+  }, 0);
+}
+
+function configureClinicalFirestoreReferences() {
+  patientsRef = db.collection(FIRESTORE_ROOT).doc(FIRESTORE_UNIT).collection('pacientes');
+  metaRef = db.collection(FIRESTORE_ROOT).doc(FIRESTORE_UNIT).collection('meta').doc('atual');
+  confirmationsRef = db.collection(FIRESTORE_ROOT).doc(FIRESTORE_UNIT).collection('confirmacoes');
+}
+
+function watchClinicalProfileV67(userUid) {
+  try {
+    if(typeof unsubscribeClinicalProfile === 'function') unsubscribeClinicalProfile();
+  } catch(_error) {}
+  unsubscribeClinicalProfile = db
+    .collection(CLINICAL_USERS_COLLECTION)
+    .doc(userUid)
+    .onSnapshot(snapshot => {
+      if(!isAuthorizedClinicalSession(userUid)) return;
+      const nextProfile = clinicalProfileV67(
+        clinicalAuth.currentUser,
+        snapshot.exists ? snapshot.data() : null
+      );
+      if(!nextProfile) {
+        void finishUnauthorizedClinicalSession(
+          'error',
+          'Sua autorização clínica foi desativada. Entre novamente ou contate a instituição.'
+        );
+        return;
+      }
+      authorizedClinical = nextProfile;
+      const sessionName = document.getElementById('clinicalSessionName');
+      if(sessionName) sessionName.textContent = nextProfile.displayName;
+    }, error => {
+      if(!isAuthorizedClinicalSession(userUid)) return;
+      void finishUnauthorizedClinicalSession(
+        'error',
+        isPermissionDeniedV67(error)
+          ? 'Sua autorização clínica não está mais ativa. Entre novamente ou contate a instituição.'
+          : 'Não foi possível manter a validação do perfil clínico. Entre novamente.'
+      );
+    });
+}
+
+async function finishUnauthorizedClinicalSession(kind, message) {
+  authorizedClinical = null;
+  clinicalLoginRequestInProgress = false;
+  pendingClinicalSignOutNotice = { kind, message };
+  clearClinicalInterfaceData();
+  setClinicalAppAuthorized(false);
+  setClinicalLoginBusy(true, 'Saindo...');
+  setClinicalAuthFeedback(kind, message);
+  try {
+    if(clinicalAuth?.currentUser) {
+      await clinicalAuth.signOut();
+    } else {
+      const notice = pendingClinicalSignOutNotice;
+      pendingClinicalSignOutNotice = null;
+      showClinicalSignedOutInterface(notice);
+    }
+  } catch(_error) {
+    pendingClinicalSignOutNotice = null;
+    showClinicalSignedOutInterface({
+      kind:'error',
+      message:'A sessão não pôde ser encerrada com segurança. Atualize a página antes de tentar novamente.'
+    });
   }
 }
 
-function bindFirebase() {
+async function handleClinicalAuthStateChanged(user) {
+  const checkId = ++clinicalAuthCheckSequence;
+  if(!user) {
+    const notice = pendingClinicalSignOutNotice;
+    pendingClinicalSignOutNotice = null;
+    showClinicalSignedOutInterface(notice);
+    return;
+  }
+
+  authorizedClinical = null;
+  clearClinicalInterfaceData();
+  setClinicalAppAuthorized(false);
+  setClinicalLoginBusy(true, 'Verificando...');
+  setClinicalAuthFeedback(
+    'status',
+    user.isAnonymous === true
+      ? 'Encerrando uma sessão antiga...'
+      : 'Verificando autorização clínica...'
+  );
+
+  if(user.isAnonymous === true) {
+    await finishUnauthorizedClinicalSession(
+      'error',
+      'A sessão anônima anterior não é mais aceita. Entre com sua conta institucional.'
+    );
+    return;
+  }
+
+  try {
+    const profileSnapshot = await db
+      .collection(CLINICAL_USERS_COLLECTION)
+      .doc(user.uid)
+      .get({ source:'server' });
+    if(checkId !== clinicalAuthCheckSequence || clinicalAuth?.currentUser?.uid !== user.uid) return;
+    const profile = clinicalProfileV67(
+      user,
+      profileSnapshot.exists ? profileSnapshot.data() : null
+    );
+    if(!profile) {
+      await finishUnauthorizedClinicalSession(
+        'error',
+        'Acesso negado. Sua conta não possui um perfil clínico ativo.'
+      );
+      return;
+    }
+
+    authorizedClinical = profile;
+    clinicalLoginRequestInProgress = false;
+    pendingClinicalSignOutNotice = null;
+    configureClinicalFirestoreReferences();
+    firebaseActive = true;
+    watchClinicalProfileV67(profile.uid);
+    showAuthorizedClinical();
+    bindFirebase(profile.uid);
+  } catch(error) {
+    if(checkId !== clinicalAuthCheckSequence) return;
+    await finishUnauthorizedClinicalSession(
+      'error',
+      isPermissionDeniedV67(error)
+        ? 'Acesso negado. Não foi possível confirmar seu perfil clínico.'
+        : 'Não foi possível validar sua autorização. Verifique a conexão e tente novamente.'
+    );
+  }
+}
+
+function handleClinicalAuthObserverError() {
+  clinicalAuthReady = false;
+  void finishUnauthorizedClinicalSession(
+    'error',
+    'O serviço de autenticação está indisponível. Atualize a página e tente novamente.'
+  );
+}
+
+async function handleClinicalLogin(event) {
+  event?.preventDefault();
+  if(clinicalLoginRequestInProgress) return;
+  const email = document.getElementById('clinicalEmail')?.value.trim() || '';
+  const password = document.getElementById('clinicalPassword')?.value || '';
+  setClinicalAuthFeedback('status', '');
+  if(!email || !password) {
+    setClinicalAuthFeedback('error', 'Informe o e-mail e a senha.');
+    return;
+  }
+  if(!clinicalAuthReady || !clinicalAuth) {
+    setClinicalAuthFeedback('error', 'A autenticação ainda não está disponível. Atualize a página e tente novamente.');
+    return;
+  }
+
+  pendingClinicalSignOutNotice = null;
+  clinicalLoginRequestInProgress = true;
+  setClinicalLoginBusy(true, 'Entrando...');
+  setClinicalAuthFeedback('status', 'Autenticando sua conta...');
+  try {
+    await clinicalAuth.signInWithEmailAndPassword(email, password);
+    const passwordInput = document.getElementById('clinicalPassword');
+    if(passwordInput) passwordInput.value = '';
+    if(!clinicalAuth?.currentUser) {
+      clinicalLoginRequestInProgress = false;
+      setClinicalLoginBusy(false);
+      return;
+    }
+    if(!isAuthorizedClinicalSession()) {
+      setClinicalLoginBusy(true, 'Verificando...');
+      setClinicalAuthFeedback('status', 'Verificando autorização clínica...');
+    }
+  } catch(error) {
+    clinicalLoginRequestInProgress = false;
+    const passwordInput = document.getElementById('clinicalPassword');
+    if(passwordInput) passwordInput.value = '';
+    setClinicalLoginBusy(false);
+    setClinicalAuthFeedback('error', clinicalAuthErrorMessage(error));
+    window.setTimeout(() => document.getElementById('clinicalPassword')?.focus(), 0);
+  }
+}
+
+function hasClinicalWriteInFlight() {
+  return !!(
+    patientOutcomeClosingPatientId ||
+    patientAutosaveBusy ||
+    patientAutosaveTimer ||
+    metaTimer ||
+    clinicalAuxiliaryWriteCount ||
+    clinicalConfirmationBusy ||
+    clinicalHistoryPendingTimers.size ||
+    [...patientMutationPromises.values()].some(pending => pending?.size)
+  );
+}
+
+async function handleClinicalSignOut() {
+  if(!clinicalAuth?.currentUser || !isAuthorizedClinicalSession()) {
+    showClinicalSignedOutInterface({
+      kind:'status',
+      message:'A sessão já estava encerrada.'
+    });
+    return;
+  }
+  if(hasClinicalWriteInFlight()) {
+    showToast('Aguarde a conclusão do salvamento antes de sair.');
+    return;
+  }
+  const signOutButton = document.getElementById('clinicalSignOutBtn');
+  if(signOutButton) {
+    signOutButton.disabled = true;
+    signOutButton.textContent = 'Saindo...';
+  }
+  pendingClinicalSignOutNotice = {
+    kind:'status',
+    message:'Sessão encerrada com segurança.'
+  };
+  try {
+    await clinicalAuth.signOut();
+    if(clinicalAuth.currentUser) throw new Error('auth-session-still-active');
+  } catch(_error) {
+    pendingClinicalSignOutNotice = null;
+    if(signOutButton) {
+      signOutButton.disabled = false;
+      signOutButton.textContent = 'Sair';
+    }
+    showToast('Não foi possível encerrar a sessão. Ela permanece ativa; tente novamente.');
+  }
+}
+
+async function initFirebase() {
+  if(!isFirebaseConfigured()) {
+    clinicalAuthReady = false;
+    firebaseActive = false;
+    clearClinicalInterfaceData();
+    clearLegacyClinicalLocalCacheV67();
+    setClinicalAppAuthorized(false);
+    setClinicalLoginBusy(false);
+    setClinicalAuthFeedback('error', 'A configuração segura do Firebase está indisponível. Contate a instituição.');
+    return 'managed';
+  }
+  setClinicalAppAuthorized(false);
+  clearLegacyClinicalLocalCacheV67();
+  setClinicalLoginBusy(true, 'Inicializando...');
+  setClinicalAuthFeedback('status', 'Inicializando autenticação...');
+  try {
+    if(typeof firebase === 'undefined') throw new Error('firebase-unavailable');
+    clinicalFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
+      || firebase.initializeApp(firebaseConfig);
+    db = clinicalFirebaseApp.firestore();
+    clinicalAuth = clinicalFirebaseApp.auth();
+    const sessionPersistence = firebase.auth.Auth?.Persistence?.SESSION;
+    if(!sessionPersistence || typeof clinicalAuth.setPersistence !== 'function') {
+      throw new Error('session-persistence-unavailable');
+    }
+    await clinicalAuth.setPersistence(sessionPersistence);
+    if(typeof clinicalAuth.onAuthStateChanged !== 'function') throw new Error('auth-observer-unavailable');
+    clinicalAuthReady = true;
+    setClinicalLoginBusy(true, 'Verificando...');
+    setClinicalAuthFeedback('status', 'Verificando sessão clínica...');
+    if(typeof clinicalAuthObserverUnsubscribe === 'function') clinicalAuthObserverUnsubscribe();
+    clinicalAuthObserverUnsubscribe = clinicalAuth.onAuthStateChanged(
+      handleClinicalAuthStateChanged,
+      handleClinicalAuthObserverError
+    );
+    return 'managed';
+  } catch (_error) {
+    const unsafeAuth = clinicalAuth;
+    try {
+      if(typeof clinicalAuthObserverUnsubscribe === 'function') clinicalAuthObserverUnsubscribe();
+    } catch(_unsubscribeError) {}
+    clinicalAuthObserverUnsubscribe = null;
+    clinicalAuthCheckSequence += 1;
+    try {
+      if(unsafeAuth?.currentUser && typeof unsafeAuth.signOut === 'function') {
+        await unsafeAuth.signOut();
+      }
+    } catch(_signOutError) {
+      try {
+        if(typeof unsafeAuth?.updateCurrentUser === 'function') {
+          await unsafeAuth.updateCurrentUser(null);
+        }
+      } catch(_discardError) {}
+    }
+    clinicalAuthReady = false;
+    firebaseActive = false;
+    clinicalAuth = null;
+    db = null;
+    authorizedClinical = null;
+    clearClinicalInterfaceData();
+    setClinicalAppAuthorized(false);
+    setClinicalLoginBusy(false);
+    setClinicalAuthFeedback('error', 'Não foi possível iniciar a autenticação. Atualize a página e tente novamente.');
+    return 'managed';
+  }
+}
+
+function handleClinicalDataAccessError(error, contextLabel) {
+  if(isPermissionDeniedV67(error) && isAuthorizedClinicalSession()) {
+    void finishUnauthorizedClinicalSession(
+      'error',
+      'Sua autorização clínica não está mais ativa. Entre novamente ou contate a instituição.'
+    );
+    return;
+  }
+  const code = error && error.code ? error.code : 'erro ao ler';
+  console.warn(`Erro ao carregar ${contextLabel}:`, error);
+  showToast(`Erro ao carregar ${contextLabel}: ${code}`);
+  setSyncStatus('Erro Firebase: ' + code);
+}
+
+function bindFirebase(authorizedUid=authorizedClinicalUid()) {
+  stopClinicalFirebaseListeners(false);
+  const bindingId = clinicalDataSequence;
+  const sessionStillValid = () => (
+    bindingId === clinicalDataSequence &&
+    isAuthorizedClinicalSession(authorizedUid)
+  );
   unsubscribePatients = patientsRef.onSnapshot(snapshot => {
+    if(!sessionStillValid()) return;
     const nextPatients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     const closingPatientId = patientOutcomeClosingPatientId;
     if(closingPatientId && patientOutcomeRemovalConfirmedPatientId !== closingPatientId) {
@@ -7694,33 +8362,30 @@ function bindFirebase() {
     patients = nextPatients;
     render();
     setSyncStatus('Firebase conectado • ' + patients.length + ' paciente(s) • setor: ' + CURRENT_SECTOR.name + ' • ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
+    document.dispatchEvent(new CustomEvent('connect-hub:patients-ready', {
+      detail:{ uid:authorizedUid, sectorUnit:FIRESTORE_UNIT }
+    }));
   }, error => {
-    console.error('Erro ao ler pacientes:', error);
-    const code = error && error.code ? error.code : 'erro ao ler';
-    showToast('Erro ao carregar dados do Firebase: ' + code);
-    setSyncStatus('Erro Firebase: ' + code);
+    if(sessionStillValid()) handleClinicalDataAccessError(error, 'dados do Firebase');
   });
 
   unsubscribeMeta = metaRef.onSnapshot(doc => {
+    if(!sessionStillValid()) return;
     const meta = doc.exists ? doc.data() : {};
     applyMeta(meta);
-  }, error => console.error('Erro ao ler metadados:', error));
+  }, error => {
+    if(sessionStillValid()) handleClinicalDataAccessError(error, 'identificação do plantão');
+  });
 
   unsubscribeConfirmations = confirmationsRef.orderBy('createdAt', 'desc').limit(10).onSnapshot(snapshot => {
+    if(!sessionStillValid()) return;
     confirmations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     renderConfirmations();
   }, error => {
-    console.error('Erro ao ler confirmações:', error);
-    const code = error && error.code ? error.code : 'erro ao ler confirmações';
-    showToast('Erro ao carregar confirmações: ' + code);
+    if(sessionStillValid()) handleClinicalDataAccessError(error, 'confirmações');
   });
 }
 
-function save() {
-  if(firebaseActive) return;
-  if(isFirebaseConfigured()) return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(patients));
-}
 function buildMeta() {
   syncObservationDoctorsFromHandover(false);
   return {
@@ -7744,19 +8409,19 @@ function buildMeta() {
 }
 function saveMeta() {
   if(!ensureFirebaseReady('salvar identificação')) return;
-  if(firebaseActive && metaRef) {
+  if(metaRef) {
     clearTimeout(metaTimer);
     metaTimer = setTimeout(async () => {
-      try { await metaRef.set(buildMeta(), { merge:true }); }
+      metaTimer = null;
+      try {
+        await runClinicalAuxiliaryWriteV67(
+          ()=>metaRef.set(buildMeta(), { merge:true })
+        );
+      }
       catch(error) { console.error('Erro ao salvar metadados:', error); showToast('Erro ao salvar identificação.'); }
     }, 450);
     return;
   }
-  localStorage.setItem(META_KEY, JSON.stringify(buildMeta()));
-}
-function loadMetaLocal() {
-  const meta = JSON.parse(localStorage.getItem(META_KEY) || '{}');
-  applyMeta(meta);
 }
 function applyMeta(meta={}) {
   ['shift','currentDoctor','currentDoctor2','receiverDoctor','receiverDoctor2','wardAssist1R1','wardAssist2R1','wardGlobalR2','wardR2Chief','obsDoctor1','obsDoctor2','obsDoctorNight'].forEach(id => {
@@ -7785,13 +8450,6 @@ function applyMeta(meta={}) {
   renderObsManagement();
 }
 
-function loadConfirmationsLocal() {
-  confirmations = JSON.parse(localStorage.getItem(CONFIRMATIONS_KEY) || '[]');
-}
-function saveConfirmationsLocal() {
-  if(firebaseActive) return;
-  localStorage.setItem(CONFIRMATIONS_KEY, JSON.stringify(confirmations.slice(0, 10)));
-}
 function formatConfirmationDate(c) {
   if(c.confirmedAtText) return c.confirmedAtText;
   if(c.createdAt && typeof c.createdAt.toDate === 'function') return getLocalDateTimeBR(c.createdAt.toDate());
@@ -7803,7 +8461,7 @@ function renderConfirmations() {
   const count = document.getElementById('confirmationCount');
   const clearButton = document.getElementById('clearConfirmationHistoryBtn');
   if(!list) return;
-  const canDeleteConfirmations = !firebaseActive && !isFirebaseConfigured();
+  const canDeleteConfirmations = false;
   if(clearButton) {
     clearButton.hidden = !canDeleteConfirmations;
     clearButton.disabled = !canDeleteConfirmations;
@@ -7837,32 +8495,12 @@ function renderConfirmations() {
 async function deleteConfirmationById(id) {
   if(!id) return;
   if(!ensureFirebaseReady('excluir confirmação')) return;
-
-  if(firebaseActive && confirmationsRef) {
-    showToast('As confirmações registradas na nuvem são imutáveis.');
-    return;
-  }
-
-  if(!confirm('Excluir este registro de confirmação?')) return;
-  confirmations = confirmations.filter(c => c.id !== id);
-  saveConfirmationsLocal();
-  renderConfirmations();
-  showToast('Confirmação excluída.');
+  showToast('As confirmações registradas na nuvem são imutáveis.');
 }
 
 async function clearConfirmationHistory() {
   if(!ensureFirebaseReady('excluir histórico')) return;
-
-  if(firebaseActive && confirmationsRef) {
-    showToast('As confirmações registradas na nuvem são imutáveis.');
-    return;
-  }
-
-  if(!confirm('Excluir todo o histórico de confirmações? Essa ação não altera os pacientes cadastrados.')) return;
-  confirmations = [];
-  saveConfirmationsLocal();
-  renderConfirmations();
-  showToast('Histórico excluído.');
+  showToast('As confirmações registradas na nuvem são imutáveis.');
 }
 
 function buildTransitionText(stamp) {
@@ -7942,8 +8580,13 @@ function buildConfirmationRecord(stamp, actorUid='') {
 }
 
 function ensureFirebaseReady(actionText='salvar') {
-  if(isFirebaseConfigured() && !firebaseActive) {
-    showToast('Não foi possível ' + actionText + ': Firebase não conectado.');
+  if(
+    !isFirebaseConfigured() ||
+    !firebaseActive ||
+    !db ||
+    !isAuthorizedClinicalSession()
+  ) {
+    showToast('Não foi possível ' + actionText + ': sessão clínica não autorizada.');
     return false;
   }
   return true;
@@ -9556,24 +10199,40 @@ function migrationUnitForBedV37() {
 }
 
 async function loadOccupiedTargetBedsV37(targetUnit) {
+  const authorizedUid = authorizedClinicalUid();
+  const loadSequence = clinicalDataSequence;
+  const migrationPatientId = openMigrationPatientId;
+  const nextOccupiedBeds = new Set();
   occupiedTargetBedsV37 = new Set();
   loadingTargetBedsV37 = true;
   try {
-    if(firebaseActive && db && targetUnit) {
-      const snap = await db.collection(FIRESTORE_ROOT).doc(targetUnit).collection('pacientes').get();
-      snap.forEach(doc => {
-        if(doc.id === openMigrationPatientId) return;
-        const p = doc.data() || {};
-        const unit = p.inpatientUnit || p.wardUnit || p.unit || p.obsLocation || '';
-        const bed = p.bed || '';
-        if(bed) occupiedTargetBedsV37.add(migrationBedKeyV37(unit, bed));
-      });
-    }
+    if(!authorizedUid || !firebaseActive || !db || !targetUnit) return;
+    const snap = await db.collection(FIRESTORE_ROOT).doc(targetUnit).collection('pacientes').get();
+    if(
+      loadSequence !== clinicalDataSequence ||
+      !isAuthorizedClinicalSession(authorizedUid) ||
+      openMigrationPatientId !== migrationPatientId ||
+      selectedMigrationTarget !== targetUnit
+    ) return;
+    snap.forEach(doc => {
+      if(doc.id === migrationPatientId) return;
+      const p = doc.data() || {};
+      const unit = p.inpatientUnit || p.wardUnit || p.unit || p.obsLocation || '';
+      const bed = p.bed || '';
+      if(bed) nextOccupiedBeds.add(migrationBedKeyV37(unit, bed));
+    });
+    occupiedTargetBedsV37 = nextOccupiedBeds;
   } catch(error) {
+    if(loadSequence !== clinicalDataSequence || !isAuthorizedClinicalSession(authorizedUid)) return;
     console.error('Erro ao consultar leitos ocupados:', error);
     showToast('Não foi possível consultar todos os leitos ocupados.');
   } finally {
-    loadingTargetBedsV37 = false;
+    if(
+      loadSequence === clinicalDataSequence &&
+      isAuthorizedClinicalSession(authorizedUid) &&
+      openMigrationPatientId === migrationPatientId &&
+      selectedMigrationTarget === targetUnit
+    ) loadingTargetBedsV37 = false;
   }
 }
 
@@ -9583,18 +10242,21 @@ function migrationBedIsOccupiedV37(bed) {
 }
 
 function selectMigrationUnitV37(value) {
+  if(!isAuthorizedClinicalSession()) return;
   selectedMigrationUnitV37 = value || '';
   selectedMigrationBedV37 = '';
   render();
 }
 
 function selectMigrationBedV37(value) {
+  if(!isAuthorizedClinicalSession()) return;
   if(migrationBedIsOccupiedV37(value)) return;
   selectedMigrationBedV37 = value || '';
   render();
 }
 
 function selectMigrationObsV37(value) {
+  if(!isAuthorizedClinicalSession()) return;
   selectedMigrationObsV37 = value || '';
   selectedMigrationBedV37 =
     selectedMigrationTarget === CURRENT_SECTOR.firestoreUnit ? '' : 'Maca';
@@ -9768,10 +10430,12 @@ function resolveMigrationTarget(input='') {
   }) || null;
 }
 function toggleMigrationChooser(id) {
+  if(!isAuthorizedClinicalSession()) return;
   if(!canMigratePatient({ id })) return;
   if(openMigrationPatientId === id) {
     openMigrationPatientId = null;
     selectedMigrationTarget = '';
+    loadingTargetBedsV37 = false;
   } else {
     openMigrationPatientId = id;
     selectedMigrationTarget = '';
@@ -9779,10 +10443,13 @@ function toggleMigrationChooser(id) {
     selectedMigrationBedV37 = '';
     selectedMigrationObsV37 = '';
     occupiedTargetBedsV37 = new Set();
+    loadingTargetBedsV37 = false;
   }
   render();
 }
 async function setMigrationTarget(unit) {
+  if(!ensureFirebaseReady('consultar leitos do destino')) return;
+  const migrationPatientId = openMigrationPatientId;
   selectedMigrationTarget = unit;
   selectedMigrationUnitV37 = '';
   selectedMigrationBedV37 = '';
@@ -9791,6 +10458,11 @@ async function setMigrationTarget(unit) {
   render();
   if(['enfermaria','uti_1','uti_2'].includes(unit)) {
     await loadOccupiedTargetBedsV37(unit);
+    if(
+      !isAuthorizedClinicalSession() ||
+      openMigrationPatientId !== migrationPatientId ||
+      selectedMigrationTarget !== unit
+    ) return;
     render();
   }
 }
@@ -9801,6 +10473,7 @@ function cancelMigration() {
   selectedMigrationBedV37 = '';
   selectedMigrationObsV37 = '';
   occupiedTargetBedsV37 = new Set();
+  loadingTargetBedsV37 = false;
   render();
 }
 function migrationHelpText() {
@@ -10054,17 +10727,7 @@ async function migratePatientToSector(id, targetUnit='') {
     return;
   }
 
-  // Fallback local para testes sem Firebase configurado.
-  const targetKey = 'sbar_breve_santa_casa_v1_' + target.unit;
-  const targetPatients = JSON.parse(localStorage.getItem(targetKey) || '[]').filter(x => x.id !== id);
-  targetPatients.push(migratedPatient);
-  localStorage.setItem(targetKey, JSON.stringify(targetPatients));
-  patients = patients.filter(x => x.id !== id);
-  openMigrationPatientId = null;
-  selectedMigrationTarget = '';
-  save();
-  render();
-  showToast(`Paciente migrado para ${target.name}.`);
+  showToast('Não foi possível migrar o paciente: sessão clínica não autorizada.');
 }
 
 function orderedPatients() {
@@ -10529,24 +11192,9 @@ async function savePatient(keepOpen=false, options={}) {
     return true;
   }
 
-  const idx = patients.findIndex(x => x.id === id);
-  if(idx >= 0) patients[idx] = p; else patients.push(p);
-  patientAutosaveLastSignature = signature;
-  save(); render();
-  if(auto) {
-    document.getElementById('drawerTitle').innerText = 'Editar paciente';
-    setDrawerMode(true);
-    setAutosaveStatus('saved', 'Salvo automaticamente • pode fechar a aba quando terminar');
-    patientAutosaveBusy = false;
-    if(patientAutosaveQueued) {
-      patientAutosaveQueued = false;
-      schedulePatientAutosave(450);
-    }
-    return true;
-  }
-  if(keepOpen) { clearForm(); document.getElementById('drawerTitle').innerText = 'Novo paciente'; setDrawerMode(false); setAutosaveStatus('waiting', 'Salvamento automático ativado • aguardando campos obrigatórios'); setTimeout(()=>document.getElementById('bed').focus(), 50); } else { closeDrawer(); }
-  showToast(isEditing ? 'Alterações salvas no paciente.' : (keepOpen ? 'Paciente salvo. Próximo cadastro liberado.' : 'Paciente salvo.'));
-  return true;
+  if(auto) patientAutosaveBusy = false;
+  showToast('Não foi possível salvar o paciente: sessão clínica não autorizada.');
+  return false;
 }
 
 let draggedPatientId = null;
@@ -10581,6 +11229,7 @@ function handleDragEnd(event) {
   draggedPatientId = null;
 }
 async function reorderPatients(sourceId, targetId) {
+  if(!ensureFirebaseReady('reordenar pacientes')) return;
   const ordered = orderedPatients();
   if(ordered.some(patient => isPatientMutationLocked(patient.id))) {
     showToast('Aguarde a conclusão do desfecho antes de reordenar os pacientes.');
@@ -10608,10 +11257,7 @@ async function reorderPatients(sourceId, targetId) {
       console.error('Erro ao salvar ordem:', error);
       showToast('Erro ao salvar a ordem no Firebase.');
     }
-  } else {
-    save();
-    showToast('Ordem atualizada.');
-  }
+  } else showToast('Não foi possível reordenar pacientes: sessão clínica não autorizada.');
 }
 function sbarText(p) {
   return `${p.bed} — ${p.name}, ${p.age} anos${p.admissionDate ? ' — DIH ' + formatDateBR(p.admissionDate) : ''} — ${severityLabel(effectiveSeverity(p))} — ${effectiveStatus(p)}
@@ -10637,6 +11283,10 @@ Total: ${patients.length} | ${severityMetricLabel()}: ${severityMetricCount()} |
   copyText(`${header}\n\n${body}`);
 }
 async function confirmHandover() {
+  if(clinicalConfirmationBusy) {
+    showToast('A confirmação já está sendo registrada.');
+    return;
+  }
   if(!ensureFirebaseReady('registrar confirmação')) return;
   const doctorValidationMessage = requiredHandoverDoctorMissing();
   if(doctorValidationMessage) {
@@ -10645,13 +11295,9 @@ async function confirmHandover() {
   }
   let actorUid = '';
   if(firebaseActive) {
-    try {
-      actorUid = String(firebase.auth()?.currentUser?.uid || '').trim();
-    } catch(error) {
-      actorUid = '';
-    }
+    actorUid = authorizedClinicalUid();
     if(!actorUid) {
-      showToast('Não foi possível registrar a confirmação: usuário Firebase não identificado.');
+      showToast('Não foi possível registrar a confirmação: sessão clínica não autorizada.');
       return;
     }
   }
@@ -10663,7 +11309,10 @@ async function confirmHandover() {
   box.style.display='block';
   const record = buildConfirmationRecord(stamp, actorUid);
 
-  if(firebaseActive && confirmationsRef) {
+  if(confirmationsRef && metaRef) {
+    clinicalConfirmationBusy = true;
+    const confirmButton = document.getElementById('confirmHandoverBtn');
+    if(confirmButton) confirmButton.disabled = true;
     try {
       await confirmationsRef.add({...record, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
       await metaRef.set({...buildMeta(), lastConfirmationAt: firebase.firestore.FieldValue.serverTimestamp()}, { merge:true });
@@ -10672,15 +11321,13 @@ async function confirmHandover() {
       console.error('Erro ao registrar confirmação:', error);
       const code = error && error.code ? error.code : 'erro';
       showToast('Erro ao registrar confirmação: ' + code);
+    } finally {
+      clinicalConfirmationBusy = false;
+      if(confirmButton) confirmButton.disabled = false;
     }
     return;
   }
-
-  confirmations.unshift({id: makeId(), ...record});
-  saveConfirmationsLocal();
-  saveMeta();
-  renderConfirmations();
-  showToast('Transição de cuidados registrada.');
+  showToast('Não foi possível registrar a confirmação: sessão clínica não autorizada.');
 }
 
 function showToast(msg) { const t=document.getElementById('toast'); t.innerText=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); }
@@ -17164,21 +17811,35 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
 </style>
 <script id="v39-open-patient-from-admin">
 (function(){
-  function openPatientFromQueryV39(){
-    const patientId = URL_PARAMS.get('patient') || URL_PARAMS.get('paciente');
-    if(!patientId) return;
+  const patientId = URL_PARAMS.get('patient') || URL_PARAMS.get('paciente');
+  let started = false;
+  let opened = false;
+  let localTimer = null;
 
-    let tries = 0;
-    const timer = setInterval(function(){
-      tries += 1;
-      const found = Array.isArray(patients) && patients.some(p => p.id === patientId);
-      if(found && typeof openDrawer === 'function'){
-        clearInterval(timer);
-        openDrawer(patientId);
-      } else if(tries >= 20){
-        clearInterval(timer);
-      }
-    }, 350);
+  function tryOpenPatientFromQueryV39(){
+    if(opened || !patientId) return;
+    const found = Array.isArray(patients) && patients.some(p => p.id === patientId);
+    if(found && typeof openDrawer === 'function'){
+      opened = true;
+      if(localTimer) clearInterval(localTimer);
+      document.removeEventListener('connect-hub:patients-ready',tryOpenPatientFromQueryV39);
+      openDrawer(patientId);
+    }
+  }
+
+  function openPatientFromQueryV39(){
+    if(started || !patientId) return;
+    started = true;
+    document.addEventListener('connect-hub:patients-ready',tryOpenPatientFromQueryV39);
+    tryOpenPatientFromQueryV39();
+    if(!isFirebaseConfigured()){
+      let tries = 0;
+      localTimer = setInterval(function(){
+        tries += 1;
+        tryOpenPatientFromQueryV39();
+        if(opened || tries >= 20) clearInterval(localTimer);
+      },350);
+    }
   }
 
   document.addEventListener('DOMContentLoaded', openPatientFromQueryV39);
@@ -17196,7 +17857,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
 
       const result = await oldSavePatientV41.apply(this,arguments);
 
-      setTimeout(async ()=>{
+      scheduleClinicalHistoryTaskV67(async ()=>{
         const afterId = idEl?.value || currentId;
         const after = afterId ? (patients.find(p=>p.id===afterId) || null) : null;
         if(after){
@@ -25777,11 +26438,7 @@ body.patient-outcome-open{overflow:hidden!important}
     return patientOutcomeHistoryDocumentId(patientId);
   }
   function firebaseUserUidV66(){
-    try{
-      return String(window.firebase?.auth?.()?.currentUser?.uid||'').trim();
-    }catch(error){
-      return '';
-    }
+    return typeof authorizedClinicalUid === 'function' ? authorizedClinicalUid() : '';
   }
   function patientClosedTombstoneV66(record,closedByUid){
     return {
@@ -25884,9 +26541,7 @@ body.patient-outcome-open{overflow:hidden!important}
       type:'patient_outcome',
       outcomeType:form.outcomeType,
       outcomeLabel:definition.label,
-      createdAt:firebaseActive&&window.firebase?.firestore
-        ? firebase.firestore.FieldValue.serverTimestamp()
-        : now.toISOString(),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       createdAtLocal:now.toISOString(),
       dateLocal:localDateV66(now),
       sectorUnit:CURRENT_SECTOR.firestoreUnit||'',
@@ -25975,39 +26630,6 @@ body.patient-outcome-open{overflow:hidden!important}
       return {record:immutableRecord,alreadyCommitted:false};
     });
     return trackPatientMutation(record.patientId,operation);
-  }
-  function restoreLocalOutcomesV66(previous){
-    if(previous===null)localStorage.removeItem(OUTCOMES_KEY);
-    else localStorage.setItem(OUTCOMES_KEY,previous);
-  }
-  function persistPatientOutcomeLocalV66(record){
-    const previousOutcomes=localStorage.getItem(OUTCOMES_KEY);
-    let outcomes=[];
-    try{
-      const parsed=JSON.parse(previousOutcomes||'[]');
-      if(!Array.isArray(parsed))throw new Error('Histórico local de desfechos inválido.');
-      outcomes=parsed;
-    }catch(error){
-      const invalid=new Error('O histórico local de desfechos precisa ser recuperado antes de continuar.');
-      invalid.cause=error;
-      throw invalid;
-    }
-    const existing=outcomes.find(item=>item?.outcomeId===record.outcomeId);
-    if(existing){
-      if(!patients.some(patient=>patient.id===record.patientId))return existing;
-      throw new Error('Já existe um desfecho para este paciente no histórico local.');
-    }
-    const nextOutcomes=outcomes.concat(record);
-    const nextPatients=patients.filter(patient=>patient.id!==record.patientId);
-    localStorage.setItem(OUTCOMES_KEY,JSON.stringify(nextOutcomes));
-    try{
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(nextPatients));
-    }catch(error){
-      restoreLocalOutcomesV66(previousOutcomes);
-      throw error;
-    }
-    patients=nextPatients;
-    return record;
   }
   function removePatientAfterOutcomeV66(patientId){
     patients=patients.filter(patient=>patient.id!==patientId);
@@ -26122,8 +26744,47 @@ body.patient-outcome-open{overflow:hidden!important}
     if(returnFocus?.isConnected)setTimeout(()=>returnFocus.focus(),0);
   };
 
+  window.clearPatientOutcomeSensitiveDataV67=function(){
+    const dialog=dialogV66();
+    if(dialog?.classList.contains('is-open')){
+      window.closePatientOutcomeDialog({force:true,resumeAutosave:false});
+    }
+    dialog?.classList.remove('is-open');
+    dialog?.setAttribute('aria-hidden','true');
+    document.body.classList.remove('patient-outcome-open');
+    document.querySelectorAll('input[name="patientOutcomeType"]').forEach(input=>{
+      input.checked=false;
+      input.disabled=false;
+    });
+    const label=byIdV66('patientOutcomePatientLabel');
+    const responsible=byIdV66('patientOutcomeResponsibleDoctor');
+    const cid=byIdV66('patientOutcomePrimaryCid');
+    if(label)label.textContent='';
+    if(responsible){responsible.value='';responsible.disabled=false}
+    if(cid){cid.value='';cid.disabled=false}
+    outcomePatientIdV66='';
+    outcomeIdV66='';
+    outcomeRecordV66=null;
+    outcomeRecordFormSignatureV66='';
+    outcomeReturnFocusV66=null;
+    outcomeHadPendingAutosaveV66=false;
+    outcomeHadQueuedAutosaveV66=false;
+    outcomePendingAutosaveOptionsV66=null;
+    patientOutcomeClosingPatientId='';
+    patientOutcomeRemovalConfirmedPatientId='';
+    patientOutcomeDeferredPatientsSnapshot=null;
+    patientOutcomeDeferredSnapshotPending=false;
+    outcomeStatusV66('');
+    setOutcomeBusyV66(false);
+    window.updatePatientOutcomeForm();
+  };
+
   window.confirmPatientOutcome=async function(){
     if(outcomeBusyV66||!outcomePatientIdV66)return;
+    if(!ensureFirebaseReady('registrar desfecho')){
+      outcomeStatusV66('Sessão clínica não autorizada. Entre novamente para registrar o desfecho.',true);
+      return;
+    }
     const outcomeType=selectedOutcomeTypeV66();
     const responsibleDoctor=String(byIdV66('patientOutcomeResponsibleDoctor')?.value||'').trim();
     const primaryIcdCode=String(byIdV66('patientOutcomePrimaryCid')?.value||'').trim().toUpperCase();
@@ -26135,9 +26796,6 @@ body.patient-outcome-open{overflow:hidden!important}
     setOutcomeBusyV66(true);
     outcomeStatusV66('Encerrando atendimento...');
     try{
-      if(isFirebaseConfigured()&&!firebaseActive){
-        throw new Error('A conexão com o Firebase não está disponível.');
-      }
       const preferLocalSnapshot=drawerIsOpen()&&val('patientId')===outcomePatientIdV66;
       const draftBeforeWait=preferLocalSnapshot
         ? latestPatientSnapshotV66(outcomePatientIdV66)
@@ -26151,16 +26809,10 @@ body.patient-outcome-open{overflow:hidden!important}
         outcomeRecordFormSignatureV66=formSignature;
       }
       let record=outcomeRecordV66;
-      if(firebaseActive){
-        const result=await persistPatientOutcomeFirebaseV66(record,{preferLocalSnapshot});
-        record=result.record;
-        patientOutcomeRemovalConfirmedPatientId=record.patientId;
-        removePatientAfterOutcomeV66(record.patientId);
-      }else{
-        record=persistPatientOutcomeLocalV66(record);
-        patientOutcomeRemovalConfirmedPatientId=record.patientId;
-        render();
-      }
+      const result=await persistPatientOutcomeFirebaseV66(record,{preferLocalSnapshot});
+      record=result.record;
+      patientOutcomeRemovalConfirmedPatientId=record.patientId;
+      removePatientAfterOutcomeV66(record.patientId);
       const completedPatientId=record.patientId;
       const label=record.outcomeLabel;
       outcomeBusyV66=false;
@@ -26212,7 +26864,6 @@ body.patient-outcome-open{overflow:hidden!important}
     version:'1.0.0',
     buildRecord:buildPatientOutcomeRecordV66,
     persistFirebase:persistPatientOutcomeFirebaseV66,
-    persistLocal:persistPatientOutcomeLocalV66,
     lengthOfStayDays:lengthOfStayDaysV66,
     stableOutcomeId:stableOutcomeIdV66
   };

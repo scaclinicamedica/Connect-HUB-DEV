@@ -1,15 +1,15 @@
 # Estado atual do projeto
 
-Atualizado em: 24/07/2026
+Atualizado em: 25/07/2026
 
 ## Baseline
 
 - Produto: Connect HUB — Passagem de Plantão.
-- Componente em foco: Desfecho, segurança do Firestore e acesso
-  administrativo.
+- Componente em foco: login clínico nominal, Desfecho, segurança do Firestore
+  e acesso administrativo.
 - Base: FOUNDATION 1.0.
 - Release funcional em preparação:
-  `FOUNDATION-1.0-RC1.3.0-OUTCOMES`.
+  `FOUNDATION-1.0-RC1.3.1-NOMINAL-AUTH`.
 - Baseline publicado imediatamente anterior: RC1.2.10 — correção da fronteira
   responsiva.
 - Arquivo publicado: `passagem.html`.
@@ -17,8 +17,8 @@ Atualizado em: 24/07/2026
   `73dea7425f4a06bfb9afcc6222d1b57c113d0cd2`.
 - Candidato de Desfecho validado no PR: commit
   `9248e42096a9e6a2fa8cd92deeabdd63eaba5b8e`.
-- A camada adicional de segurança do Firestore e autenticação administrativa
-  está em preparação e ainda não foi publicada.
+- A camada de segurança, autenticação nominal e Área Administrativa está
+  implementada na branch candidata, mas ainda não foi publicada.
 
 Antes de uma mudança funcional, confirme que a `main` ainda corresponde a
 esse baseline ou atualize este documento.
@@ -77,12 +77,29 @@ Copilot também consolida Antimicrobianos quando selecionado.
 - `firestore.rules` exige as quatro partes no mesmo commit, torna histórico,
   projeção e lápide imutáveis, nega delete avulso e bloqueia recriação do
   mesmo ID em qualquer setor conhecido.
-- As Rules possuem 21 cenários automatizados no Firestore Emulator, mas ainda
+- As Rules possuem 27 cenários automatizados no Firestore Emulator, mas ainda
   precisam ser publicadas no projeto Firebase antes do merge da aplicação.
 - A Área Administrativa apresenta uma aba própria de Desfechos baseada somente
   na projeção materializada `admin_outcomes`.
 
 Consulte `docs/OUTCOMES_SPEC.md`.
+
+### Login clínico nominal
+
+- `index.html` e `passagem.html` não usam mais `signInAnonymously`.
+- O acesso exige Email/Password e perfil próprio
+  `clinical_users/<uid>` exato, ativo e com papel `clinician`.
+- O perfil é consultado no servidor antes de qualquer leitura clínica e
+  observado em tempo real; desativação encerra a sessão e limpa a interface.
+- A persistência obrigatória é `SESSION`. Configuração ausente, falha de
+  autenticação ou perda de permissão não abre cache local.
+- Logout aguarda autosave, Desfecho, metadados, confirmação e auditoria em
+  voo; depois remove listeners, pacientes, formulário, metadados e impressão.
+- HUB e Passagem exibem o nome institucional com inserção textual segura.
+- Eventos comuns, confirmações, Desfecho e lápide vinculam a gravação ao UID
+  nominal.
+- Todos os clínicos ativos ainda acessam todos os setores conhecidos; menor
+  privilégio por setor é uma etapa futura.
 
 ### Segurança e acesso administrativo
 
@@ -90,10 +107,10 @@ Consulte `docs/OUTCOMES_SPEC.md`.
 - O painel exige Firebase Authentication por e-mail e senha e valida
   `admin_users/<uid>` com `active: true` e papel `admin` ou `coordinator`.
 - A autenticação usa a instância Firebase nomeada `connect-hub-admin`, com
-  persistência de sessão, sem substituir a sessão anônima clínica.
-- Usuário anônimo pode consultar somente uma lápide conhecida por `get`; não
+  persistência de sessão, sem substituir a sessão clínica nominal.
+- Clínico nominal pode consultar somente uma lápide conhecida por `get`; não
   pode listar lápides nem ler `historico_eventos`.
-- Somente usuário não-anônimo, ativo e com papel administrativo pode ler o
+- Somente usuário Email/Password, ativo e com papel administrativo pode ler o
   histórico integral.
 - Logout, acesso negado e falha de autorização limpam os dados administrativos
   da interface e da memória.
@@ -251,10 +268,10 @@ informado` em vez de assumir estabilidade.
 ## Limitações técnicas atuais
 
 - `passagem.html` é monolítico e concentra interface, estilos e scripts.
-- O artefato RC1.3.0 possui 26.221 linhas, 105 blocos `<style>` e 61 blocos
-  `<script>`.
-- O estado é majoritariamente global; a persistência combina Firebase
-  Auth/Firestore e fallback por `localStorage`.
+- O artefato continua monolítico, com grande volume de HTML, CSS e JavaScript
+  inline.
+- O estado é majoritariamente global; a persistência clínica exige Firebase
+  Auth/Firestore e falha fechada.
 - O repositório possui uma suíte portátil de caracterização com Playwright,
   Chromium gerenciado, Firebase em memória e rede restrita a localhost.
 - Os testes fortalecidos da RC1.2.9 cobrem Auto Save intermediário,
@@ -268,13 +285,11 @@ informado` em vez de assumir estabilidade.
   um worker e nenhum retry.
 - As Rules locais não protegem produção até serem efetivamente publicadas no
   projeto Firebase.
-- Os usuários clínicos permanecem anônimos. O UID registra a sessão do
-  Desfecho, mas não comprova a identidade nominal do profissional nem a autoria
-  individual de cada campo do paciente ativo.
-- O site hospedado é público e o cliente clínico ainda usa Auth anônimo. Sem
-  autenticação clínica nominal ou barreira institucional comprovada, qualquer
-  visitante capaz de iniciar uma sessão anônima recebe as permissões clínicas
-  da V1; isso bloqueia uma nova publicação de produção.
+- O login nominal remove o acesso clínico anônimo, mas não valida campo a
+  campo os pacientes nem restringe o profissional a setores específicos.
+- As Rules locais não têm efeito até o deploy; o merge continua bloqueado por
+  provisionamento institucional e publicação controlada, não por falta de
+  implementação.
 - Antes de uma refatoração ampla, os cenários homologados devem permanecer
   protegidos pelos testes de caracterização do repositório.
 

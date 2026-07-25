@@ -1,234 +1,257 @@
-# Segurança do Firestore e acesso administrativo — V1
+# Segurança do Firestore e acesso nominal — V1
 
-Atualizado em: 24/07/2026
+Atualizado em: 25/07/2026
 
 ## Estado
 
-`firestore.rules` e `firebase.json` estão versionados e cobertos por testes no
-Firestore Emulator. Nesta branch, eles ainda não foram publicados no projeto
-Firebase. O merge que disponibiliza o novo fluxo de Desfecho deve permanecer
-bloqueado até o acesso clínico anônimo do site público ser resolvido, a
-configuração de Authentication e o cadastro administrativo serem concluídos e
-o deploy das Rules ser validado.
+`firestore.rules`, `firebase.json`, o login clínico nominal e o acesso
+administrativo estão versionados nesta branch. Nada desta entrega foi
+publicado no projeto Firebase nem no site em produção.
 
-Este documento não contém e não deve receber senhas, tokens, chaves privadas ou
-outras credenciais.
+O merge permanece bloqueado até que contas e perfis institucionais sejam
+provisionados e uma janela controlada permita ativar as Rules estritas e os
+dois HTMLs clínicos em sequência. Este documento não contém e não deve receber
+senhas, tokens, chaves privadas ou dados reais de pacientes.
 
-## Modelo de dados protegido
+## Identidade clínica nominal
 
-O encerramento de um paciente envolve quatro documentos:
+O HUB (`index.html`) e a Passagem (`passagem.html`) usam o app Firebase padrão
+e aceitam somente:
+
+1. Firebase Authentication com provedor `password`;
+2. sessão não anônima;
+3. documento próprio `clinical_users/<uid>` exatamente neste formato:
+
+   ```json
+   {
+     "schemaVersion": 1,
+     "active": true,
+     "role": "clinician",
+     "displayName": "Dra. Nome Institucional",
+     "email": "conta@instituicao.br"
+   }
+   ```
+
+O e-mail do documento deve coincidir exatamente com o e-mail do token. Campos
+extras, nome vazio, versão diferente, perfil inativo ou outro papel são
+negados. O cliente pode apenas obter o próprio perfil; não pode listar,
+criar, alterar nem excluir perfis.
+
+O perfil é lido do servidor antes de qualquer consulta clínica e permanece
+observado em tempo real. Desativação ou perda de permissão encerra a sessão,
+remove listeners e limpa pacientes, metadados, formulários, impressão e
+identidade da memória e do DOM. A persistência obrigatória é `SESSION`; não há
+fallback clínico por `localStorage` quando Firebase ou autenticação falham.
+Sessões anônimas antigas são rejeitadas e encerradas.
+
+`displayName` identifica a conta autenticada. Ele não substitui o médico
+responsável explicitamente confirmado em um Desfecho.
+
+## Identidade administrativa
+
+`area_administrativa.html` usa o app Firebase separado
+`connect-hub-admin`, também com Email/Password e persistência `SESSION`. O
+usuário precisa de:
+
+```text
+admin_users/<uid>
+```
+
+com um destes contratos:
+
+```json
+{ "active": true, "role": "admin" }
+```
+
+```json
+{ "active": true, "role": "coordinator" }
+```
+
+O cliente pode obter apenas o próprio perfil administrativo. Provisionamento,
+desativação e mudança de papel exigem Firebase Console, Admin SDK ou outra
+ferramenta privilegiada. Login e logout administrativo não substituem a
+sessão clínica, e o inverso também é verdadeiro.
+
+Se a mesma pessoa precisar dos dois conjuntos de permissões, provisione
+`clinical_users/<uid>` e `admin_users/<uid>` para o mesmo UID.
+
+## Matriz de permissões
+
+| Operação | Clínico nominal ativo | Admin/coordenador ativo | Anônimo/sem perfil |
+|---|---:|---:|---:|
+| Ler pacientes ativos | Sim | Sim | Não |
+| Criar/alterar pacientes | Sim | Não | Não |
+| Excluir paciente isoladamente | Não | Não | Não |
+| Ler/gravar metadados do plantão | Sim | Não | Não |
+| Criar/ler confirmação | Sim | Não | Não |
+| Alterar/excluir confirmação | Não | Não | Não |
+| Criar Desfecho atômico | Sim | Não | Não |
+| Obter lápide conhecida | Sim | Sim | Não |
+| Listar lápides | Não | Sim | Não |
+| Ler `historico_eventos` | Não | Sim | Não |
+| Ler `admin_outcomes` | Não | Sim | Não |
+| Alterar histórico/projeção/lápide | Não | Não | Não |
+
+Todos os clínicos autorizados ainda acessam todos os setores conhecidos. A
+segregação por setor pertence a uma etapa futura porque HUB, migrações e
+indicadores dependem hoje dessa visão global.
+
+## Desfecho atômico
+
+O encerramento envolve quatro documentos:
 
 | Documento | Finalidade | Conteúdo sensível |
 |---|---|---|
 | `connect_hub_v55/<setor>/pacientes/<patientId>` | Paciente ativo, removido no Desfecho | Sim |
 | `connect_hub_v55/<setor>/closed_patients/<patientId>` | Lápide mínima contra ressurreição | Não deve conter dados clínicos ou nominais |
-| `historico_eventos/<outcomeId>` | Histórico privado e imutável do Desfecho | Sim, inclusive `patientSnapshot` |
+| `historico_eventos/<outcomeId>` | Histórico privado e imutável | Sim, inclusive `patientSnapshot` |
 | `admin_outcomes/<outcomeId>` | Projeção administrativa mínima e imutável | Apenas campos administrativos explícitos |
 
-A lápide possui somente versão do esquema, tipo, identificadores técnicos,
-tipo do Desfecho, timestamp e UID da sessão que confirmou o encerramento. Nome,
-CID, diagnóstico, alertas e snapshot pertencem exclusivamente ao evento
-privado.
+As Rules aceitam o Desfecho somente quando o mesmo commit:
 
-## Operação atômica obrigatória
-
-As Rules aceitam um Desfecho somente quando o mesmo commit:
-
-1. cria um `patient_outcome` válido em `historico_eventos`;
-2. cria a projeção `patient_outcome_admin` correspondente;
-3. cria a lápide `patient_closed` correspondente;
+1. cria o evento privado válido;
+2. cria a projeção administrativa correspondente;
+3. cria a lápide correspondente;
 4. exclui o paciente ativo do mesmo setor.
 
-Evento, lápide ou exclusão isolados são negados. A correspondência inclui
-`patientId`, `sectorUnit`, `outcomeId`, `outcomeType` e o UID autenticado em
-`actorUid`/`closedByUid`. Evento, projeção e lápide não podem ser atualizados
-nem excluídos depois do commit.
+As quatro partes precisam concordar em identificadores, tipo e UID nominal.
+Evento, projeção e lápide são imutáveis. Criação de paciente verifica lápides
+nos sete setores conhecidos para impedir ressurreição após encerramento.
 
-Uma nova criação de paciente consulta as lápides dos setores conhecidos. Se o
-identificador já foi encerrado em qualquer um deles, a criação é negada. As
-migrações válidas entre setores continuam sendo operações atômicas próprias e
-não podem ser combinadas com um Desfecho.
+Confirmações e eventos comuns de criação, edição, migração, remanejamento e
+contra-fluxo também vinculam `actorUid` ao UID nominal. O profissional
+autenticado continua podendo alterar campos clínicos livres de um paciente;
+autenticação nominal não equivale a validação campo a campo do conteúdo.
 
-## Perfis e permissões
+## Área Administrativa
 
-| Operação | Clínico anônimo autenticado | Admin/coordenador ativo, não-anônimo |
-|---|---:|---:|
-| Ler e atualizar pacientes ativos | Sim | Sim |
-| Criar paciente sem lápide prévia | Sim | Sim |
-| Excluir paciente isoladamente | Não | Não |
-| Criar Desfecho atômico | Sim | Sim |
-| Consultar uma lápide conhecida por `get` | Sim | Sim |
-| Listar lápides | Não | Sim |
-| Ler/listar `historico_eventos` | Não | Sim |
-| Ler/listar `admin_outcomes` | Não | Sim |
-| Alterar ou excluir histórico/lápide | Não | Não |
-| Criar/alterar `admin_users` pelo cliente | Não | Não |
-| Criar e ler confirmação de transição | Sim | Sim |
-| Alterar/excluir confirmação de transição | Não | Não |
+O painel valida `admin_users/<uid>` antes de consultar qualquer paciente ou
+histórico. Ele:
 
-Um leitor administrativo precisa:
+- permanece somente leitura;
+- limpa memória, gráficos, tabelas e relatórios ao sair ou perder acesso;
+- bloqueia relatório/exportação se o histórico falhar ou ultrapassar 5.000
+  registros;
+- escapa conteúdo persistido antes de renderizá-lo;
+- fixa Chart.js e XLSX com versão e SRI;
+- consulta somente `admin_outcomes` na aba Desfechos;
+- usa `createdAt` do servidor convertido para `America/Sao_Paulo`.
 
-- ter autenticação Firebase não-anônima;
-- possuir `admin_users/<uid>`;
-- ter `active: true`;
-- ter `role: "admin"` ou `role: "coordinator"`.
+O evento privado e seu `patientSnapshot` não trafegam para a aba Desfechos.
 
-O próprio usuário pode ler apenas o seu documento `admin_users/<uid>`.
-Provisionamento, desativação e mudança de papel exigem o Firebase Console ou
-outra ferramenta privilegiada.
+## Provisionamento
 
-## Acesso da Área Administrativa
+Execute com uma conta autorizada no projeto Firebase. Não copie credenciais
+para repositório, PR, terminal compartilhado ou documentação.
 
-`area_administrativa.html` autentica por e-mail e senha e valida
-`admin_users/<uid>` antes de consultar pacientes ou histórico. Não existe
-código compartilhado de acesso, autorização em `sessionStorage` ou login
-anônimo administrativo.
+1. Habilite **Email/Password** no Firebase Authentication.
+2. Crie uma conta individual para cada profissional clínico.
+3. Crie o `clinical_users/<uid>` exato para cada conta.
+4. Crie contas administrativas necessárias e os respectivos
+   `admin_users/<uid>`.
+5. Se um usuário acumular funções, use o mesmo UID nos dois documentos.
+6. Verifique que nenhuma senha foi incluída em HTML, fixture ou documentação.
+7. Registre a release atual das Rules e o commit publicado para rollback.
 
-O painel inicializa o Firebase com o nome `connect-hub-admin` e persistência
-`SESSION`. Essa separação impede que login ou logout administrativo substitua a
-sessão anônima usada pelo HUB clínico na mesma origem. A interface também:
+Mudança de e-mail no Authentication exige atualizar o e-mail correspondente
+em `clinical_users/<uid>`; até essa sincronização, o acesso clínico será
+negado.
 
-- limpa os dados administrativos ao sair ou perder autorização;
-- não consulta pacientes quando o perfil está inativo ou possui outro papel;
-- bloqueia relatório e exportação histórica quando a leitura falha ou excede
-  o limite seguro;
-- fixa Chart.js e XLSX em versões específicas com SRI;
-- escapa conteúdo persistido antes de inseri-lo no HTML privilegiado.
+## Validação antes da janela
 
-O atalho da tela clínica leva ao login administrativo real e não contém mais
-um código compartilhado para revelar o histórico. As confirmações de transição
-de cuidados permanecem criáveis e legíveis por clientes autenticados, mas são
-imutáveis: update e delete são negados.
+Na raiz:
 
-Durante a publicação Rules-first, abas antigas ainda podem criar o contrato
-legado de confirmação. Essa compatibilidade é fechada por lista exata de
-campos, tipos e timestamp do servidor; não permite campos arbitrários. Ela deve
-ser removida em uma release futura depois de expirar o cache da versão antiga.
+```bash
+npm ci
+npm run test:rules
+npm test
+npm run test:print
+npm run test:stability
+npm run verify:integrity
+```
 
-O painel administrativo permanece somente leitura no cliente. A aba
-`Desfechos` consulta exclusivamente `admin_outcomes`, uma projeção
-materializada sem `patientSnapshot`, diagnóstico, alertas ou estado clínico.
-O histórico geral exclui `patient_outcome` na consulta do servidor. Período,
-ordenação, auditoria e permanência usam o timestamp de servidor convertido
-para `America/Sao_Paulo`; dados locais do navegador não participam das
-métricas.
+O Emulator desta branch exige Java 21 ou superior. Os testes usam somente o
+projeto de demonstração `demo-connect-hub-rules`.
 
-## Pré-requisitos de publicação
+## Publicação controlada
 
-Execute estas etapas com uma conta autorizada no projeto Firebase. Não copie
-credenciais para o repositório, PR, terminal compartilhado ou documentação.
+As Rules estritas e os HTMLs nominais não são retrocompatíveis com abas
+anônimas antigas. Use uma janela curta e comunicada:
 
-1. Resolva o acesso clínico anônimo no site público: implemente autenticação
-   clínica nominal ou comprove uma barreira institucional que impeça acesso
-   externo. Sem isso, não prossiga com a publicação.
-2. Em Firebase Authentication, habilite o provedor **Email/Password**.
-3. Crie a conta institucional que terá acesso ao painel.
-4. Copie o UID gerado pelo Authentication.
-5. Pelo Firebase Console ou ambiente administrativo privilegiado, crie:
-
-   ```text
-   admin_users/<uid>
-   ```
-
-   com um dos contratos:
-
-   ```json
-   { "active": true, "role": "admin" }
-   ```
-
-   ```json
-   { "active": true, "role": "coordinator" }
-   ```
-
-6. Registre qual release de Rules está publicada atualmente para permitir
-   rollback operacional.
-7. Na raiz do repositório, valide a versão candidata:
-
-   ```bash
-   npm ci
-   npm run test:rules
-   ```
-
-   O Emulator desta branch exige Java 21 ou superior.
-
-8. Publique apenas as Rules, apontando explicitamente para o projeto:
+1. Confirme contas e perfis com dados fictícios/controlados.
+2. Oriente usuários a concluir gravações e fechar abas antigas.
+3. Publique as Rules estritas:
 
    ```bash
    npx firebase deploy --only firestore:rules \
      --project passagem-de-plantao-1746c
    ```
 
-9. Confirme no Firebase Console que a nova release está ativa.
-10. Execute o smoke test abaixo antes de integrar ou publicar os HTMLs.
+4. Confirme no Firebase Console que a release correta está ativa.
+5. Publique imediatamente `index.html` e `passagem.html` nominais.
+6. Execute o smoke test abaixo.
+7. Desabilite o provedor Anonymous no Authentication. Tokens anônimos já
+   emitidos continuam sendo negados pelas Rules.
+8. Registre horário, commit, release das Rules e resultado do smoke test.
 
-As Rules devem entrar primeiro para que o novo HTML nunca opere sem a proteção.
-No intervalo entre o deploy das Rules e a publicação do HTML, a versão
-administrativa antiga e anônima deixará de ler o histórico. Essa indisponibilidade
-temporária é esperada; planeje uma janela curta, valide o candidato local contra
-o projeto protegido e publique a aplicação somente depois do smoke test.
+Rules-first causa uma indisponibilidade clínica curta, porém segura: abas
+antigas falham fechadas até o novo HTML entrar. Não publique o HTML nominal
+mantendo permissões anônimas por um intervalo aberto.
 
-## Smoke test após o deploy
+## Smoke test após publicação
 
 Use somente registros fictícios em ambiente controlado:
 
-- [ ] conta `admin` ativa entra e carrega o painel;
-- [ ] conta `coordinator` ativa entra e carrega o painel;
-- [ ] conta ausente, inativa ou com outro papel recebe acesso negado antes de
-      consultar pacientes;
-- [ ] cliente clínico anônimo não consegue ler nem listar
-      `historico_eventos`;
-- [ ] cliente clínico consegue consultar por `get` a lápide conhecida;
-- [ ] Tratado cria histórico + projeção mínima + lápide e retira o ativo em um
-      único commit;
+- [ ] tela deslogada não consulta pacientes, metadados ou confirmações;
+- [ ] clínico nominal ativo entra no HUB e na Passagem;
+- [ ] sessão anônima, conta sem perfil e perfil inativo são negados;
+- [ ] desativar o perfil aberto encerra a sessão e limpa a tela;
+- [ ] logout clínico limpa cards, formulário, metadados e listeners;
+- [ ] logout clínico não encerra a sessão administrativa;
+- [ ] admin e coordinator ativos carregam o painel;
+- [ ] admin sem perfil clínico não realiza escrita clínica;
+- [ ] Tratado cria as quatro partes e retira o ativo;
 - [ ] Óbito sem CID é negado;
-- [ ] update/delete de histórico ou lápide é negado;
-- [ ] exclusão avulsa de paciente é negada;
-- [ ] recriação do mesmo `patientId` após Desfecho é negada, inclusive em
-      outro setor;
-- [ ] migração válida e atualizações em lote continuam funcionando;
-- [ ] confirmação de transição pode ser criada e lida, mas não alterada nem
-      apagada;
-- [ ] logout administrativo não encerra a sessão clínica da aplicação.
+- [ ] update/delete de histórico, projeção ou lápide é negado;
+- [ ] exclusão avulsa e recriação após Desfecho são negadas;
+- [ ] migração válida e lote de pacientes continuam funcionando;
+- [ ] confirmação pode ser criada e lida, mas não alterada;
+- [ ] falha de permissão encerra a sessão sem carregar cache local.
 
-Se qualquer item falhar, não publique os HTMLs. Reative a release anterior de
-Rules pelo mecanismo de releases do Firebase e investigue em uma branch
-separada; não amplie permissões de forma genérica para contornar o erro.
+Se qualquer item falhar, interrompa a publicação. Mantenha as Rules estritas
+para não reabrir acesso anônimo, retire os HTMLs candidatos se necessário e
+investigue em branch separada. Só restaure Rules permissivas mediante decisão
+explícita de segurança e rollback integral.
 
 ## Testes automatizados
-
-O comando oficial é:
 
 ```bash
 npm run test:rules
 ```
 
-Ele inicia o Firestore Emulator e executa 21 cenários em
-`tests/firestore/firestore.rules.test.mjs`. A cobertura inclui:
+O arquivo `tests/firestore/firestore.rules.test.mjs` contém 27 cenários:
 
-- operação de Desfecho com quatro mutações e negação de combinações parciais;
-- vínculo de `actorUid` e `closedByUid` ao usuário autenticado;
-- obrigatoriedade de médico e CID no Óbito;
-- imutabilidade de histórico, projeção administrativa e lápides;
-- bloqueio de ressurreição no mesmo setor e entre setores;
-- separação entre leitura clínica e administrativa;
-- perfis administrativo, coordenador, inativo e anônimo;
-- preservação de pacientes ativos, migração e atualização em lote;
-- negação de delete avulso;
-- compatibilidade imutável dos eventos legados reconhecidos;
-- reserva do identificador determinístico de Desfecho;
-- imutabilidade das confirmações de transição de cuidados.
-- compatibilidade estrita da confirmação legada durante a janela Rules-first.
+- perfil clínico próprio, exato e imutável;
+- negação de não autenticado, anônimo, provedor diferente, perfil ausente,
+  inativo, divergente ou malformado;
+- separação e acúmulo explícito dos perfis clínico e administrativo;
+- revogação do perfil na operação seguinte;
+- Desfecho atômico e negação de combinações parciais;
+- vínculo de `actorUid`/`closedByUid`;
+- imutabilidade e bloqueio de ressurreição;
+- pacientes ativos, migração e lote;
+- eventos comuns nominais e confirmações imutáveis;
+- preservação de leitura administrativa sem escrita clínica.
 
-## Limitação residual
+## Limitações residuais
 
-Os clientes clínicos continuam autenticados anonimamente para preservar a
-compatibilidade da V1. Como a aplicação está em GitHub Pages público, qualquer
-visitante capaz de iniciar uma sessão anônima recebe as permissões clínicas
-atuais de leitura, gravação e Desfecho. O UID identifica somente a sessão
-Firebase, não o profissional. Por isso, essa condição é um bloqueador de nova
-publicação em produção, salvo se houver uma barreira institucional externa
-comprovada.
+- Todos os clínicos ativos acessam todos os setores.
+- Pacientes ativos ainda não possuem validação campo a campo nas Rules.
+- `patientSnapshot` não é comparado integralmente ao paciente anterior.
+- `validOutcome` e eventos históricos antigos ainda aceitam alguns campos
+  adicionais; um clínico autorizado pode usar cliente modificado.
+- Autoria nominal identifica quem gravou o evento, mas não transforma a V1 em
+  prontuário nem comprova clinicamente cada valor informado.
 
-Autoria clínica nominal, menor privilégio por setor e validação campo a campo
-exigem uma etapa posterior com autenticação clínica real, matriz de papéis e
-migração controlada dos clientes existentes.
+Esses itens não reabrem acesso público anônimo, mas devem orientar a próxima
+etapa de menor privilégio e integridade.

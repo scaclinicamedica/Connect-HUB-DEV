@@ -1,5 +1,6 @@
 import { test, expect } from '../support/test-fixture';
 import { OUTCOME_TEST_DOCTOR, outcomePatient } from '../fixtures/outcomes';
+import { CLINICAL_TEST_UID } from '../fixtures/auth';
 
 const historyPath = (patientId: string) =>
   `historico_eventos/patient_outcome_emergencia_${encodeURIComponent(patientId)}`;
@@ -9,7 +10,7 @@ const patientPath = (patientId: string) =>
   `connect_hub_v55/emergencia/pacientes/${patientId}`;
 const tombstonePath = (patientId: string) =>
   `connect_hub_v55/emergencia/closed_patients/${patientId}`;
-const FIREBASE_TEST_UID = 'fixture-anonymous-user';
+const FIREBASE_TEST_UID = CLINICAL_TEST_UID;
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-07-24T15:00:00.000Z'));
@@ -56,6 +57,7 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
   });
   await expect(app.page.locator('#currentDoctor')).toHaveValue(OUTCOME_TEST_DOCTOR);
   await app.clearFirebaseWrites();
+  await app.clearFirebaseReads();
 
   await app.openOutcomeFromCard(patient.id);
   await app.selectOutcome('treated');
@@ -607,42 +609,26 @@ test('guard de Desfecho rejeita salvamento tardio de outro cliente', async ({ ap
   );
 });
 
-test('falha fechada diante de histórico local corrompido sem apagar dados existentes', async ({ app }) => {
-  const patient = outcomePatient('fixture-outcome-local-corrupt');
+test('não expõe persistência local de desfechos', async ({ app }) => {
+  const patient = outcomePatient('fixture-outcome-no-local-persistence');
   await app.goto({ patients: [patient] });
-  const result = await app.page.evaluate(patientId => {
-    const outcomesKey = 'sbar_breve_santa_casa_desfechos_v1_emergencia';
-    const patientsKey = 'sbar_breve_santa_casa_v1_emergencia';
-    const corrupted = '{"estado":';
-    const activePatients = JSON.stringify([{ id: patientId, name: 'PACIENTE FICTÍCIO LOCAL' }]);
-    localStorage.setItem(outcomesKey, corrupted);
-    localStorage.setItem(patientsKey, activePatients);
-    let message = '';
-    try {
-      (window as unknown as {
-        PatientOutcomeFramework: {
-          persistLocal(record: Record<string, unknown>): Record<string, unknown>;
-        };
-      }).PatientOutcomeFramework.persistLocal({
-        outcomeId: `patient_outcome_emergencia_${encodeURIComponent(patientId)}`,
-        patientId
-      });
-    } catch(error) {
-      message = error instanceof Error ? error.message : String(error);
-    }
-    return {
-      message,
-      storedOutcomes: localStorage.getItem(outcomesKey),
-      storedPatients: localStorage.getItem(patientsKey),
-      expectedPatients: activePatients,
-      patientStillVisible: Boolean(document.querySelector(`[data-id="${patientId}"]`))
-    };
-  }, patient.id);
 
-  expect(result.message).toContain('precisa ser recuperado');
-  expect(result.storedOutcomes).toBe('{"estado":');
-  expect(result.storedPatients).toBe(result.expectedPatients);
-  expect(result.patientStillVisible).toBe(true);
+  const framework = await app.page.evaluate(() => {
+    const value = (window as unknown as {
+      PatientOutcomeFramework: Record<string, unknown>;
+    }).PatientOutcomeFramework;
+    return {
+      persistLocalType: typeof value.persistLocal,
+      persistFirebaseType: typeof value.persistFirebase
+    };
+  });
+
+  expect(framework).toEqual({
+    persistLocalType: 'undefined',
+    persistFirebaseType: 'function'
+  });
+  await expect(app.cards).toHaveCount(1);
+  expect(await app.persistedPatient(patient.id)).toBeDefined();
 });
 
 test('calcula permanência inclusiva e rejeita datas inválidas ou futuras', async ({ app }) => {

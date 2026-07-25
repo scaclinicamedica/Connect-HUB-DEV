@@ -136,20 +136,23 @@ Em todas as larguras:
 
 ## 10. Firestore e Área Administrativa
 
-- [ ] `npm run test:rules` conclui os 21 cenários no Firestore Emulator.
-- [ ] Cliente clínico anônimo pode consultar por `get` uma lápide conhecida,
-      mas não pode listar lápides nem ler/listar `historico_eventos`.
-- [ ] Usuário não-anônimo com `admin_users/<uid>` ativo e papel `admin` lê o
+- [ ] `npm run test:rules` conclui os 27 cenários no Firestore Emulator.
+- [ ] Usuário anônimo, não autenticado ou sem perfil clínico ativo não lê nem
+      grava pacientes, metadados, confirmações, lápides ou Desfechos.
+- [ ] Clínico Email/Password com `clinical_users/<uid>` ativo pode consultar
+      por `get` uma lápide conhecida, mas não pode listar lápides nem
+      ler/listar `historico_eventos`.
+- [ ] Usuário Email/Password com `admin_users/<uid>` ativo e papel `admin` lê o
       histórico.
-- [ ] Usuário não-anônimo com papel `coordinator` ativo lê o histórico.
+- [ ] Usuário Email/Password com papel `coordinator` ativo lê o histórico.
 - [ ] Perfil ausente, inativo ou com outro papel é negado antes da consulta de
       pacientes.
 - [ ] Não existe código compartilhado, senha, token ou credencial administrativa
       no HTML, testes ou documentação.
 - [ ] O login usa e-mail e senha, persistência de sessão e a instância Firebase
       nomeada `connect-hub-admin`.
-- [ ] Login/logout administrativo não substitui nem encerra a sessão anônima
-      clínica.
+- [ ] Login/logout administrativo não substitui nem encerra a sessão clínica
+      nominal, e logout clínico não encerra a sessão administrativa.
 - [ ] O atalho administrativo da tela clínica abre o login real e não revela
       histórico protegido ou código compartilhado.
 - [ ] Confirmações de transição podem ser criadas e lidas, mas update/delete
@@ -188,10 +191,20 @@ Em todas as larguras:
 - [ ] Login e painel permanecem acessíveis e sem overflow nas larguras
       obrigatórias.
 - [ ] Email/Password está habilitado no Firebase Authentication.
-- [ ] A conta institucional foi criada e seu UID foi cadastrado em
+- [ ] Cada conta clínica foi criada e seu UID foi cadastrado em
+      `clinical_users/<uid>` com esquema exato, `active: true` e
+      `role: clinician`.
+- [ ] A conta administrativa foi criada e seu UID foi cadastrado em
       `admin_users/<uid>` com `active: true` e papel permitido.
-- [ ] O acesso clínico anônimo do site público foi substituído por autenticação
-      nominal ou protegido por barreira institucional comprovada.
+- [ ] HUB e Passagem consultam o perfil no servidor antes de qualquer dado,
+      observam revogação e usam persistência `SESSION`.
+- [ ] Logout clínico aguarda escritas e limpa listeners, pacientes, formulário,
+      modal de Desfecho, metadados, impressão e caches legados de todos os
+      setores.
+- [ ] Falha ou ausência da persistência `SESSION` encerra uma credencial
+      restaurada antes de manter a aplicação fechada.
+- [ ] Configuração/auth/permissão ausente falha fechada, sem `localStorage`.
+- [ ] O provedor Anonymous foi desabilitado depois do corte controlado.
 - [ ] `firestore.rules` foi publicado e o smoke test pós-deploy de
       `docs/FIRESTORE_SECURITY.md` passou antes do merge da aplicação.
 

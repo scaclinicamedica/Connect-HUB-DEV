@@ -61,16 +61,17 @@ insuficiência cardíaca, lesão renal, cirrose, paliativos e anticoagulação.
 
 ## Arquitetura atual — V1/DEV
 
-A aplicação atual é essencialmente estática. O artefato RC1.2.8 possui
-1.259.660 bytes, 25.417 linhas, 104 blocos `<style>` e 60 blocos `<script>`,
-incluindo scripts externos do Firebase Compat 10.12.5. `passagem.html`
-concentra lógica clínica, persistência, renderização, responsividade e camadas
-sucessivas de compatibilidade.
+A aplicação atual é essencialmente estática. `passagem.html` concentra lógica
+clínica, persistência, renderização, responsividade e camadas sucessivas de
+compatibilidade, incluindo Firebase Compat 10.12.5.
 
-O estado principal é global. A persistência usa Firebase Auth anônimo e
-Firestore quando disponíveis, com `localStorage` como fallback. A ordem dos
-scripts, wrappers, observadores e temporizadores faz parte do comportamento
-atual.
+O estado principal é global. HUB e Passagem exigem Firebase Auth
+Email/Password, perfil nominal ativo em `clinical_users/<uid>` e persistência
+`SESSION` antes de consultar o Firestore. A Área Administrativa usa uma
+instância Firebase separada e `admin_users/<uid>`. Falha de configuração,
+autenticação ou autorização permanece fechada; dados clínicos não usam mais
+`localStorage` como fallback. A ordem dos scripts, wrappers, observadores e
+temporizadores continua fazendo parte do comportamento atual.
 
 Esse desenho permitiu evolução rápida, mas aumenta o risco de:
 

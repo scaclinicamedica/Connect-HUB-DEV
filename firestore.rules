@@ -6,17 +6,60 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isRealUser() {
+    function isPasswordUser() {
       return isSignedIn()
-        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && request.auth.token.email is string
+        && request.auth.token.email.size() > 0;
+    }
+
+    function clinicalUserPath(uid) {
+      return /databases/$(database)/documents/clinical_users/$(uid);
+    }
+
+    function validClinicalProfile(data) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email'
+        ])
+        && data.schemaVersion == 1
+        && data.active == true
+        && data.role == 'clinician'
+        && data.displayName is string
+        && data.displayName.matches('.*\\S.*')
+        && data.displayName.size() <= 120
+        && data.email is string
+        && data.email == request.auth.token.email;
+    }
+
+    function isClinicalUser() {
+      return isPasswordUser()
+        && exists(clinicalUserPath(request.auth.uid))
+        && validClinicalProfile(
+          get(clinicalUserPath(request.auth.uid)).data
+        );
     }
 
     function isHistoryAdmin() {
-      return isRealUser()
+      return isPasswordUser()
         && exists(/databases/$(database)/documents/admin_users/$(request.auth.uid))
         && get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.active == true
         && get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.role
           in ['admin', 'coordinator'];
+    }
+
+    function canReadActivePatients() {
+      return isClinicalUser() || isHistoryAdmin();
     }
 
     function isKnownSector(sectorUnit) {
@@ -307,7 +350,7 @@ service cloud.firestore {
       let activePath = patientPath(outcome.sectorUnit, outcome.patientId);
       let markerPath = closedPatientPath(outcome.sectorUnit, outcome.patientId);
       let projectionPath = adminOutcomePath(outcomeId);
-      return isSignedIn()
+      return isClinicalUser()
         && validOutcome(outcome, outcomeId)
         && exists(activePath)
         && !existsAfter(activePath)
@@ -327,7 +370,7 @@ service cloud.firestore {
       let activePath = patientPath(sectorUnit, patientId);
       let historyPath = outcomePath(marker.outcomeId);
       let projectionPath = adminOutcomePath(marker.outcomeId);
-      return isSignedIn()
+      return isClinicalUser()
         && isKnownSector(sectorUnit)
         && validClosedPatient(marker, sectorUnit, patientId)
         && exists(activePath)
@@ -354,7 +397,7 @@ service cloud.firestore {
         projection.patientId
       );
       let historyPath = outcomePath(outcomeId);
-      return isSignedIn()
+      return isClinicalUser()
         && validAdminOutcome(projection, outcomeId)
         && exists(activePath)
         && !existsAfter(activePath)
@@ -510,7 +553,7 @@ service cloud.firestore {
     }
 
     function validLegacyConfirmation(data) {
-      return isSignedIn()
+      return isClinicalUser()
         && data.keys().hasAll([
           'createdAt',
           'createdAtLocal',
@@ -681,14 +724,15 @@ service cloud.firestore {
 
     function isLegacyHistoryCreate(historyId) {
       let data = request.resource.data;
-      return isSignedIn()
+      return isClinicalUser()
         && !historyId.matches('^patient_outcome_.*')
         && data.keys().hasAll([
           'type',
           'createdAt',
           'createdAtLocal',
           'patientId',
-          'sectorUnit'
+          'sectorUnit',
+          'actorUid'
         ])
         && data.type in [
           'patient_created',
@@ -701,11 +745,17 @@ service cloud.firestore {
         && data.createdAtLocal is string
         && data.patientId is string
         && data.patientId.size() > 0
+        && data.actorUid == request.auth.uid
         && isKnownSector(data.sectorUnit);
     }
 
     match /admin_users/{uid} {
-      allow get: if isRealUser() && request.auth.uid == uid;
+      allow get: if isPasswordUser() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    match /clinical_users/{uid} {
+      allow get: if isPasswordUser() && request.auth.uid == uid;
       allow list, create, update, delete: if false;
     }
 
@@ -723,16 +773,19 @@ service cloud.firestore {
     }
 
     match /connect_hub_v55/{sectorUnit}/closed_patients/{patientId} {
-      allow get: if isSignedIn();
-      allow list: if isHistoryAdmin();
+      allow get: if canReadActivePatients()
+        && isKnownSector(sectorUnit);
+      allow list: if isHistoryAdmin()
+        && isKnownSector(sectorUnit);
       allow create: if isAtomicClosedPatientCreate(sectorUnit, patientId);
       allow update, delete: if false;
     }
 
     match /connect_hub_v55/{sectorUnit}/pacientes/{patientId} {
-      allow get, list: if isSignedIn() && isKnownSector(sectorUnit);
+      allow get, list: if canReadActivePatients()
+        && isKnownSector(sectorUnit);
 
-      allow create: if isSignedIn()
+      allow create: if isClinicalUser()
         && isKnownSector(sectorUnit)
         && hasNoClosedMarkerAfter(patientId)
         && (
@@ -740,10 +793,10 @@ service cloud.firestore {
           || isValidMigrationCreate(sectorUnit, patientId)
         );
 
-      allow update: if isSignedIn()
+      allow update: if isClinicalUser()
         && isKnownSector(sectorUnit);
 
-      allow delete: if isSignedIn()
+      allow delete: if isClinicalUser()
         && isKnownSector(sectorUnit)
         && (
           isAtomicOutcomePatientDelete(sectorUnit, patientId)
@@ -752,12 +805,13 @@ service cloud.firestore {
     }
 
     match /connect_hub_v55/{sectorUnit}/meta/{documentId} {
-      allow read, write: if isSignedIn() && isKnownSector(sectorUnit);
+      allow read, write: if isClinicalUser()
+        && isKnownSector(sectorUnit);
     }
 
     match /connect_hub_v55/{sectorUnit}/confirmacoes/{documentId} {
-      allow read: if isSignedIn() && isKnownSector(sectorUnit);
-      allow create: if isSignedIn()
+      allow read: if isClinicalUser() && isKnownSector(sectorUnit);
+      allow create: if isClinicalUser()
         && isKnownSector(sectorUnit)
         && (
           validConfirmation(request.resource.data, sectorUnit)

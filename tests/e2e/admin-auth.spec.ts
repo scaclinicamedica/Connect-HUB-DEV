@@ -6,6 +6,7 @@ const ADMIN_EMAIL = 'admin.ficticio@example.test';
 const ADMIN_PASSWORD = 'senha-ficticia-segura';
 const ADMIN_UID = 'fixture-admin-user';
 const CLINICAL_UID = 'fixture-clinical-user';
+const CLINICAL_EMAIL = 'clinician.ficticio@example.test';
 const adminHtml = await readFile(new URL('../../area_administrativa.html', import.meta.url), 'utf8');
 const passagemHtml = await readFile(new URL('../../passagem.html', import.meta.url), 'utf8');
 
@@ -15,7 +16,11 @@ function timestamp(iso: string){
 
 function authorizedSeed(overrides: Partial<AdminSeed> = {}): AdminSeed {
   return {
-    authUid: CLINICAL_UID,
+    initialAuthUser: {
+      uid: CLINICAL_UID,
+      email: CLINICAL_EMAIL,
+      isAnonymous: false
+    },
     adminAccounts: [
       { uid: ADMIN_UID, email: ADMIN_EMAIL, password: ADMIN_PASSWORD }
     ],
@@ -65,7 +70,7 @@ test('mantém dependências administrativas fixadas e remove o acesso por códig
   expect(passagemHtml).toContain("location.href='./area_administrativa.html'");
 });
 
-test('autoriza somente o perfil administrativo e preserva a sessão clínica separada', async ({ admin, page }) => {
+test('autoriza somente o perfil administrativo e preserva a sessão clínica nominal separada', async ({ admin, page }) => {
   await admin.goto(authorizedSeed());
   await admin.loginAsAuthorized(ADMIN_EMAIL, ADMIN_PASSWORD);
 
@@ -93,6 +98,7 @@ test('autoriza somente o perfil administrativo e preserva a sessão clínica sep
 
   const signedInState = await admin.authState();
   expect(signedInState['[DEFAULT]']?.uid).toBe(CLINICAL_UID);
+  expect(signedInState['[DEFAULT]']?.isAnonymous).toBe(false);
   expect(signedInState['connect-hub-admin']?.uid).toBe(ADMIN_UID);
 
   await admin.signOutButton.click();
@@ -106,6 +112,7 @@ test('autoriza somente o perfil administrativo e preserva a sessão clínica sep
 
   const signedOutState = await admin.authState();
   expect(signedOutState['[DEFAULT]']?.uid).toBe(CLINICAL_UID);
+  expect(signedOutState['[DEFAULT]']?.isAnonymous).toBe(false);
   expect(signedOutState['connect-hub-admin']).toBeNull();
 });
 

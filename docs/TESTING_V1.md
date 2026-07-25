@@ -10,7 +10,7 @@ Datas de previsão usadas para exercitar pacientes não atrasados devem ser
 determinísticas e permanecer no futuro, sem depender da data de execução.
 
 A identificação funcional atualmente caracterizada é
-`FOUNDATION-1.0-RC1.3.0-OUTCOMES`.
+`FOUNDATION-1.0-RC1.3.1-NOMINAL-AUTH`.
 
 ## Pré-requisitos
 
@@ -63,6 +63,29 @@ Firestore Rules no Emulator:
 ```bash
 npm run test:rules
 ```
+
+Login clínico nominal em 1180 px:
+
+```bash
+npm run test:clinical-auth
+```
+
+Matriz responsiva do login no HUB e na Passagem:
+
+```bash
+npm run test:clinical-auth:matrix
+```
+
+Auditoria do artefato entregue, excluindo ferramentas de desenvolvimento:
+
+```bash
+npm audit --omit=dev
+```
+
+O `firebase-tools` é dependência exclusiva de CI/emulador. Na versão atual
+15.24.0, a auditoria completa ainda reporta alertas transitivos do CLI sem
+release posterior disponível; eles não integram os HTMLs carregados pelo
+navegador.
 
 Autenticação e autorização da Área Administrativa em 1180 px:
 
@@ -129,7 +152,7 @@ A configuração global e os cenários de estabilidade permanecem com
 
 ## Cobertura de segurança do Desfecho
 
-`npm run test:rules` executa 21 cenários contra o Firestore Emulator:
+`npm run test:rules` executa 27 cenários contra o Firestore Emulator:
 
 - criação conjunta de evento privado, projeção mínima, lápide e exclusão do
   ativo;
@@ -141,13 +164,14 @@ A configuração global e os cenários de estabilidade permanecem com
 - bloqueio de recriação no mesmo setor e nos demais setores conhecidos;
 - separação entre `get` clínico da lápide e leitura administrativa do
   histórico;
-- autorização de `admin` e `coordinator` não-anônimos e ativos;
-- negação de usuário anônimo, perfil ausente/inativo ou papel não permitido na
-  leitura histórica;
+- autorização de clínico, `admin` e `coordinator` Email/Password com perfis
+  ativos;
+- negação de usuário anônimo, provedor diferente, perfil ausente/inativo,
+  divergente ou malformado;
 - preservação de create/update/get/list de pacientes ativos;
 - preservação de migração válida e atualização atômica em lote;
 - negação de delete avulso do paciente;
-- compatibilidade imutável de eventos legados reconhecidos;
+- autoria nominal e imutabilidade de eventos comuns reconhecidos;
 - reserva do ID determinístico `patient_outcome_*`;
 - criação/leitura e imutabilidade das confirmações de transição de cuidados.
 - compatibilidade transitória do contrato legado de confirmação, sem campos
@@ -180,6 +204,26 @@ Os testes Playwright da Área Administrativa verificam:
 As contas, senhas, pacientes e históricos da suíte são totalmente fictícios e
 existem somente no test double em memória.
 
+## Cobertura do login clínico nominal
+
+Os testes dedicados verificam:
+
+- ausência de autenticação anônima no HUB e na Passagem;
+- zero leitura, listener ou escrita antes da autorização;
+- leitura autoritativa `source: server` do próprio perfil antes dos dados;
+- shell oculto enquanto o perfil está pendente;
+- perfil exato, ativo, papel, e-mail e sessão restaurada;
+- credencial inválida, sessão anônima legada e configuração ausente;
+- persistência obrigatória `SESSION`, sem fallback de cache local;
+- observação em tempo real e revogação imediata do perfil;
+- remoção de listeners, cards, formulário, metadados e impressão no logout;
+- falha de logout sem anunciar encerramento falso;
+- bloqueio de logout durante escrita e conclusão segura depois do ACK;
+- isolamento bidirecional entre os apps clínico e administrativo;
+- proteção contra callback tardio, deep link pós-login e XSS no nome;
+- `permission-denied` no HUB e na Passagem;
+- teclado, foco, regiões vivas e contenção nas oito larguras obrigatórias.
+
 ## Cobertura da aba Desfechos
 
 Os testes dedicados verificam:
@@ -211,10 +255,11 @@ Validação isolada registrada nesta branch: 25/25 cenários administrativos
 funcionais e 16/16 cenários responsivos (oito viewports para autenticação e
 oito para Desfechos).
 
-Validação funcional de Desfecho: 15/15, incluindo o conflito entre sessões.
-Validação integrada do candidato: 123/123 na suíte principal, 1/1 na impressão
-A4 e 50/50 na estabilidade desktop, sem retries. A descoberta completa contém
-124 testes, incluindo o caso de estabilidade executado separadamente.
+Validação funcional anterior de Desfecho: 15/15, incluindo o conflito entre
+sessões. O candidato nominal possui 173 testes descobertos: 172 na suíte
+principal e um cenário de estabilidade executado 50 vezes separadamente.
+Os resultados executados deste candidato devem ser registrados no PR antes do
+merge; descoberta de testes não substitui execução.
 
 ## Isolamento
 

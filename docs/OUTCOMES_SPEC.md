@@ -1,6 +1,6 @@
 # Desfecho do paciente — V1
 
-Atualizado em: 24/07/2026
+Atualizado em: 25/07/2026
 
 ## Objetivo
 
@@ -146,18 +146,13 @@ Contrato da projeção administrativa:
 A projeção não aceita `patientSnapshot`, diagnóstico, alertas, gravidade,
 status, `createdAtLocal` ou `dateLocal`.
 
-## Modo local
+## Falha fechada
 
-Quando o Firebase não está configurado, os registros usam:
-
-```text
-sbar_breve_santa_casa_desfechos_v1_<sectorUnit>
-```
-
-A Área Administrativa não consolida `localStorage`. Esses registros só poderão
-aparecer no painel após uma etapa futura de sincronização explícita.
-Se o histórico local existente não puder ser interpretado como uma lista, o
-fluxo falha sem sobrescrever o conteúdo e sem retirar o paciente.
+Com Firebase configurado nesta aplicação, o fluxo exige autenticação nominal e
+perfil clínico ativo. Configuração ausente, falha de autenticação, perfil
+inválido ou perda de permissão não abre a aplicação e não carrega
+`localStorage`. Chaves legadas da superfície clínica são removidas ao iniciar
+ou encerrar uma sessão.
 
 ## Compatibilidade
 
@@ -182,14 +177,14 @@ fluxo falha sem sobrescrever o conteúdo e sem retirar o paciente.
 
 A Área Administrativa usa uma instância Firebase nomeada
 `connect-hub-admin`, com persistência de sessão, para não substituir nem
-encerrar a sessão anônima da aplicação clínica. O painel consulta os dados
+encerrar a sessão nominal da aplicação clínica. O painel consulta os dados
 somente depois de validar o próprio perfil. Logout, acesso negado ou falha de
 autorização limpam os dados administrativos da memória e da interface.
 
 As Rules permitem leitura do histórico integral somente para usuário
-não-anônimo, ativo e com um dos dois papéis administrativos. O cliente clínico
-anônimo pode consultar uma lápide individual, mas não listar lápides nem ler
-`historico_eventos`.
+Email/Password, ativo e com um dos dois papéis administrativos. O cliente
+clínico nominal pode consultar uma lápide individual, mas não listar lápides
+nem ler `historico_eventos`.
 
 ## Área Administrativa — Desfechos
 
@@ -232,14 +227,13 @@ da consulta histórica no servidor e não trafegam para a aba Desfechos.
 
 ## Gate de publicação
 
-As Rules estão versionadas em `firestore.rules` e possuem 21 testes no
+As Rules estão versionadas em `firestore.rules` e possuem 27 testes no
 Firestore Emulator. Isso não significa que já estejam publicadas no projeto
 Firebase. Antes de integrar ou publicar a aplicação:
 
-1. resolver o acesso clínico anônimo no site público com autenticação nominal
-   ou barreira institucional comprovada;
-2. habilitar o provedor Email/Password no Firebase Authentication;
-3. criar a conta institucional no Authentication;
+1. habilitar o provedor Email/Password no Firebase Authentication;
+2. criar contas nominais no Authentication;
+3. criar o perfil exato `clinical_users/<uid>` para cada clínico;
 4. criar `admin_users/<uid>` com `active: true` e papel `admin` ou
    `coordinator`, por ferramenta administrativa privilegiada;
 5. publicar `firestore.rules`;
@@ -251,10 +245,8 @@ completo está em `docs/FIRESTORE_SECURITY.md`.
 
 ## Limitação residual de identidade
 
-A aplicação clínica continua usando Firebase Auth anônimo. `actorUid` e
-`closedByUid` vinculam o Desfecho à sessão Firebase que fez o commit, mas não
-identificam individualmente o profissional. Além disso, as Rules atuais
-preservam a compatibilidade da V1 permitindo que clientes anônimos autenticados
-editem campos do paciente ativo. Portanto, a autenticidade de cada campo do
-snapshot não é individualmente atribuível; elevar essa garantia exige
-autenticação clínica nominal e uma política de autorização própria.
+`actorUid` e `closedByUid` agora identificam a conta nominal que fez o commit.
+Isso não comprova individualmente a origem clínica de cada campo do paciente:
+um clínico autorizado ainda pode editar campos livres e acessar todos os
+setores. Elevar essa garantia exige validação campo a campo e uma política de
+menor privilégio por setor.

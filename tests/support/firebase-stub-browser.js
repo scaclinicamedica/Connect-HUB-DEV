@@ -7,7 +7,10 @@
   const documentListeners = new Set();
   const writeLog = [];
   const readLog = [];
+  const subscriptionLog = [];
+  const listenerDeliveryLog = [];
   const operationControls = [];
+  const authOperationControls = [];
   const transactionFailuresAfterCommit = [];
   let generatedId = 0;
   let generatedControlId = 0;
@@ -100,6 +103,39 @@
     return control.id;
   }
 
+  function scheduleAuthOperationControl({
+    operation,
+    appName = '',
+    failureMessage = 'Falha de autenticação simulada.',
+    failureCode = 'fixture/auth-failed'
+  }){
+    const control = {
+      id: `fixture-auth-control-${++generatedControlId}`,
+      operation,
+      appName,
+      failureMessage,
+      failureCode,
+      state: 'scheduled'
+    };
+    authOperationControls.push(control);
+    return control.id;
+  }
+
+  async function applyAuthOperationControl(operation, appName){
+    const control = authOperationControls.find(candidate => (
+      candidate.state === 'scheduled' &&
+      candidate.operation === operation &&
+      (!candidate.appName || candidate.appName === appName)
+    ));
+    if(!control) return;
+    control.state = 'completed';
+    const index = authOperationControls.indexOf(control);
+    if(index >= 0) authOperationControls.splice(index, 1);
+    const error = new Error(control.failureMessage);
+    error.code = control.failureCode;
+    throw error;
+  }
+
   function directChildren(collectionPath){
     const prefix = collectionPath + '/';
     return [...documents.entries()]
@@ -151,16 +187,39 @@
     };
   }
 
+  function initialListenerDelay(path){
+    const configured = (seed.listenerDelays || []).find(delay => (
+      !delay.pathIncludes || path.includes(delay.pathIncludes)
+    ));
+    return Math.max(0, Number(configured?.delayMs) || 0);
+  }
+
   function scheduleListeners(changedPath, hasPendingWrites = false){
     for(const listener of listeners) {
       if(!changedPath.startsWith(listener.query.path + '/')) continue;
       const snapshot = querySnapshot(listener.query, hasPendingWrites);
-      setTimeout(() => listener.success(snapshot), 0);
+      setTimeout(() => {
+        listenerDeliveryLog.push({
+          path: listener.query.path,
+          query: true,
+          initial: false,
+          at: performance.now()
+        });
+        listener.success(snapshot);
+      }, 0);
     }
     for(const listener of documentListeners) {
       if(changedPath !== listener.path) continue;
       const snapshot = docSnapshot(listener.path, documents.get(listener.path), hasPendingWrites);
-      setTimeout(() => listener.success(snapshot), 0);
+      setTimeout(() => {
+        listenerDeliveryLog.push({
+          path: listener.path,
+          query: false,
+          initial: false,
+          at: performance.now()
+        });
+        listener.success(snapshot);
+      }, 0);
     }
   }
 
@@ -184,10 +243,8 @@
     limit(count){
       return new QueryReference(this.path, { ...this, limitCount: count });
     }
-    async get(){
-      await applyOperationControl('get', this.path);
-      const snapshot = querySnapshot(this);
-      readLog.push({
+    async get(options = {}){
+      const readEntry = {
         operation: 'get',
         path: this.path,
         query: true,
@@ -196,18 +253,39 @@
         orderField: this.orderField,
         orderDirection: this.orderDirection,
         limitCount: this.limitCount,
-        returnedPaths: snapshot.docs.map(doc => doc.ref.path),
+        source: options.source || 'default',
+        returnedPaths: [],
         at: performance.now()
-      });
+      };
+      readLog.push(readEntry);
+      await applyOperationControl('get', this.path);
+      const snapshot = querySnapshot(this);
+      readEntry.returnedPaths = snapshot.docs.map(doc => doc.ref.path);
       return snapshot;
     }
     onSnapshot(success, error){
       const listener = { query: this, success, error };
       listeners.add(listener);
+      subscriptionLog.push({
+        operation: 'listen',
+        path: this.path,
+        query: true,
+        filters: clone(this.filters),
+        orderField: this.orderField,
+        orderDirection: this.orderDirection,
+        limitCount: this.limitCount,
+        at: performance.now()
+      });
       setTimeout(() => {
+        listenerDeliveryLog.push({
+          path: this.path,
+          query: true,
+          initial: true,
+          at: performance.now()
+        });
         try { success(querySnapshot(this)); }
         catch(cause) { if(error) error(cause); }
-      }, 0);
+      }, initialListenerDelay(this.path));
       return () => listeners.delete(listener);
     }
   }
@@ -224,18 +302,37 @@
   class DocumentReference {
     constructor(path){ this.path = path; this.id = path.split('/').pop(); }
     collection(name){ return new CollectionReference(`${this.path}/${name}`); }
-    async get(){
+    async get(options = {}){
+      readLog.push({
+        operation: 'get',
+        path: this.path,
+        query: false,
+        transaction: false,
+        source: options.source || 'default',
+        at: performance.now()
+      });
       await applyOperationControl('get', this.path);
-      readLog.push({ operation: 'get', path: this.path, query: false, transaction: false, at: performance.now() });
       return docSnapshot(this.path, documents.get(this.path));
     }
     onSnapshot(success, error){
       const listener = { path: this.path, success, error };
       documentListeners.add(listener);
+      subscriptionLog.push({
+        operation: 'listen',
+        path: this.path,
+        query: false,
+        at: performance.now()
+      });
       setTimeout(() => {
+        listenerDeliveryLog.push({
+          path: this.path,
+          query: false,
+          initial: true,
+          at: performance.now()
+        });
         try { success(docSnapshot(this.path, documents.get(this.path))); }
         catch(cause) { if(error) error(cause); }
-      }, 0);
+      }, initialListenerDelay(this.path));
       return () => documentListeners.delete(listener);
     }
     async set(data, options = {}){
@@ -397,7 +494,24 @@
 
   const authInstances = new Map();
   const authLog = [];
-  const adminAccounts = Array.isArray(seed.adminAccounts) ? seed.adminAccounts : [];
+  const authAccounts = [
+    ...(Array.isArray(seed.authAccounts) ? seed.authAccounts : []),
+    ...(Array.isArray(seed.adminAccounts) ? seed.adminAccounts : [])
+  ];
+  const initialAuthByApp = {
+    ...(seed.initialAuthByApp && typeof seed.initialAuthByApp === 'object'
+      ? seed.initialAuthByApp
+      : {})
+  };
+  if(Object.prototype.hasOwnProperty.call(seed, 'initialAuthUser')) {
+    initialAuthByApp['[DEFAULT]'] = seed.initialAuthUser;
+  } else if(seed.authUid) {
+    initialAuthByApp['[DEFAULT]'] = {
+      uid: seed.authUid,
+      email: '',
+      isAnonymous: true
+    };
+  }
 
   function notifyAuthObservers(instance){
     for(const observer of instance.__observers){
@@ -410,14 +524,18 @@
 
   function authForApp(appName = '[DEFAULT]'){
     if(authInstances.has(appName)) return authInstances.get(appName);
+    const initialUser = initialAuthByApp[appName];
     const instance = {
       __appName: appName,
       __observers: new Set(),
-      currentUser: appName === '[DEFAULT]' && seed.authUid
-        ? { uid: seed.authUid, isAnonymous: true }
-        : null,
+      currentUser: initialUser ? clone(initialUser) : null,
       async setPersistence(value){
         authLog.push({ operation: 'setPersistence', appName, value: String(value) });
+        if(seed.authPersistenceFailure){
+          const error = new Error('Falha controlada ao configurar persistência de autenticação.');
+          error.code = 'auth/persistence-failed';
+          throw error;
+        }
       },
       onAuthStateChanged(success, failure){
         const observer = { success, failure };
@@ -429,6 +547,7 @@
         return () => instance.__observers.delete(observer);
       },
       async signInAnonymously(){
+        await applyAuthOperationControl('signInAnonymously', appName);
         const user = { uid: seed.authUid || 'fixture-anonymous-user', isAnonymous: true };
         instance.currentUser = user;
         authLog.push({ operation: 'signInAnonymously', appName, uid: user.uid });
@@ -436,13 +555,19 @@
         return { user };
       },
       async signInWithEmailAndPassword(email, password){
-        const account = adminAccounts.find(candidate => (
+        await applyAuthOperationControl('signInWithEmailAndPassword', appName);
+        const account = authAccounts.find(candidate => (
           String(candidate.email || '').toLowerCase() === String(email || '').toLowerCase() &&
           String(candidate.password || '') === String(password || '')
         ));
         if(!account){
-          const error = new Error('Credencial administrativa inválida.');
+          const error = new Error('Credencial institucional inválida.');
           error.code = 'auth/invalid-credential';
+          throw error;
+        }
+        if(account.disabled === true){
+          const error = new Error('Conta institucional desativada.');
+          error.code = 'auth/user-disabled';
           throw error;
         }
         const user = {
@@ -456,9 +581,21 @@
         return { user };
       },
       async signOut(){
+        await applyAuthOperationControl('signOut', appName);
         const uid = instance.currentUser?.uid || null;
         instance.currentUser = null;
         authLog.push({ operation: 'signOut', appName, uid });
+        notifyAuthObservers(instance);
+      },
+      async updateCurrentUser(user){
+        const uid = instance.currentUser?.uid || null;
+        instance.currentUser = user ? clone(user) : null;
+        authLog.push({
+          operation: 'updateCurrentUser',
+          appName,
+          uid,
+          nextUid: instance.currentUser?.uid || null
+        });
         notifyAuthObservers(instance);
       }
     };
@@ -486,13 +623,13 @@
   };
   firebase.auth.Auth = {
     Persistence: {
-      SESSION: 'session'
+      ...(seed.authPersistenceUnavailable ? {} : { SESSION: 'session' })
     }
   };
   firebase.firestore.FieldValue = {
     serverTimestamp(){ return { __serverTimestamp: true }; }
   };
-  if(seed.authUid) authForApp('[DEFAULT]');
+  for(const appName of Object.keys(initialAuthByApp)) authForApp(appName);
 
   function seedCollection(path, values){
     for(const value of values || []) documents.set(`${path}/${value.id}`, materialize(clone(value)));
@@ -510,6 +647,17 @@
   seedCollection('historico_eventos', seed.historyEvents);
   seedCollection('admin_outcomes', seed.adminOutcomes);
   seedCollection('admin_users', seed.adminUsers);
+  for(const profile of seed.clinicalUsers || []){
+    const { id, ...profileData } = profile;
+    documents.set(`clinical_users/${id}`, materialize(clone(profileData)));
+  }
+  for(const delay of seed.readDelays || []){
+    scheduleOperationControl({
+      operation: 'get',
+      pathIncludes: delay.pathIncludes || '',
+      delayMs: delay.delayMs || 0
+    });
+  }
   for(const failure of seed.readFailures || []){
     scheduleOperationControl({
       operation: 'get',
@@ -526,7 +674,24 @@
     },
     writes(){ return clone(writeLog); },
     reads(){ return clone(readLog); },
+    subscriptions(){ return clone(subscriptionLog); },
+    firestoreAccesses(){
+      return clone([...readLog, ...subscriptionLog].sort((left, right) => left.at - right.at));
+    },
+    activeListeners(){
+      return [
+        ...[...listeners].map(listener => ({
+          path: listener.query.path,
+          query: true
+        })),
+        ...[...documentListeners].map(listener => ({
+          path: listener.path,
+          query: false
+        }))
+      ];
+    },
     authLog(){ return clone(authLog); },
+    listenerDeliveries(){ return clone(listenerDeliveryLog); },
     authState(){
       return Object.fromEntries([...authInstances.entries()].map(([name, instance]) => [
         name,
@@ -537,9 +702,17 @@
     },
     clearWrites(){ writeLog.length = 0; },
     clearReads(){ readLog.length = 0; },
+    clearFirestoreAccesses(){
+      readLog.length = 0;
+      subscriptionLog.length = 0;
+    },
     document(path){ return serialize(documents.get(path)); },
     replaceDocumentSilently(path, data){
       documents.set(path, materialize(clone(data)));
+    },
+    replaceDocument(path, data){
+      documents.set(path, materialize(clone(data)));
+      scheduleListeners(path);
     },
     delayNext(operation, pathIncludes, delayMs = 250){
       return scheduleOperationControl({ operation, pathIncludes, delayMs });
@@ -557,6 +730,26 @@
         message,
         code: 'fixture/ack-lost'
       });
+    },
+    failNextAuth(operation, appName = '', code = 'fixture/auth-failed', message = 'Falha de autenticação simulada.'){
+      return scheduleAuthOperationControl({
+        operation,
+        appName,
+        failureCode: code,
+        failureMessage: message
+      });
+    },
+    failActiveListener(pathIncludes, code = 'permission-denied', message = 'Leitura negada pela regra simulada.'){
+      const error = new Error(message);
+      error.code = code;
+      const matching = [
+        ...[...listeners].filter(listener => listener.query.path.includes(pathIncludes)),
+        ...[...documentListeners].filter(listener => listener.path.includes(pathIncludes))
+      ];
+      matching.forEach(listener => {
+        if(typeof listener.error === 'function') setTimeout(() => listener.error(error), 0);
+      });
+      return matching.length;
     },
     pendingControls(){
       return operationControls.map(control => ({
