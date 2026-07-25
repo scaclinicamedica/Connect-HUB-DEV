@@ -89,11 +89,11 @@ test('mantém o shell oculto enquanto a leitura do perfil está pendente', async
   await app.authEmail.fill(CLINICAL_TEST_EMAIL);
   await app.authPassword.fill(CLINICAL_TEST_PASSWORD);
   await app.loginButton.click();
-  await expect.poll(() => app.page.evaluate(() => (
+  await expect.poll(() => app.page.evaluate(clinicalUid => (
     window.__firebaseTestHarness.pendingControls()
-      .find(control => control.pathIncludes === `clinical_users/${CLINICAL_TEST_UID}`)
+      .find(control => control.pathIncludes === `clinical_users/${clinicalUid}`)
       ?.state || ''
-  ))).toBe('pending');
+  ), CLINICAL_TEST_UID)).toBe('pending');
 
   await expect(app.authGate).toBeVisible();
   await expect(app.appShell).toBeHidden();

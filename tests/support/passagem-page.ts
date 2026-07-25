@@ -125,6 +125,8 @@ export class PassagemPage {
   async login(email: string, password: string){
     await this.authEmail.fill(email);
     await this.authPassword.fill(password);
+    await expect(this.authEmail).toHaveValue(email);
+    await expect(this.authPassword).toHaveValue(password);
     await this.loginButton.click();
   }
 

@@ -7005,7 +7005,7 @@ function shouldAutoCapitalizeElement(el) {
   if(tag === 'textarea') return true;
   if(tag !== 'input') return false;
   const type = String(el.getAttribute('type') || 'text').toLowerCase();
-  if(['date','hidden','checkbox','radio','button','submit','number'].includes(type)) return false;
+  if(['date','hidden','checkbox','radio','button','submit','number','email','password'].includes(type)) return false;
   return true;
 }
 function applyFirstLetterCapitalization(el) {
