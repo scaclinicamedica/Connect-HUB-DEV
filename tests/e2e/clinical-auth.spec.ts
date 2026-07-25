@@ -241,6 +241,10 @@ test('logout remove listeners, identidade e todos os campos clínicos da interfa
     meta: { currentDoctor: 'MÉDICO FICTÍCIO DA SESSÃO ANTERIOR' },
     confirmations: [{
       id: 'fixture-confirmation-sensitive',
+      createdAt: {
+        __testTimestamp: true,
+        iso: '2026-07-24T10:00:00.000Z'
+      },
       createdAtLocal: '2026-07-24T10:00:00.000Z',
       receiverSummary: 'RESUMO FICTÍCIO DA TRANSIÇÃO ANTERIOR'
     }]
@@ -432,7 +436,10 @@ test('falha de logout mantém sessão e conteúdo explicitamente ativos', async 
 });
 
 test('impede logout enquanto um autosave clínico está em voo', async ({ app }) => {
-  const patient = basePatient('fixture-auth-autosave-logout');
+  const patient = {
+    ...basePatient('fixture-auth-autosave-logout'),
+    bed: 'Leito 01'
+  };
   await app.goto({ patients: [patient] });
   await app.openPatientById(patient.id);
   await app.waitForAutosaveHydration();
