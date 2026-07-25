@@ -453,6 +453,8 @@ test('impede logout enquanto um autosave clínico está em voo', async ({ app })
 
   await app.page.locator('#diagnosis').fill('HIPÓTESE FICTÍCIA EM SALVAMENTO');
   await app.waitForFirebaseControl(pendingAutosave, 'pending');
+  await app.drawer.getByRole('button', { name: 'Fechar' }).click();
+  await expect(app.drawer).not.toHaveClass(/open/);
   await app.signOutButton.click();
 
   await expect(app.page.locator('#toast')).toContainText('Aguarde a conclusão do salvamento');
