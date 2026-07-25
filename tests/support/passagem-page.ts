@@ -331,7 +331,8 @@ export class PassagemPage {
         id => window.__firebaseTestHarness.pendingControls()
           .find(control => control.id === id)?.state || '',
         controlId
-      )
+      ),
+      { intervals: [50, 100, 150], timeout: 7_500 }
     ).toBe(state);
   }
 

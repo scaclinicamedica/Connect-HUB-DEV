@@ -278,6 +278,8 @@ test('logout remove listeners, identidade e todos os campos clínicos da interfa
   });
   await expect(app.activeListeners()).resolves.toHaveLength(4);
 
+  await app.drawer.getByRole('button', { name: 'Fechar' }).click();
+  await expect(app.drawer).not.toHaveClass(/open/);
   await app.signOutButton.click();
 
   await expect(app.authGate).toBeVisible();
