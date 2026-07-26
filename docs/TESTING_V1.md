@@ -10,7 +10,7 @@ Datas de previsão usadas para exercitar pacientes não atrasados devem ser
 determinísticas e permanecer no futuro, sem depender da data de execução.
 
 A identificação funcional atualmente caracterizada é
-`FOUNDATION-1.0-RC1.3.2-ADMIN-INTELLIGENCE`.
+`FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS`.
 
 ## Pré-requisitos
 
@@ -104,14 +104,16 @@ npx playwright test tests/e2e/admin-outcomes.matrix.spec.ts
 A configuração global e os cenários de estabilidade permanecem com
 `retries: 0`.
 
-## Cobertura de Desfecho na RC1.3.0
+## Cobertura de Desfecho na RC1.3.3
 
 - substituição da ação Excluir por Desfecho no card e no drawer;
 - ausência de escrita ao abrir ou cancelar;
-- enumeração fechada Tratado, Óbito e Transferido;
-- CID principal obrigatório somente no Óbito;
+- enumeração fechada Alta médica, Óbito e Transferência externa, com códigos
+  persistidos compatíveis;
+- CID principal obrigatório e validado nos três tipos;
 - persistência do médico responsável, setor, especialidade, DIH e permanência;
-- preservação integral do snapshot clínico;
+- preservação integral do snapshot clínico autoritativo lido dentro da
+  transação;
 - transação condicional, atômica e idempotente entre evento privado, lápide
   mínima e retirada do paciente ativo;
 - estado `Encerrando atendimento...` enquanto o commit está pendente;
@@ -129,16 +131,23 @@ A configuração global e os cenários de estabilidade permanecem com
 - falha fechada quando o histórico local está corrompido;
 - limpeza de dados TEV desmarcados no snapshot do drawer;
 - modal sem overflow na matriz responsiva.
+- criação inicial do envelope setorial v1 com timestamp do servidor;
+- Desfecho legado com cobertura setorial indisponível, sem timestamp
+  retroativo;
+- migração de legado iniciando observação parcial e migração rastreada
+  preservando a cadeia;
+- remanejamento interno sem reiniciar o relógio setorial.
 
 ## Cobertura de segurança do Desfecho
 
-`npm run test:rules` executa 22 cenários contra o Firestore Emulator:
+`npm run test:rules` executa todos os cenários descobertos contra o Firestore
+Emulator:
 
 - criação conjunta de evento privado, projeção mínima, lápide e exclusão do
   ativo;
 - negação de cada parte isolada e de combinações incompletas;
 - vínculo de `actorUid` e `closedByUid` ao UID autenticado;
-- obrigatoriedade do médico e do CID no Óbito;
+- obrigatoriedade do médico e do CID nos três Desfechos;
 - imutabilidade do `patient_outcome`, `patient_outcome_admin` e
   `patient_closed`;
 - bloqueio de recriação no mesmo setor e nos demais setores conhecidos;
@@ -155,11 +164,16 @@ A configuração global e os cenários de estabilidade permanecem com
 - criação/leitura e imutabilidade das confirmações de transição de cuidados.
 - compatibilidade transitória do contrato legado de confirmação, sem campos
   extras nem timestamp fornecido pelo cliente.
-- leitura histórica da projeção administrativa v1, negação de novas criações
-  v1, obrigatoriedade do booleano na v2 e negação de divergência em relação ao
-  evento privado ou ao paciente ativo;
+- leitura histórica das projeções administrativas v1/v2, negação de novas
+  projeções antigas, obrigatoriedade do booleano na v3 e negação de divergência
+  em relação ao evento privado ou ao paciente ativo;
 - rejeição de CID livre/identificável fora do formato estruturado.
 - rejeição de DIH com sufixo ou fora do formato estruturado.
+- criação atômica e imutabilidade dos fatos `admin_sector_transitions`;
+- rejeição de migração sem fato, fato sem migração, cadeia divergente e
+  alteração comum dos campos técnicos de rastreamento;
+- bootstrap `baseline_observation` somente para fonte legada e encerramento
+  legado com envelope zero.
 
 Os testes usam exclusivamente o projeto de demonstração
 `demo-connect-hub-rules`. Nenhuma credencial ou dado do Firebase real deve ser
@@ -196,18 +210,19 @@ Os testes dedicados verificam:
   personalizado e intervalo invertido;
 - uso exclusivo do timestamp de servidor convertido para a data civil de
   `America/Sao_Paulo`;
-- inclusão somente de `patient_outcome_admin` versões 1 ou 2 e tipos
+- inclusão somente de `patient_outcome_admin` versões 1, 2 ou 3 e tipos
   homologados;
 - exclusão de `patient_deleted`, esquemas desconhecidos e eventos fora do
   período;
-- contagens de Tratados, Óbitos e Transferidos;
+- contagens de Altas médicas, Óbitos e Transferências externas;
 - separação de Óbitos gerais, com alerta Paliativo, sem alerta e registro
   histórico indisponível, com cobertura e denominador zero;
 - proporção de Óbitos entre Desfechos, média, mediana par/ímpar e cobertura que
   exclui permanências inválidas;
 - distribuição em faixas, permanência por tipo, consolidações por setor e
-  especialidade, perfil nosológico dos Óbitos por CID e auditoria;
-- combinação dos filtros por setor, especialidade, tipo e alerta Paliativo;
+  especialidade, perfil nosológico dos três Desfechos por CID e auditoria;
+- combinação dos filtros por setor, especialidade, tipo, CID e alerta
+  Paliativo;
 - restauração conjunta dos filtros para o período padrão;
 - distinção entre histórico vazio e filtro sem resultados;
 - estados negado, carregando, erro e truncado sem números parciais, inclusive
@@ -220,21 +235,28 @@ Os testes dedicados verificam:
 - inclusão do setor legado `uti` em consultas e totais;
 - auditoria paginada em lotes de 50, com ordenação e limites de página;
 - fallback de gráficos preservando números e tabelas exatas;
+- permanência setorial em horas por cadeia completa, soma de retornos ao mesmo
+  setor, média/mediana/total/episódios e cobertura exata;
+- aceitação de intervalo válido de `0 h` e rejeição de fato com versão
+  desconhecida ou baseline retroativo;
+- distinção entre episódios completos, observação parcial e cobertura
+  indisponível, sem converter inconsistência em zero;
+- bloqueio isolado da análise setorial quando os fatos falham ou são
+  truncados, preservando as demais métricas válidas;
 - separação visual entre KPIs do censo atual e indicadores históricos;
 - contenção do layout, filtros, gráficos e tabelas em todos os oito viewports
   da matriz.
 
-Validação focada da inteligência de Desfechos nesta branch: 15/15 cenários
-funcionais e 8/8 cenários responsivos.
+O baseline RC1.3.2 `d17ebdb` permanece registrado em 131/131 testes principais,
+22/22 Rules e estabilidade 50/50. A RC1.3.3 passou em 145/145 testes na suíte
+principal, 33/33 Rules, impressão A4 e estabilidade 50/50, com um worker e zero
+retries. A configuração global descobre 146 testes em 20 arquivos, incluindo
+uma execução do cenário de estabilidade repetido separadamente.
 
-Validação funcional de Desfecho: 18/18, incluindo concorrência do alerta
-Paliativo, recuperação após autosave falho, salvamento manual e conflito entre
-sessões. A descoberta completa contém 132 testes, incluindo o caso de
-estabilidade executado separadamente.
-
-Validação integrada final: 131/131 testes da suíte principal, 22/22 cenários
-de Rules, impressão A4 incluída e estabilidade desktop 50/50, com um worker e
-zero retries.
+`npm audit --omit=dev` passou sem vulnerabilidades. A auditoria completa aponta
+21 ocorrências transitivas (16 altas e 5 moderadas) sob o `firebase-tools`
+usado somente em desenvolvimento/CI; não há correção não destrutiva na versão
+estável atual, portanto o CLI deve permanecer restrito a runner controlado.
 
 ## Isolamento
 

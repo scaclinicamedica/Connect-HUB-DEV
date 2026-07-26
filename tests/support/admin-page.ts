@@ -7,6 +7,7 @@ export type AdminSeed = {
   patientsByUnit?: Record<string, Array<Record<string, unknown> & { id: string }>>;
   historyEvents?: Array<Record<string, unknown> & { id: string }>;
   adminOutcomes?: Array<Record<string, unknown> & { id: string }>;
+  adminSectorTransitions?: Array<Record<string, unknown> & { id: string }>;
   readFailures?: Array<{ pathIncludes?: string; message?: string; code?: string }>;
 };
 
@@ -74,6 +75,20 @@ export class AdminPage {
     await expect.poll(() => this.page.evaluate(() => Boolean(
       (window as typeof window & { __firebaseTestHarness?: unknown }).__firebaseTestHarness
     ))).toBe(true);
+    if(seed.adminSectorTransitions?.length){
+      await this.page.evaluate(transitions => {
+        const harness = (
+          window as typeof window & {
+            __firebaseTestHarness: {
+              replaceDocumentSilently(path: string, data: Record<string, unknown>): void;
+            };
+          }
+        ).__firebaseTestHarness;
+        transitions.forEach(({ id, ...data }) => {
+          harness.replaceDocumentSilently(`admin_sector_transitions/${id}`, data);
+        });
+      }, seed.adminSectorTransitions);
+    }
     await expect(this.accessPanel).toBeVisible();
     await expect(this.loginButton).toBeEnabled();
   }

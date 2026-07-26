@@ -16,16 +16,16 @@ autenticação e autorização reais.
 
 | Código persistido | Rótulo |
 |---|---|
-| `treated` | Tratado |
+| `treated` | Alta médica |
 | `death` | Óbito |
-| `transferred` | Transferido |
+| `transferred` | Transferência externa |
 
 Não existem outras opções nesta versão.
 
-O CID principal é obrigatório somente para `death`. O médico responsável pelo
-desfecho é obrigatório em todos os casos e deve ser confirmado explicitamente
-pelo usuário. Um nome previamente registrado no campo de check-out pode ser
-usado apenas como sugestão editável.
+O CID principal é obrigatório nos três tipos de Desfecho. O médico responsável
+pelo desfecho também é obrigatório em todos os casos e deve ser confirmado
+explicitamente pelo usuário. Um nome previamente registrado no campo de
+check-out pode ser usado apenas como sugestão editável.
 
 ## Comportamento
 
@@ -39,8 +39,9 @@ usado apenas como sugestão editável.
 - Uma alteração pendente do alerta estruturado `Paliativo` é confirmada antes
   da abertura do modal; se a gravação não puder ser comprovada, o Desfecho não
   é liberado.
-- O snapshot incorpora o formulário atual quando o Desfecho é iniciado pelo
-  drawer.
+- O formulário do drawer precisa ser confirmado antes da abertura; no commit,
+  o snapshot é reconstruído exclusivamente do paciente autoritativo lido dentro
+  da transação.
 
 ## Persistência Firebase
 
@@ -50,6 +51,7 @@ O Desfecho separa o marcador operacional mínimo do histórico clínico privado:
 connect_hub_v55/<sectorUnit>/closed_patients/<patientId>
 historico_eventos/<outcomeId>
 admin_outcomes/<outcomeId>
+admin_sector_transitions/<factId>
 connect_hub_v55/<sectorUnit>/pacientes/<patientId>
 ```
 
@@ -58,7 +60,9 @@ contém nome, diagnóstico, CID, alertas nem `patientSnapshot` e pode ser lido p
 um cliente clínico autenticado somente por `get`, para impedir uma gravação
 tardia. O segundo documento é o evento privado `patient_outcome`, com o
 snapshot clínico integral. O terceiro é a projeção administrativa mínima
-`patient_outcome_admin`, sem snapshot ou estado clínico.
+`patient_outcome_admin`, sem snapshot ou estado clínico. A quarta coleção
+registra fatos administrativos imutáveis de mudança entre setores; ela não é
+criada por remanejamento de leito dentro do mesmo setor.
 
 A confirmação executa quatro mutações na mesma transação atômica:
 
@@ -96,7 +100,7 @@ Campos do contrato:
 
 | Campo | Conteúdo |
 |---|---|
-| `schemaVersion` | `1` |
+| `schemaVersion` | `2` para novos eventos; `1` permanece histórico |
 | `sourceVersion` | Release de origem |
 | `outcomeId` | Identificador estável do episódio |
 | `type` | `patient_outcome` |
@@ -112,7 +116,12 @@ Campos do contrato:
 | `lengthOfStayMethod` | `inclusive_calendar_days` |
 | `responsibleDoctor`, `actor` | Médico confirmado |
 | `actorUid` | UID Firebase que confirmou a operação |
-| `primaryIcdCode` | CID no Óbito; vazio nos demais |
+| `primaryIcdCode` | CID principal obrigatório em qualquer Desfecho |
+| `sectorTrackingVersion` | `1` para episódio rastreado; `0` para ativo legado sem rastreamento |
+| `episodeId` | Identificador técnico do episódio rastreado ou vazio no legado |
+| `sectorTrackingOrigin` | `initial_entry`, `baseline_observation` ou vazio no legado |
+| `lastSectorTransitionFactId` | Último fato encadeado ou vazio |
+| `sectorEnteredAt` | Timestamp de entrada no setor atual ou `null` no legado |
 | `status`, `severity`, `alerts` | Estado imediatamente anterior |
 | `patientSnapshot` | Cópia integral e imutável do paciente |
 
@@ -137,7 +146,7 @@ Contrato da projeção administrativa:
 
 | Campo | Conteúdo |
 |---|---|
-| `schemaVersion`, `sourceVersion` | Esquema `2` e release de origem |
+| `schemaVersion`, `sourceVersion` | Esquema `3` e release de origem |
 | `type` | `patient_outcome_admin` |
 | `outcomeId`, `outcomeType`, `outcomeLabel` | Identificação e tipo do Desfecho |
 | `createdAt` | Timestamp autoritativo do servidor |
@@ -147,13 +156,49 @@ Contrato da projeção administrativa:
 | `lengthOfStayDays`, `lengthOfStayMethod` | Valor persistido de compatibilidade |
 | `responsibleDoctor`, `primaryIcdCode`, `actorUid` | Responsável, CID e sessão |
 | `palliativeAlertPresentAtOutcome` | Booleano derivado da presença exata do alerta estruturado `Paliativo` |
+| `sectorTrackingVersion`, `episodeId` | Versão e episódio do rastreamento setorial |
+| `sectorTrackingOrigin` | Origem completa, parcial ou vazia no legado |
+| `lastSectorTransitionFactId`, `sectorEnteredAt` | Fechamento da cadeia setorial |
 
-A projeção versão 2 não transporta a lista de alertas nem dados da avaliação
+A projeção versão 3 não transporta a lista de alertas nem dados da avaliação
 paliativa. Ela registra somente o booleano mínimo derivado do mesmo paciente
 autoritativo usado no evento privado. As Rules exigem simultaneamente que o
 valor seja igual à presença de `Paliativo` no evento privado e que essa
 presença corresponda ao paciente ativo lido antes da exclusão. Uma alteração
 local ainda não persistida não é promovida silenciosamente ao histórico.
+
+## Rastreamento de permanência por setor
+
+Pacientes novos recebem no mesmo commit de criação:
+
+- `sectorTrackingVersion: 1`;
+- `episodeId` determinístico;
+- `sectorTrackingOrigin: "initial_entry"`;
+- `sectorEnteredAt` com timestamp do servidor;
+- `lastSectorTransitionFactId: ""`.
+
+Uma migração entre setores cria, na mesma transação que retira a origem e cria
+o destino, um fato `patient_sector_transition_admin` em
+`admin_sector_transitions/<factId>`. O fato registra origem, destino, instante
+do servidor, episódio, predecessor e classificação
+`sector_transfer` ou `counterflow_transfer`. A origem e o destino usam o
+identificador canônico já persistido pelo setor. Remanejamento de unidade ou
+leito dentro do mesmo setor preserva `sectorEnteredAt` e não cria transição.
+
+Se um paciente ativo anterior a esta versão migrar, o destino inicia
+`baseline_observation`: o tempo anterior à primeira migração permanece
+desconhecido e a cobertura do episódio é parcial. Se o mesmo paciente chegar
+ao Desfecho sem nenhuma transição rastreada, o evento e a projeção usam o
+envelope legado `0`, strings vazias e `sectorEnteredAt: null`; o painel marca a
+cobertura setorial como indisponível. Nenhum timestamp retroativo é fabricado.
+
+O painel fecha intervalos no modelo `[entrada, saída)` usando timestamps do
+servidor, calcula horas decorridas e soma retornos ao mesmo setor dentro do
+episódio. Uma cadeia quebrada, contraditória, truncada ou com duração negativa
+é indisponível. Um intervalo válido com entrada e saída no mesmo instante é
+preservado como `0 h`, não confundido com ausência de dados. O tempo hospitalar
+inclusivo derivado da DIH continua sendo uma métrica separada e nunca recebe o
+rótulo de permanência setorial.
 
 Essa verificação protege a consistência da transação de Desfecho; enquanto o
 acesso clínico continuar anônimo, ela não impede que um cliente autorizado
@@ -210,32 +255,38 @@ anônimo pode consultar uma lápide individual, mas não listar lápides nem ler
 
 ## Área Administrativa — Desfechos
 
-A aba `Desfechos` consome somente projeções `patient_outcome_admin` dos
-esquemas 1 e 2 e tipos homologados. A versão 1 continua legível como dado
-histórico, mas novas projeções precisam usar o esquema 2. Nos documentos
-legados, o registro do alerta Paliativo é apresentado como indisponível;
+A aba `Desfechos` consome projeções `patient_outcome_admin` dos esquemas 1, 2 e
+3 e tipos homologados, além de fatos `patient_sector_transition_admin` de
+esquema 1 exclusivamente para permanência setorial. As versões 1 e 2 da
+projeção continuam legíveis como dado histórico, mas novas projeções precisam
+usar o esquema 3. Nos documentos legados, o registro do alerta Paliativo é
+apresentado como indisponível;
 ausência histórica do novo campo nunca é interpretada como ausência de cuidado
-paliativo. O
-período inicial corresponde aos últimos 30 dias. Os filtros disponíveis são:
+paliativo. O período inicial corresponde aos últimos 30 dias. Os filtros
+disponíveis são:
 
 - data inicial e final;
 - setor;
 - especialidade;
 - tipo de Desfecho;
+- CID principal;
 - alerta Paliativo: registrado, sem registro ou registro indisponível.
 
 A visão apresenta:
 
-- total, Tratados, Transferidos e Óbitos gerais registrados;
+- total, Altas médicas, Transferências externas e Óbitos gerais registrados;
 - Óbitos com alerta Paliativo registrado, Óbitos sem esse alerta e cobertura
   do registro;
 - proporção de Óbitos entre os Desfechos filtrados;
 - permanência média e mediana inclusivas, sempre com cobertura;
 - distribuição da permanência em faixas e permanência segmentada por tipo de
   Desfecho;
+- permanência observada por setor em horas, com média, mediana, total,
+  episódios e cobertura completa/parcial/indisponível;
 - consolidação por setor e por especialidade, incluindo Óbitos gerais, com
   alerta Paliativo e cobertura local do registro;
-- recorte nosológico dos Óbitos pelos CIDs principais em formato esperado;
+- perfil nosológico de todos os Desfechos por CID, discriminando Alta médica,
+  Óbito e Transferência externa;
 - tabela de auditoria com data/hora, `outcomeId`, paciente, Desfecho, setor,
   especialidade, DIH, permanência, registro paliativo, médico responsável e
   CID quando aplicável, paginada em lotes de 50 registros.
@@ -251,9 +302,8 @@ contém somente os Desfechos registrados nesta ferramenta. Permanência sem valo
 válido fica fora da média e mediana e continua explícita na cobertura.
 Da mesma forma, `palliativeAlertPresentAtOutcome: false` significa somente que
 o alerta estruturado não estava registrado no encerramento; não equivale a
-classificar o paciente como não paliativo. O recorte nosológico desta versão é
-restrito aos Óbitos, pois o CID continua homologado e obrigatório somente nesse
-tipo de Desfecho. Novos CIDs devem respeitar o formato estruturado
+classificar o paciente como não paliativo. O perfil nosológico inclui os três
+tipos de Desfecho e usa somente novos CIDs no formato estruturado
 `A00`–`Z99` com subcategoria alfanumérica opcional; projeções históricas com
 valor inválido não entram no agrupamento nem na cobertura.
 Essa verificação confirma apenas o formato do campo, não a existência do código
@@ -271,19 +321,24 @@ para o filtro, acesso negado, erro e histórico truncado. Se a leitura falhar ou
 ultrapassar o limite seguro de 5.000 eventos, indicadores e exportações
 históricas são bloqueados em vez de apresentar números parciais.
 
-O cliente consulta diretamente a coleção materializada `admin_outcomes`.
+O cliente consulta diretamente as coleções materializadas `admin_outcomes` e
+`admin_sector_transitions`.
 Eventos privados `patient_outcome`, incluindo `patientSnapshot`, são excluídos
 da consulta histórica no servidor e não trafegam para a aba Desfechos.
+Falha ou truncamento da coleção de transições bloqueia somente as métricas
+setoriais; os demais indicadores continuam disponíveis quando a coleção de
+Desfechos está íntegra.
 
 ## Gate de publicação
 
-As Rules estão versionadas em `firestore.rules` e possuem 22 testes no
+As Rules estão versionadas em `firestore.rules` e passaram em 33/33 cenários no
 Firestore Emulator. Isso não significa que já estejam publicadas no projeto
 Firebase. Antes de integrar ou publicar a aplicação:
 
 1. bloquear o uso clínico durante uma janela controlada: o cliente antigo cria
-   esquema 1, que as Rules finais negam, e as Rules antigas rejeitam o esquema
-   2; portanto não existe uma ordem de publicação compatível sem essa janela;
+   esquemas antigos, que as Rules finais negam, e as Rules antigas rejeitam os
+   esquemas 2/3 e os fatos setoriais; portanto não existe uma ordem de
+   publicação compatível sem essa janela;
 2. publicar as novas Rules e o novo HTML como uma única troca coordenada;
 3. resolver o acesso clínico anônimo no site público com autenticação nominal
    ou barreira institucional comprovada;

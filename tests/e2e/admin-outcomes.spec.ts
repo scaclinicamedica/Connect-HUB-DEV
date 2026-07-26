@@ -32,7 +32,7 @@ function outcome(overrides: Record<string, unknown> & { id: string }){
     type: 'patient_outcome_admin',
     outcomeId: `patient_outcome_${overrides.id}`,
     outcomeType: 'treated',
-    outcomeLabel: 'Tratado',
+    outcomeLabel: 'Alta médica',
     createdAt: serverTimestamp(2),
     patientId: `patient-${overrides.id}`,
     patientName: 'PACIENTE FICTÍCIO DESFECHO',
@@ -56,9 +56,67 @@ function outcome(overrides: Record<string, unknown> & { id: string }){
   return projected;
 }
 
+function sectorLocation(
+  sectorUnit: string,
+  sectorName: string,
+  unit = '',
+  bed = ''
+){
+  return {
+    catalogVersion: 1,
+    canonicalSectorId: sectorUnit,
+    sectorUnit,
+    sectorName,
+    unit,
+    bed
+  };
+}
+
+function trackedOutcome(overrides: Record<string, unknown> & { id: string }){
+  const patientId = String(overrides.patientId || `patient-${overrides.id}`);
+  return outcome({
+    schemaVersion: 3,
+    sourceVersion: 'fixture-v3',
+    patientId,
+    sectorTrackingVersion: 1,
+    episodeId: `patient_episode_${patientId}`,
+    sectorTrackingOrigin: 'initial_entry',
+    lastSectorTransitionFactId: '',
+    sectorEnteredAt: serverTimestamp(2, '08:00:00'),
+    unit: '',
+    bed: '',
+    primaryIcdCode: 'Z00.0',
+    ...overrides
+  });
+}
+
+function sectorFact(overrides: Record<string, unknown> & { id: string }){
+  const factId = String(overrides.factId || overrides.id);
+  const patientId = String(overrides.patientId || 'patient-sector-tracked');
+  return {
+    id: overrides.id,
+    schemaVersion: 1,
+    sourceVersion: 'FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS',
+    type: 'patient_sector_transition_admin',
+    factId,
+    episodeId: `patient_episode_${patientId}`,
+    patientId,
+    occurredAt: serverTimestamp(2, '12:00:00'),
+    actorUid: ADMIN_UID,
+    predecessorFactId: '',
+    movementClassification: 'sector_transfer',
+    trackingOrigin: 'initial_entry',
+    originEnteredAt: serverTimestamp(2, '08:00:00'),
+    origin: sectorLocation('emergencia', 'Emergência', '', 'Maca 01'),
+    destination: sectorLocation('uti_1', 'UTI 1', 'UTI 1', '151'),
+    ...overrides
+  };
+}
+
 function outcomeSeed(
   adminOutcomes: AdminSeed['adminOutcomes'],
-  historyEvents: AdminSeed['historyEvents'] = []
+  historyEvents: AdminSeed['historyEvents'] = [],
+  adminSectorTransitions: AdminSeed['adminSectorTransitions'] = []
 ): AdminSeed {
   return {
     adminAccounts: [
@@ -69,7 +127,8 @@ function outcomeSeed(
     ],
     patientsByUnit: {},
     historyEvents,
-    adminOutcomes
+    adminOutcomes,
+    adminSectorTransitions
   };
 }
 
@@ -79,7 +138,7 @@ function representativeOutcomes(){
       id: 'outcome-treated',
       patientName: '<img src=x onerror="window.__xssTriggered=true">',
       outcomeType: 'treated',
-      outcomeLabel: 'Tratado',
+      outcomeLabel: 'Alta médica',
       createdAt: serverTimestamp(2, '09:30:00'),
       admissionDate: isoDay(2)
     }),
@@ -113,7 +172,7 @@ function representativeOutcomes(){
       id: 'outcome-transferred',
       patientName: 'PACIENTE FICTÍCIO TRANSFERIDO',
       outcomeType: 'transferred',
-      outcomeLabel: 'Transferido',
+      outcomeLabel: 'Transferência externa',
       createdAt: serverTimestamp(20, '14:20:00'),
       sectorUnit: 'enfermaria',
       sectorName: 'Enfermaria',
@@ -220,6 +279,7 @@ test('lê somente a projeção mínima, exclui outcomes privados no servidor e i
   const reads = await admin.firebaseReads();
   const historyRead = reads.find(read => read.path === 'historico_eventos');
   const outcomesRead = reads.find(read => read.path === 'admin_outcomes');
+  const sectorTransitionsRead = reads.find(read => read.path === 'admin_sector_transitions');
   expect(historyRead).toMatchObject({
     filters: [{ field: 'type', operator: '!=', value: 'patient_outcome' }],
     limitCount: 5001
@@ -228,6 +288,11 @@ test('lê somente a projeção mínima, exclui outcomes privados no servidor e i
   expect(outcomesRead).toMatchObject({
     orderField: 'createdAt',
     orderDirection: 'desc',
+    limitCount: 5001
+  });
+  expect(sectorTransitionsRead).toMatchObject({
+    orderField: 'occurredAt',
+    orderDirection: 'asc',
     limitCount: 5001
   });
   expect(await admin.firebaseWrites()).toEqual([]);
@@ -294,9 +359,571 @@ test('aplica setor, especialidade e tipo e diferencia resultado vazio por filtro
   await expect(page.locator('#outcomeSpecialtyV43')).toHaveValue('all');
   await expect(page.locator('#outcomeTypeV43')).toHaveValue('all');
   await expect(page.locator('#outcomePalliativeV70')).toHaveValue('all');
+  await expect(page.locator('#outcomeCidV80')).toHaveValue('all');
   await expect(page.locator('#outcomeStartV43')).toHaveValue(isoDay(29));
   await expect(page.locator('#outcomeEndV43')).toHaveValue(isoDay(0));
   await expect(page.locator('#outcomeTotalV43')).toHaveText('4');
+});
+
+test('aplica CID em conjunto com os demais filtros e descreve todos os tipos de desfecho', async ({ admin, page }) => {
+  await admin.goto(outcomeSeed([
+    outcome({
+      id: 'cid-medical-discharge',
+      outcomeType: 'treated',
+      outcomeLabel: 'Alta médica',
+      primaryIcdCode: 'A41.9',
+      specialty: 'Cardiologia'
+    }),
+    outcome({
+      id: 'cid-death',
+      outcomeType: 'death',
+      outcomeLabel: 'Óbito',
+      primaryIcdCode: 'a41.9',
+      specialty: 'Cardiologia'
+    }),
+    outcome({
+      id: 'cid-external-transfer',
+      outcomeType: 'transferred',
+      outcomeLabel: 'Transferência externa',
+      primaryIcdCode: 'J18.9',
+      specialty: 'Pneumologia'
+    }),
+    outcome({
+      id: 'cid-legacy-empty',
+      schemaVersion: 1,
+      outcomeType: 'treated',
+      outcomeLabel: 'Alta médica',
+      primaryIcdCode: ''
+    })
+  ]));
+  await admin.loginAsAuthorized(ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.locator('button[data-tab="outcomes"]').click();
+
+  await expect(page.locator('#outcomeCidQualityV70')).toHaveText('Cobertura: 3/4 desfechos (75%)');
+  await expect(page.locator('#outcomeCidV80 option')).toHaveText([
+    'Todos os CIDs', 'A41.9', 'J18.9'
+  ]);
+  await expect(
+    page.locator('#outcomeCidRowsV43 tr').filter({ hasText: 'A41.9' }).locator('th, td')
+  ).toHaveText(['A41.9', '2', '1', '1', '0', '67%']);
+  await expect(
+    page.locator('#outcomeCidRowsV43 tr').filter({ hasText: 'J18.9' }).locator('th, td')
+  ).toHaveText(['J18.9', '1', '0', '0', '1', '33%']);
+  await expect(
+    page.locator('#outcomeAuditRowsV43 tr')
+      .filter({ hasText: 'patient_outcome_cid-medical-discharge' })
+      .locator('th, td')
+      .nth(10)
+  ).toHaveText('A41.9');
+  await expect(
+    page.locator('#outcomeAuditRowsV43 tr')
+      .filter({ hasText: 'patient_outcome_cid-external-transfer' })
+      .locator('th, td')
+      .nth(10)
+  ).toHaveText('J18.9');
+
+  const cidChart = await page.evaluate(() => {
+    const instances = (
+      window as typeof window & {
+        __adminAssetTestHarness: {
+          ChartTestDouble: {
+            instances: Array<{
+              canvasId: string;
+              destroyed: boolean;
+              config: {
+                data: { datasets: Array<{ label: string; data: number[] }> };
+                options: { indexAxis: string; scales: { x: { stacked: boolean }; y: { stacked: boolean } } };
+              };
+            }>;
+          };
+        };
+      }
+    ).__adminAssetTestHarness.ChartTestDouble.instances;
+    return instances.find(instance => (
+      instance.canvasId === 'outcomeCidChartV70' && !instance.destroyed
+    ))?.config;
+  });
+  expect(cidChart?.options.indexAxis).toBe('y');
+  expect(cidChart?.options.scales.x.stacked).toBe(true);
+  expect(cidChart?.options.scales.y.stacked).toBe(true);
+  expect(cidChart?.data.datasets.map(dataset => dataset.label)).toEqual([
+    'Altas médicas', 'Óbitos', 'Transferências externas'
+  ]);
+
+  await page.locator('#outcomeCidV80').selectOption('J18.9');
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('1');
+  await expect(page.locator('#outcomeTransferredV43')).toHaveText('1');
+  await expect(page.locator('#outcomeAuditRowsV43')).toContainText('Transferência externa');
+
+  await page.locator('#outcomeTypeV43').selectOption('death');
+  await expect(page.locator('#outcomesStateV43')).toHaveAttribute('data-state', 'filter-empty');
+});
+
+test('ignora schema 3 sem CID canônico, incluindo código minúsculo ou com espaços', async ({ admin, page }) => {
+  const withoutCid = trackedOutcome({
+    id: 'schema-three-without-cid',
+    primaryIcdCode: 'A41.9'
+  });
+  delete withoutCid.primaryIcdCode;
+
+  await admin.goto(outcomeSeed([
+    withoutCid,
+    trackedOutcome({
+      id: 'schema-three-lowercase-cid',
+      primaryIcdCode: 'a41.9'
+    }),
+    trackedOutcome({
+      id: 'schema-three-spaced-cid',
+      primaryIcdCode: ' A41.9 '
+    }),
+    trackedOutcome({
+      id: 'schema-three-canonical-cid',
+      primaryIcdCode: 'A41.9'
+    })
+  ]));
+  await admin.loginAsAuthorized(ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.locator('button[data-tab="outcomes"]').click();
+
+  await expect(page.locator('#outcomesStateV43')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('1');
+  await expect(page.locator('#outcomeCidQualityV70')).toHaveText('Cobertura: 1/1 desfechos (100%)');
+  await expect(page.locator('#outcomeAuditRowsV43 tr')).toHaveCount(1);
+  await expect(page.locator('#outcomeAuditRowsV43')).toContainText('schema-three-canonical-cid');
+  await expect(page.locator('#outcomeAuditRowsV43')).not.toContainText('schema-three-lowercase-cid');
+  await expect(page.locator('#outcomeAuditRowsV43')).not.toContainText('schema-three-spaced-cid');
+  await expect(page.locator('#outcomeCidV80 option')).toHaveText(['Todos os CIDs', 'A41.9']);
+});
+
+test('reconstrói permanência setorial através de remanejamentos, soma retornos e explicita cobertura', async ({ admin, page }) => {
+  const emergency = sectorLocation('emergencia', 'Emergência', '', 'Maca 01');
+  const intensiveCare = sectorLocation('uti_1', 'UTI 1', 'UTI 1', '151');
+  const legacyIntensiveCare = sectorLocation('uti_2', 'UTI 2', 'UTI 2', '101-1');
+  const ward = sectorLocation('enfermaria', 'Enfermaria', '2º andar', '201-1');
+  const returnPatientId = 'patient-sector-return';
+  const baselinePatientId = 'patient-sector-baseline';
+
+  const outcomes = [
+    trackedOutcome({
+      id: 'sector-return',
+      patientId: returnPatientId,
+      episodeId: `patient_episode_${returnPatientId}`,
+      outcomeType: 'treated',
+      outcomeLabel: 'Alta médica',
+      primaryIcdCode: 'A41.9',
+      createdAt: serverTimestamp(2, '18:00:00'),
+      sectorUnit: emergency.sectorUnit,
+      sectorName: emergency.sectorName,
+      unit: emergency.unit,
+      bed: 'Maca 02',
+      sectorEnteredAt: serverTimestamp(2, '12:00:00'),
+      lastSectorTransitionFactId: 'fact-return-to-emergency'
+    }),
+    trackedOutcome({
+      id: 'sector-baseline',
+      patientId: baselinePatientId,
+      episodeId: `patient_episode_${baselinePatientId}`,
+      outcomeType: 'death',
+      outcomeLabel: 'Óbito',
+      primaryIcdCode: 'A41.9',
+      createdAt: serverTimestamp(2, '22:00:00'),
+      sectorUnit: ward.sectorUnit,
+      sectorName: ward.sectorName,
+      unit: ward.unit,
+      bed: ward.bed,
+      sectorTrackingOrigin: 'baseline_observation',
+      sectorEnteredAt: serverTimestamp(2, '10:00:00'),
+      lastSectorTransitionFactId: 'fact-baseline-to-ward'
+    }),
+    trackedOutcome({
+      id: 'sector-no-facts',
+      patientId: 'patient-sector-no-facts',
+      outcomeType: 'transferred',
+      outcomeLabel: 'Transferência externa',
+      primaryIcdCode: 'J18.9',
+      createdAt: serverTimestamp(2, '14:00:00'),
+      sectorUnit: intensiveCare.sectorUnit,
+      sectorName: intensiveCare.sectorName,
+      unit: intensiveCare.unit,
+      bed: intensiveCare.bed,
+      sectorEnteredAt: serverTimestamp(3, '08:00:00')
+    }),
+    outcome({
+      id: 'sector-legacy-schema-two',
+      outcomeType: 'death',
+      outcomeLabel: 'Óbito',
+      primaryIcdCode: ''
+    }),
+    trackedOutcome({
+      id: 'sector-tracking-zero',
+      outcomeType: 'treated',
+      outcomeLabel: 'Alta médica',
+      primaryIcdCode: 'C34.9',
+      sectorTrackingVersion: 0,
+      episodeId: '',
+      sectorTrackingOrigin: '',
+      lastSectorTransitionFactId: '',
+      sectorEnteredAt: null
+    }),
+    trackedOutcome({
+      id: 'sector-missing-fact',
+      outcomeType: 'treated',
+      outcomeLabel: 'Alta médica',
+      primaryIcdCode: 'C34.9',
+      lastSectorTransitionFactId: 'fact-that-does-not-exist'
+    })
+  ];
+
+  const transitions = [
+    sectorFact({
+      id: 'fact-emergency-to-uti',
+      patientId: returnPatientId,
+      episodeId: `patient_episode_${returnPatientId}`,
+      occurredAt: serverTimestamp(2, '06:00:00'),
+      originEnteredAt: serverTimestamp(2, '00:00:00'),
+      origin: { ...emergency, privateClinicalNote: 'NÃO DEVE SER MANTIDA' },
+      destination: intensiveCare,
+      extraSnapshot: { secret: true }
+    }),
+    sectorFact({
+      id: 'fact-uti-to-ward',
+      patientId: returnPatientId,
+      episodeId: `patient_episode_${returnPatientId}`,
+      occurredAt: serverTimestamp(2, '09:00:00'),
+      predecessorFactId: 'fact-emergency-to-uti',
+      originEnteredAt: serverTimestamp(2, '06:00:00'),
+      origin: { ...intensiveCare, bed: '152' },
+      destination: ward
+    }),
+    sectorFact({
+      id: 'fact-return-to-emergency',
+      patientId: returnPatientId,
+      episodeId: `patient_episode_${returnPatientId}`,
+      occurredAt: serverTimestamp(2, '12:00:00'),
+      predecessorFactId: 'fact-uti-to-ward',
+      movementClassification: 'counterflow_transfer',
+      originEnteredAt: serverTimestamp(2, '09:00:00'),
+      origin: { ...ward, bed: '202-1' },
+      destination: emergency
+    }),
+    sectorFact({
+      id: 'fact-baseline-to-ward',
+      patientId: baselinePatientId,
+      episodeId: `patient_episode_${baselinePatientId}`,
+      occurredAt: serverTimestamp(2, '10:00:00'),
+      originEnteredAt: null,
+      trackingOrigin: 'baseline_observation',
+      origin: legacyIntensiveCare,
+      destination: ward
+    })
+  ];
+
+  await admin.goto(outcomeSeed(outcomes, [], transitions));
+  await admin.loginAsAuthorized(ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.locator('button[data-tab="outcomes"]').click();
+
+  await expect(page.locator('#outcomeSectorStayStateV80')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('#outcomeSectorStayQualityV80')).toHaveText(
+    'Completa: 2 • Parcial: 1 • Indisponível: 3'
+  );
+  await expect(
+    page.locator('#outcomeSectorStayRowsV80 tr').filter({ hasText: 'Emergência' }).locator('th, td')
+  ).toHaveText(['Emergência', '1', '12 h', '12 h', '12 h']);
+  await expect(
+    page.locator('#outcomeSectorStayRowsV80 tr').filter({ hasText: 'UTI 1' }).locator('th, td')
+  ).toHaveText(['UTI 1', '2', '16,5 h', '16,5 h', '1 d 9 h (33 h)']);
+  await expect(
+    page.locator('#outcomeSectorStayRowsV80 tr').filter({ hasText: 'Enfermaria' }).locator('th, td')
+  ).toHaveText(['Enfermaria', '2', '7,5 h', '7,5 h', '15 h']);
+  await expect(page.locator('#tab-outcomes')).toContainText(
+    'independente da permanência hospitalar inclusiva calculada pela DIH'
+  );
+
+  const sectorChart = await page.evaluate(() => {
+    const instances = (
+      window as typeof window & {
+        __adminAssetTestHarness: {
+          ChartTestDouble: {
+            instances: Array<{
+              canvasId: string;
+              destroyed: boolean;
+              config: {
+                options: { indexAxis: string };
+                data: { labels: string[]; datasets: Array<{ label: string; data: number[] }> };
+              };
+            }>;
+          };
+        };
+      }
+    ).__adminAssetTestHarness.ChartTestDouble.instances;
+    return instances.find(instance => (
+      instance.canvasId === 'outcomeSectorStayChartV80' && !instance.destroyed
+    ))?.config;
+  });
+  expect(sectorChart?.options.indexAxis).toBe('y');
+  expect(sectorChart?.data.datasets.map(dataset => dataset.label)).toEqual([
+    'Média (horas)', 'Mediana (horas)'
+  ]);
+  const chartBySector = Object.fromEntries(
+    (sectorChart?.data.labels || []).map((label, index) => [
+      label,
+      sectorChart?.data.datasets.map(dataset => dataset.data[index])
+    ])
+  );
+  expect(chartBySector).toMatchObject({
+    'Emergência': [12, 12],
+    'UTI 1': [16.5, 16.5],
+    'Enfermaria': [7.5, 7.5]
+  });
+
+  const memory = await page.evaluate(() => window.eval('allSectorTransitionFactsV80'));
+  expect(memory).toHaveLength(4);
+  expect(memory[0]).not.toHaveProperty('extraSnapshot');
+  expect(memory[0].origin).not.toHaveProperty('privateClinicalNote');
+
+  await page.locator('#outcomeSectorV43').selectOption('uti_1');
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('1');
+  await expect(page.locator('#outcomeAuditRowsV43')).toContainText('sector-no-facts');
+  await expect(
+    page.locator('#outcomeSectorStayRowsV80 tr').filter({ hasText: 'UTI 1' }).locator('th, td')
+  ).toHaveText(['UTI 1', '2', '16,5 h', '16,5 h', '1 d 9 h (33 h)']);
+  await expect(page.locator('#outcomeSectorStayRowsV80 tr')).toHaveCount(1);
+
+  await page.locator('#outcomeSectorV43').selectOption('all');
+  await page.locator('#outcomeCidV80').selectOption('A41.9');
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('2');
+  await expect(page.locator('#outcomeSectorStayQualityV80')).toHaveText(
+    'Completa: 1 • Parcial: 1 • Indisponível: 0'
+  );
+  await expect(page.locator('#outcomeSectorStayRowsV80')).not.toContainText('1 d 12 h');
+
+  await page.locator('#outcomeTypeV43').selectOption('death');
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('1');
+  await expect(page.locator('#outcomeSectorStayQualityV80')).toHaveText(
+    'Completa: 0 • Parcial: 1 • Indisponível: 0'
+  );
+  await expect(page.locator('#outcomeSectorStayRowsV80 tr')).toHaveCount(1);
+  await expect(page.locator('#outcomeSectorStayRowsV80')).toContainText('Enfermaria');
+});
+
+test('classifica como indisponíveis fatos setoriais fora do contrato fechado', async ({ admin, page }) => {
+  const emergency = sectorLocation('emergencia', 'Emergência', '', 'Maca 01');
+  const observation = sectorLocation('observacao_sus', 'Observação SUS', 'Observação SUS 01', '01');
+  const intensiveCare = sectorLocation('uti_1', 'UTI 1', 'UTI 1', '151');
+  const ward = sectorLocation('enfermaria', 'Enfermaria', '2º andar', '201-1');
+  const factWithoutSourceBase = sectorFact({
+    id: 'fact-without-source-version',
+    patientId: 'patient-without-source-version',
+    destination: intensiveCare
+  });
+  const zeroIntervalPatientId = 'patient-zero-hour-sector';
+  const zeroIntervalFirstFact = sectorFact({
+    id: 'fact-zero-hour-emergency-to-uti',
+    patientId: zeroIntervalPatientId,
+    occurredAt: serverTimestamp(2, '12:00:00'),
+    originEnteredAt: serverTimestamp(2, '08:00:00'),
+    destination: intensiveCare
+  });
+  const zeroIntervalSecondFact = sectorFact({
+    id: 'fact-zero-hour-uti-to-ward',
+    patientId: zeroIntervalPatientId,
+    occurredAt: serverTimestamp(2, '12:00:00'),
+    predecessorFactId: zeroIntervalFirstFact.factId,
+    originEnteredAt: serverTimestamp(2, '12:00:00'),
+    origin: intensiveCare,
+    destination: ward
+  });
+  const {
+    sourceVersion: _omittedSourceVersion,
+    ...factWithoutSourceVersion
+  } = factWithoutSourceBase;
+
+  const invalidFacts = [
+    {
+      key: 'without-source-version',
+      destination: intensiveCare,
+      fact: factWithoutSourceVersion
+    },
+    {
+      key: 'wrong-source-version',
+      destination: intensiveCare,
+      fact: sectorFact({
+        id: 'fact-wrong-source-version',
+        patientId: 'patient-wrong-source-version',
+        sourceVersion: 'FOUNDATION-1.0-RC1.3.2-OUTCOME-ADMIN'
+      })
+    },
+    {
+      key: 'baseline-with-known-origin',
+      destination: intensiveCare,
+      fact: sectorFact({
+        id: 'fact-baseline-with-known-origin',
+        patientId: 'patient-baseline-with-known-origin',
+        trackingOrigin: 'baseline_observation',
+        originEnteredAt: serverTimestamp(2, '08:00:00')
+      })
+    },
+    {
+      key: 'invalid-enum',
+      destination: intensiveCare,
+      fact: sectorFact({
+        id: 'fact-invalid-enum',
+        patientId: 'patient-invalid-enum',
+        movementClassification: 'intra_sector_reassignment',
+        destination: intensiveCare
+      })
+    },
+    {
+      key: 'canonical-mismatch',
+      destination: intensiveCare,
+      fact: sectorFact({
+        id: 'fact-canonical-mismatch',
+        patientId: 'patient-canonical-mismatch',
+        origin: { ...emergency, canonicalSectorId: 'observacao_sus' },
+        destination: intensiveCare
+      })
+    },
+    {
+      key: 'canonical-name-mismatch',
+      destination: intensiveCare,
+      fact: sectorFact({
+        id: 'fact-canonical-name-mismatch',
+        patientId: 'patient-canonical-name-mismatch',
+        origin: { ...emergency, sectorName: 'Emergencia' },
+        destination: intensiveCare
+      })
+    },
+    {
+      key: 'invalid-sector-pair',
+      destination: intensiveCare,
+      fact: sectorFact({
+        id: 'fact-invalid-sector-pair',
+        patientId: 'patient-invalid-sector-pair',
+        origin: observation,
+        destination: intensiveCare
+      })
+    },
+    {
+      key: 'classification-mismatch',
+      destination: emergency,
+      fact: sectorFact({
+        id: 'fact-classification-mismatch',
+        patientId: 'patient-classification-mismatch',
+        origin: ward,
+        destination: emergency,
+        movementClassification: 'sector_transfer'
+      })
+    }
+  ];
+  const outcomes = invalidFacts.map(({ key, destination, fact }) => {
+    const patientId = `patient-${key}`;
+    return trackedOutcome({
+      id: `outcome-${key}`,
+      patientId,
+      episodeId: `patient_episode_${patientId}`,
+      createdAt: serverTimestamp(2, '18:00:00'),
+      sectorUnit: destination.sectorUnit,
+      sectorName: destination.sectorName,
+      unit: destination.unit,
+      bed: destination.bed,
+      sectorTrackingOrigin: String(fact.trackingOrigin),
+      sectorEnteredAt: serverTimestamp(2, '12:00:00'),
+      lastSectorTransitionFactId: String(fact.factId)
+    });
+  }).concat(trackedOutcome({
+    id: 'outcome-zero-hour-sector',
+    patientId: zeroIntervalPatientId,
+    createdAt: serverTimestamp(2, '18:00:00'),
+    sectorUnit: ward.sectorUnit,
+    sectorName: ward.sectorName,
+    unit: ward.unit,
+    bed: ward.bed,
+    sectorEnteredAt: serverTimestamp(2, '12:00:00'),
+    lastSectorTransitionFactId: String(zeroIntervalSecondFact.factId)
+  }));
+
+  await admin.goto(outcomeSeed(
+    outcomes,
+    [],
+    invalidFacts.map(({ fact }) => fact).concat(
+      zeroIntervalFirstFact,
+      zeroIntervalSecondFact
+    )
+  ));
+  await admin.loginAsAuthorized(ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.locator('button[data-tab="outcomes"]').click();
+
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('9');
+  await expect(page.locator('#outcomeSectorStayStateV80')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('#outcomeSectorStayQualityV80')).toHaveText(
+    'Completa: 1 • Parcial: 0 • Indisponível: 8'
+  );
+  await expect(page.locator('#outcomeSectorStayRowsV80 tr')).toHaveCount(3);
+  await expect(
+    page.locator('#outcomeSectorStayRowsV80 tr').filter({ hasText: 'UTI 1' }).locator('th, td')
+  ).toHaveText(['UTI 1', '1', '0 h', '0 h', '0 h']);
+});
+
+test('aceita UTI legada canônica e mantém setor percorrido mesmo sem desfecho terminal nele', async ({ admin, page }) => {
+  const legacyIntensiveCare = sectorLocation('uti', 'UTI', 'UTI', '101');
+  const ward = sectorLocation('enfermaria', 'Enfermaria', '2º andar', '201-1');
+  const patientId = 'patient-legacy-uti-to-ward';
+  const factId = 'fact-legacy-uti-to-ward';
+
+  await admin.goto(outcomeSeed(
+    [
+      trackedOutcome({
+        id: 'outcome-legacy-uti-to-ward',
+        patientId,
+        episodeId: `patient_episode_${patientId}`,
+        createdAt: serverTimestamp(2, '18:00:00'),
+        sectorUnit: ward.sectorUnit,
+        sectorName: ward.sectorName,
+        unit: ward.unit,
+        bed: ward.bed,
+        sectorEnteredAt: serverTimestamp(2, '12:00:00'),
+        lastSectorTransitionFactId: factId
+      })
+    ],
+    [],
+    [
+      sectorFact({
+        id: factId,
+        patientId,
+        episodeId: `patient_episode_${patientId}`,
+        occurredAt: serverTimestamp(2, '12:00:00'),
+        originEnteredAt: serverTimestamp(2, '08:00:00'),
+        origin: legacyIntensiveCare,
+        destination: ward
+      })
+    ]
+  ));
+  await admin.loginAsAuthorized(ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.locator('button[data-tab="outcomes"]').click();
+
+  await expect(page.locator('#outcomeSectorStayQualityV80')).toHaveText(
+    'Completa: 1 • Parcial: 0 • Indisponível: 0'
+  );
+  await expect(
+    page.locator('#outcomeSectorStayRowsV80 tr').filter({ hasText: 'UTI (legado)' }).locator('th, td')
+  ).toHaveText(['UTI (legado)', '1', '4 h', '4 h', '4 h']);
+  await expect(
+    page.locator('#outcomeSectorStayRowsV80 tr').filter({ hasText: 'Enfermaria' }).locator('th, td')
+  ).toHaveText(['Enfermaria', '1', '6 h', '6 h', '6 h']);
+
+  await page.locator('#outcomeSectorV43').selectOption('uti');
+  await expect(page.locator('#outcomesStateV43')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('#outcomesStateV43')).toContainText(
+    'Nenhum Desfecho encerrou no setor selecionado'
+  );
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('0');
+  await expect(page.locator('#outcomeAuditRowsV43 tr')).toHaveCount(1);
+  await expect(page.locator('#outcomeAuditRowsV43')).toContainText(
+    'Nenhum Desfecho para auditar'
+  );
+  await expect(page.locator('#outcomeSectorStayRowsV80 tr')).toHaveCount(1);
+  await expect(
+    page.locator('#outcomeSectorStayRowsV80 tr').filter({ hasText: 'UTI (legado)' }).locator('th, td')
+  ).toHaveText(['UTI (legado)', '1', '4 h', '4 h', '4 h']);
 });
 
 test('separa óbitos gerais, registro paliativo e cobertura sem inferir legados', async ({ admin, page }) => {
@@ -325,7 +952,7 @@ test('separa óbitos gerais, registro paliativo e cobertura sem inferir legados'
     outcome({
       id: 'transferred-palliative',
       outcomeType: 'transferred',
-      outcomeLabel: 'Transferido',
+      outcomeLabel: 'Transferência externa',
       palliativeAlertPresentAtOutcome: true
     })
   ]));
@@ -374,7 +1001,7 @@ test('mantém denominadores honestos sem registro do alerta ou permanência vál
     outcome({
       id: 'treated-no-los',
       outcomeType: 'treated',
-      outcomeLabel: 'Tratado',
+      outcomeLabel: 'Alta médica',
       admissionDate: ''
     })
   ]));
@@ -414,7 +1041,7 @@ test('mostra distribuição e permanência segmentada com cobertura parcial', as
   const projected = stays.map(([id, type, stay]) => outcome({
     id,
     outcomeType: type,
-    outcomeLabel: type === 'death' ? 'Óbito' : type === 'transferred' ? 'Transferido' : 'Tratado',
+    outcomeLabel: type === 'death' ? 'Óbito' : type === 'transferred' ? 'Transferência externa' : 'Alta médica',
     createdAt: serverTimestamp(2),
     admissionDate: isoDay(2 + stay - 1),
     primaryIcdCode: type === 'death' ? 'A41.9' : ''
@@ -457,9 +1084,9 @@ test('mostra distribuição e permanência segmentada com cobertura parcial', as
   await expect(page.locator('#outcomeLosRowsV70 tr').nth(4).locator('th, td')).toHaveText(['15–30 dias', '2', '20%']);
   await expect(page.locator('#outcomeLosRowsV70 tr').nth(5).locator('th, td')).toHaveText(['31 dias ou mais', '1', '10%']);
   await expect(page.locator('#outcomeLosByTypeRowsV70 tr')).toHaveCount(3);
-  await expect(page.locator('#outcomeLosByTypeRowsV70 tr').nth(0).locator('th, td')).toHaveText(['Tratado', '7', '2 dias', '2 dias', '3/7 (43%)']);
+  await expect(page.locator('#outcomeLosByTypeRowsV70 tr').nth(0).locator('th, td')).toHaveText(['Alta médica', '7', '2 dias', '2 dias', '3/7 (43%)']);
   await expect(page.locator('#outcomeLosByTypeRowsV70 tr').nth(1).locator('th, td')).toHaveText(['Óbito', '3', '8,3 dias', '7 dias', '3/3 (100%)']);
-  await expect(page.locator('#outcomeLosByTypeRowsV70 tr').nth(2).locator('th, td')).toHaveText(['Transferido', '4', '21 dias', '22,5 dias', '4/4 (100%)']);
+  await expect(page.locator('#outcomeLosByTypeRowsV70 tr').nth(2).locator('th, td')).toHaveText(['Transferência externa', '4', '21 dias', '22,5 dias', '4/4 (100%)']);
 
   const chartConfigs = await page.evaluate(() => {
     const harness = (window as typeof window & {
@@ -484,7 +1111,9 @@ test('mostra distribuição e permanência segmentada com cobertura parcial', as
     '1 dia', '2–3 dias', '4–7 dias', '8–14 dias', '15–30 dias', '31 dias ou mais'
   ]);
   expect(chartConfigs.outcomeLosChartV70.data.datasets[0].data).toEqual([1, 2, 2, 2, 2, 1]);
-  expect(chartConfigs.outcomeCidChartV70.data.datasets[0].data).toEqual([3]);
+  expect(chartConfigs.outcomeCidChartV70.data.datasets[0].data).toEqual([0]);
+  expect(chartConfigs.outcomeCidChartV70.data.datasets[1].data).toEqual([3]);
+  expect(chartConfigs.outcomeCidChartV70.data.datasets[2].data).toEqual([0]);
   expect(chartConfigs.outcomePalliativeChartV70.data.labels).toEqual(['Sem alerta Paliativo registrado']);
   expect(chartConfigs.outcomePalliativeChartV70.data.datasets[0].data).toEqual([3]);
 
@@ -504,6 +1133,7 @@ test('mostra distribuição e permanência segmentada com cobertura parcial', as
   await expect(page.locator('#outcomePalliativeChartFallbackV70')).toBeVisible();
   await expect(page.locator('#outcomeLosChartFallbackV70')).toBeVisible();
   await expect(page.locator('#outcomeCidChartFallbackV70')).toBeVisible();
+  await expect(page.locator('#outcomeSectorStayChartFallbackV80')).toBeVisible();
   await expect(page.locator('#outcomeLosRowsV70 tr')).toHaveCount(6);
 
   await page.evaluate(() => {
@@ -515,11 +1145,12 @@ test('mostra distribuição e permanência segmentada com cobertura parcial', as
   await expect(page.locator('#outcomePalliativeChartFallbackV70')).toBeVisible();
   await expect(page.locator('#outcomeLosChartFallbackV70')).toBeVisible();
   await expect(page.locator('#outcomeCidChartFallbackV70')).toBeVisible();
+  await expect(page.locator('#outcomeSectorStayChartFallbackV80')).toBeVisible();
   await expect(page.locator('#outcomeAverageLosV43')).toHaveText('11,5 dias');
   await expect(page.locator('#outcomeLosRowsV70 tr').nth(4).locator('th, td')).toHaveText(['15–30 dias', '2', '20%']);
 });
 
-test('distingue projeção vazia e ignora versões e tipos desconhecidos', async ({ admin, page }) => {
+test('distingue projeção vazia e ignora schema 3 incompleto e tipos desconhecidos', async ({ admin, page }) => {
   await admin.goto(outcomeSeed([
     outcome({ id: 'unknown-schema-only', schemaVersion: 3 }),
     outcome({ id: 'unknown-type-only', type: 'patient_deleted' })
@@ -559,6 +1190,57 @@ test('expõe estados negado, carregando e erro sem apresentar métricas parciais
   await page.locator('#refreshBtn').click();
   await expect(page.locator('#outcomesStateV43')).toHaveAttribute('data-state', 'error');
   await expect(page.locator('#outcomesResultsV43')).toBeHidden();
+});
+
+test('falha dos fatos bloqueia somente permanência por setor', async ({ admin, page }) => {
+  await admin.goto({
+    ...outcomeSeed([
+      outcome({
+        id: 'outcome-with-sector-facts-unavailable',
+        primaryIcdCode: 'A41.9'
+      })
+    ]),
+    readFailures: [{
+      pathIncludes: 'admin_sector_transitions',
+      code: 'unavailable',
+      message: 'Falha controlada nos fatos setoriais.'
+    }]
+  });
+  await admin.loginAsAuthorized(ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.locator('button[data-tab="outcomes"]').click();
+
+  await expect(page.locator('#outcomesStateV43')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('#outcomesResultsV43')).toBeVisible();
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('1');
+  await expect(page.locator('#outcomeCidRowsV43')).toContainText('A41.9');
+  await expect(page.locator('#outcomeSectorStayStateV80')).toHaveAttribute('data-state', 'error');
+  await expect(page.locator('#outcomeSectorStayStateV80')).toContainText(
+    'Somente a permanência por setor foi bloqueada'
+  );
+  await expect(page.locator('#outcomeSectorStayResultsV80')).toBeHidden();
+});
+
+test('truncamento dos fatos bloqueia somente permanência por setor', async ({ admin, page }) => {
+  const adminSectorTransitions = Array.from({ length: 5001 }, (_, index) => ({
+    id: `fact-truncated-${String(index).padStart(4, '0')}`,
+    occurredAt: serverTimestamp(2, '12:00:00')
+  }));
+  await admin.goto(outcomeSeed([
+    outcome({
+      id: 'outcome-with-truncated-sector-facts',
+      primaryIcdCode: 'J18.9'
+    })
+  ], [], adminSectorTransitions));
+  await admin.loginAsAuthorized(ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.locator('button[data-tab="outcomes"]').click();
+
+  await expect(page.locator('#outcomesStateV43')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('#outcomeTotalV43')).toHaveText('1');
+  await expect(page.locator('#outcomeSectorStayStateV80')).toHaveAttribute('data-state', 'truncated');
+  await expect(page.locator('#outcomeSectorStayStateV80')).toContainText(
+    'Somente a permanência por setor foi bloqueada'
+  );
+  await expect(page.locator('#outcomeSectorStayResultsV80')).toBeHidden();
 });
 
 test('bloqueia a aba quando a projeção ultrapassa o limite seguro', async ({ admin, page }) => {
@@ -685,7 +1367,7 @@ test('escapa todos os campos persistidos exibidos pela nova aba', async ({ admin
   await expect(page.locator('#tab-outcomes')).toContainText('<img');
   await expect(page.locator('#tab-outcomes img')).toHaveCount(0);
   await expect(page.locator('#outcomeCidRowsV43')).toContainText('Nenhum CID principal em formato esperado');
-  await expect(page.locator('#outcomeCidQualityV70')).toHaveText('Cobertura: 0/1 óbitos (0%)');
+  await expect(page.locator('#outcomeCidQualityV70')).toHaveText('Cobertura: 0/1 desfechos (0%)');
   expect(await page.evaluate(() => (
     window as typeof window & { __xssTriggered: boolean }
   ).__xssTriggered)).toBe(false);
@@ -697,6 +1379,7 @@ test('limpa filtros históricos ao encerrar a sessão administrativa', async ({ 
   await page.locator('button[data-tab="outcomes"]').click();
   await page.locator('#outcomeTypeV43').selectOption('death');
   await page.locator('#outcomePalliativeV70').selectOption('registered');
+  await page.locator('#outcomeCidV80').selectOption('A41.9');
   await expect(page.locator('#outcomeTotalV43')).toHaveText('1');
 
   await admin.signOutButton.click();
@@ -706,6 +1389,7 @@ test('limpa filtros históricos ao encerrar a sessão administrativa', async ({ 
 
   await expect(page.locator('#outcomeTypeV43')).toHaveValue('all');
   await expect(page.locator('#outcomePalliativeV70')).toHaveValue('all');
+  await expect(page.locator('#outcomeCidV80')).toHaveValue('all');
   await expect(page.locator('#outcomeTotalV43')).toHaveText('4');
 });
 

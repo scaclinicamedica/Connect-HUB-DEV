@@ -14,6 +14,7 @@ import {
   getDocs,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   writeBatch
 } from 'firebase/firestore';
@@ -24,6 +25,20 @@ const ADMIN_UID = 'admin-fixture';
 const COORDINATOR_UID = 'coordinator-fixture';
 const SECTOR = 'emergencia';
 const TARGET_SECTOR = 'uti_1';
+const SOURCE_VERSION =
+  'FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS';
+const TRACKING_ENTERED_AT = Timestamp.fromDate(
+  new Date('2026-07-20T10:00:00.000Z')
+);
+const SECTOR_NAMES = {
+  emergencia: 'Emergência',
+  observacao_sus: 'Observação SUS',
+  convenio: 'Convênio',
+  enfermaria: 'Enfermaria',
+  uti: 'UTI',
+  uti_1: 'UTI 1',
+  uti_2: 'UTI 2'
+};
 
 let testEnvironment;
 
@@ -70,11 +85,45 @@ function adminOutcomePath(sectorUnit, patientId) {
   return `admin_outcomes/${outcomeId(sectorUnit, patientId)}`;
 }
 
+function transitionPath(factId) {
+  return `admin_sector_transitions/${factId}`;
+}
+
+function expectedEpisodeId(patientId) {
+  return `patient_episode_${patientId}`;
+}
+
+function legacyOutcomeTracking() {
+  return {
+    sectorTrackingVersion: 0,
+    episodeId: '',
+    sectorTrackingOrigin: '',
+    lastSectorTransitionFactId: '',
+    sectorEnteredAt: null
+  };
+}
+
+function trackedPatientFields({
+  episodeId = 'episode-fixture',
+  sectorTrackingOrigin = 'initial_entry',
+  lastSectorTransitionFactId = '',
+  sectorEnteredAt = TRACKING_ENTERED_AT
+} = {}) {
+  return {
+    sectorTrackingVersion: 1,
+    episodeId,
+    sectorTrackingOrigin,
+    lastSectorTransitionFactId,
+    sectorEnteredAt
+  };
+}
+
 function fictitiousPatient(patientId, extra = {}) {
   return {
     id: patientId,
     name: 'PACIENTE FICTÍCIO RULES',
     bed: 'Leito F-01',
+    unit: 'Ala Fictícia',
     specialty: 'Clínica Médica',
     admissionDate: '2026-07-20',
     diagnosis: 'HIPÓTESE FICTÍCIA',
@@ -89,28 +138,33 @@ function fictitiousOutcome(patientId, {
   sectorUnit = SECTOR,
   actorUid = CLINICIAN_UID,
   outcomeType = 'treated',
-  alerts = []
+  alerts = [],
+  primaryIcdCode = 'Z00.0',
+  tracking = legacyOutcomeTracking()
 } = {}) {
   const id = outcomeId(sectorUnit, patientId);
-  const patient = fictitiousPatient(patientId, { alerts });
+  const patient = fictitiousPatient(patientId, {
+    alerts,
+    ...(tracking.sectorTrackingVersion === 1 ? tracking : {})
+  });
   return {
-    schemaVersion: 1,
-    sourceVersion: 'FOUNDATION-1.0-RC1.3.0-OUTCOMES',
+    schemaVersion: 2,
+    sourceVersion: SOURCE_VERSION,
     outcomeId: id,
     type: 'patient_outcome',
     outcomeType,
     outcomeLabel: outcomeType === 'death'
       ? 'Óbito'
       : outcomeType === 'transferred'
-        ? 'Transferido'
-        : 'Tratado',
+        ? 'Transferência externa'
+        : 'Alta médica',
     createdAt: serverTimestamp(),
     createdAtLocal: '2026-07-24T15:00:00.000Z',
     dateLocal: '2026-07-24',
     patientId,
     patientName: patient.name,
     sectorUnit,
-    sectorName: 'Emergência',
+    sectorName: SECTOR_NAMES[sectorUnit],
     unit: 'Ala Fictícia',
     bed: patient.bed,
     specialty: patient.specialty,
@@ -120,7 +174,8 @@ function fictitiousOutcome(patientId, {
     responsibleDoctor: 'MÉDICO FICTÍCIO RULES',
     actor: 'MÉDICO FICTÍCIO RULES',
     actorUid,
-    primaryIcdCode: outcomeType === 'death' ? 'Z00.0' : '',
+    primaryIcdCode,
+    ...tracking,
     status: patient.status,
     severity: patient.severity,
     alerts: patient.alerts,
@@ -149,16 +204,20 @@ function fictitiousAdminOutcome(patientId, {
   sectorUnit = SECTOR,
   actorUid = CLINICIAN_UID,
   outcomeType = 'treated',
-  alerts = []
+  alerts = [],
+  primaryIcdCode = 'Z00.0',
+  tracking = legacyOutcomeTracking()
 } = {}) {
   const outcome = fictitiousOutcome(patientId, {
     sectorUnit,
     actorUid,
     outcomeType,
-    alerts
+    alerts,
+    primaryIcdCode,
+    tracking
   });
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     sourceVersion: outcome.sourceVersion,
     type: 'patient_outcome_admin',
     outcomeId: outcome.outcomeId,
@@ -178,8 +237,120 @@ function fictitiousAdminOutcome(patientId, {
     responsibleDoctor: outcome.responsibleDoctor,
     primaryIcdCode: outcome.primaryIcdCode,
     palliativeAlertPresentAtOutcome: outcome.alerts.includes('Paliativo'),
+    sectorTrackingVersion: outcome.sectorTrackingVersion,
+    episodeId: outcome.episodeId,
+    sectorTrackingOrigin: outcome.sectorTrackingOrigin,
+    lastSectorTransitionFactId: outcome.lastSectorTransitionFactId,
+    sectorEnteredAt: outcome.sectorEnteredAt,
     actorUid: outcome.actorUid
   };
+}
+
+function migrationFactId(patientId) {
+  return `sector-transition-${patientId}`;
+}
+
+function patientLocationUnit(patient) {
+  return patient.inpatientUnit
+    || patient.wardUnit
+    || patient.unit
+    || patient.obsLocation
+    || '';
+}
+
+function transitionLocation(sectorUnit, patient) {
+  return {
+    catalogVersion: 1,
+    canonicalSectorId: sectorUnit,
+    sectorUnit,
+    sectorName: SECTOR_NAMES[sectorUnit],
+    unit: patientLocationUnit(patient),
+    bed: patient.bed || ''
+  };
+}
+
+function migrationDocuments(patientId, {
+  sourceSector = SECTOR,
+  targetSector = TARGET_SECTOR,
+  legacySource = false
+} = {}) {
+  const id = migrationFactId(patientId);
+  const episodeId = expectedEpisodeId(patientId);
+  const predecessorFactId = '';
+  const trackingOrigin = legacySource
+    ? 'baseline_observation'
+    : 'initial_entry';
+  const source = fictitiousPatient(patientId, {
+    unit: sourceSector === 'emergencia'
+      ? 'Sala Vermelha'
+      : SECTOR_NAMES[sourceSector],
+    bed: 'Leito F-01',
+    ...(legacySource
+      ? {}
+      : trackedPatientFields({
+          episodeId,
+          sectorTrackingOrigin: trackingOrigin,
+          lastSectorTransitionFactId: predecessorFactId
+        }))
+  });
+  const target = {
+    ...source,
+    unit: SECTOR_NAMES[targetSector],
+    inpatientUnit: SECTOR_NAMES[targetSector],
+    bed: 'UTI F-01',
+    migratedFrom: sourceSector,
+    migratedFromName: SECTOR_NAMES[sourceSector],
+    migratedTo: targetSector,
+    migratedToName: SECTOR_NAMES[targetSector],
+    ...trackedPatientFields({
+      episodeId,
+      sectorTrackingOrigin: trackingOrigin,
+      lastSectorTransitionFactId: id,
+      sectorEnteredAt: serverTimestamp()
+    })
+  };
+  const fact = {
+    schemaVersion: 1,
+    sourceVersion: SOURCE_VERSION,
+    type: 'patient_sector_transition_admin',
+    factId: id,
+    episodeId,
+    patientId,
+    occurredAt: serverTimestamp(),
+    actorUid: CLINICIAN_UID,
+    predecessorFactId,
+    movementClassification:
+      sourceSector === 'enfermaria' && targetSector === 'emergencia'
+        ? 'counterflow_transfer'
+        : sourceSector === 'convenio' && targetSector === 'emergencia'
+          ? 'counterflow_transfer'
+          : 'sector_transfer',
+    trackingOrigin,
+    originEnteredAt: legacySource ? null : TRACKING_ENTERED_AT,
+    origin: transitionLocation(sourceSector, source),
+    destination: transitionLocation(targetSector, target)
+  };
+  return { factId: id, source, target, fact };
+}
+
+async function migratePatient(db, patientId, documents) {
+  const {
+    factId,
+    source,
+    target,
+    fact
+  } = documents;
+  const batch = writeBatch(db);
+  batch.set(doc(db, transitionPath(factId)), fact);
+  batch.set(
+    doc(db, patientPath(fact.destination.sectorUnit, patientId)),
+    target
+  );
+  batch.delete(
+    doc(db, patientPath(fact.origin.sectorUnit, patientId))
+  );
+  await batch.commit();
+  return { factId, source, target, fact };
 }
 
 function fictitiousConfirmation({
@@ -253,7 +424,9 @@ async function closePatient(db, patientId, {
   sectorUnit = SECTOR,
   actorUid = CLINICIAN_UID,
   outcomeType = 'treated',
-  alerts = []
+  alerts = [],
+  primaryIcdCode = 'Z00.0',
+  tracking = legacyOutcomeTracking()
 } = {}) {
   const batch = writeBatch(db);
   batch.set(
@@ -262,7 +435,9 @@ async function closePatient(db, patientId, {
       sectorUnit,
       actorUid,
       outcomeType,
-      alerts
+      alerts,
+      primaryIcdCode,
+      tracking
     })
   );
   batch.set(
@@ -279,7 +454,9 @@ async function closePatient(db, patientId, {
       sectorUnit,
       actorUid,
       outcomeType,
-      alerts
+      alerts,
+      primaryIcdCode,
+      tracking
     })
   );
   batch.delete(doc(db, patientPath(sectorUnit, patientId)));
@@ -336,6 +513,8 @@ describe('Desfecho atômico', () => {
         'admissionDate',
         'bed',
         'createdAt',
+        'episodeId',
+        'lastSectorTransitionFactId',
         'lengthOfStayDays',
         'lengthOfStayMethod',
         'outcomeId',
@@ -347,7 +526,10 @@ describe('Desfecho atômico', () => {
         'primaryIcdCode',
         'responsibleDoctor',
         'schemaVersion',
+        'sectorEnteredAt',
         'sectorName',
+        'sectorTrackingOrigin',
+        'sectorTrackingVersion',
         'sectorUnit',
         'sourceVersion',
         'specialty',
@@ -359,10 +541,98 @@ describe('Desfecho atômico', () => {
       persisted.projection.data().type,
       'patient_outcome_admin'
     );
+    assert.equal(persisted.outcome.data().schemaVersion, 2);
+    assert.equal(persisted.projection.data().schemaVersion, 3);
+    assert.equal(persisted.outcome.data().sectorTrackingVersion, 0);
+    assert.equal(persisted.outcome.data().episodeId, '');
+    assert.equal(persisted.outcome.data().sectorTrackingOrigin, '');
+    assert.equal(
+      persisted.outcome.data().lastSectorTransitionFactId,
+      ''
+    );
+    assert.equal(persisted.outcome.data().sectorEnteredAt, null);
     assert.equal('patientSnapshot' in persisted.projection.data(), false);
+
+    const extendedId = 'fixture-valid-outcome-with-legacy-extension';
+    const extendedPatient = fictitiousPatient(extendedId, {
+      updatedAt: TRACKING_ENTERED_AT,
+      legacyClinicalExtension: {
+        note: 'EXTENSÃO CLÍNICA FICTÍCIA',
+        score: 7
+      }
+    });
+    await seedDocument(patientPath(SECTOR, extendedId), extendedPatient);
+    const extendedOutcome = fictitiousOutcome(extendedId);
+    extendedOutcome.patientSnapshot = extendedPatient;
+    const extendedBatch = writeBatch(db);
+    extendedBatch.set(
+      doc(db, outcomePath(SECTOR, extendedId)),
+      extendedOutcome
+    );
+    extendedBatch.set(
+      doc(db, markerPath(SECTOR, extendedId)),
+      closedPatientMarker(extendedId)
+    );
+    extendedBatch.set(
+      doc(db, adminOutcomePath(SECTOR, extendedId)),
+      fictitiousAdminOutcome(extendedId)
+    );
+    extendedBatch.delete(doc(db, patientPath(SECTOR, extendedId)));
+    await assertSucceeds(extendedBatch.commit());
   });
 
-  test('exige v2, preserva leitura legada no painel e nega divergência', async () => {
+  test('propaga tracking v1 exato e nega envelope divergente do ativo', async () => {
+    const db = clinicianDb();
+    const tracking = trackedPatientFields({
+      episodeId: 'episode-outcome-tracked',
+      lastSectorTransitionFactId: 'transition-before-outcome'
+    });
+    const patientId = 'fixture-tracked-outcome';
+    await seedPatient(patientId, SECTOR, tracking);
+
+    await assertSucceeds(closePatient(db, patientId, { tracking }));
+
+    let persisted;
+    await testEnvironment.withSecurityRulesDisabled(async context => {
+      const uncheckedDb = context.firestore();
+      persisted = {
+        outcome: (
+          await getDoc(doc(uncheckedDb, outcomePath(SECTOR, patientId)))
+        ).data(),
+        projection: (
+          await getDoc(doc(
+            uncheckedDb,
+            adminOutcomePath(SECTOR, patientId)
+          ))
+        ).data()
+      };
+    });
+    assert.equal(persisted.outcome.sectorTrackingVersion, 1);
+    assert.equal(persisted.outcome.episodeId, tracking.episodeId);
+    assert.equal(
+      persisted.outcome.lastSectorTransitionFactId,
+      tracking.lastSectorTransitionFactId
+    );
+    assert.equal(
+      persisted.outcome.sectorEnteredAt.toMillis(),
+      TRACKING_ENTERED_AT.toMillis()
+    );
+    assert.equal(
+      persisted.projection.episodeId,
+      persisted.outcome.episodeId
+    );
+
+    const divergentId = 'fixture-tracked-outcome-divergent';
+    await seedPatient(divergentId, SECTOR, tracking);
+    await assertFails(closePatient(db, divergentId, {
+      tracking: {
+        ...tracking,
+        lastSectorTransitionFactId: 'forged-transition'
+      }
+    }));
+  });
+
+  test('exige v3, preserva leitura legada no painel e nega divergência', async () => {
     const db = clinicianDb();
 
     const palliativeId = 'fixture-palliative-outcome';
@@ -380,13 +650,13 @@ describe('Desfecho atômico', () => {
         ))
       ).data();
     });
-    assert.equal(palliativeProjection.schemaVersion, 2);
+    assert.equal(palliativeProjection.schemaVersion, 3);
     assert.equal(palliativeProjection.palliativeAlertPresentAtOutcome, true);
 
     const legacyId = 'fixture-legacy-admin-projection';
     await seedPatient(legacyId);
     const legacyProjection = fictitiousAdminOutcome(legacyId);
-    legacyProjection.schemaVersion = 1;
+    legacyProjection.schemaVersion = 2;
     delete legacyProjection.palliativeAlertPresentAtOutcome;
     const legacyBatch = writeBatch(db);
     legacyBatch.set(
@@ -451,21 +721,21 @@ describe('Desfecho atômico', () => {
       await assertFails(batch.commit());
     }
 
-    await assertRejectedProjection('fixture-v2-without-palliative-field', {
+    await assertRejectedProjection('fixture-v3-without-palliative-field', {
       mutateProjection(projection) {
         delete projection.palliativeAlertPresentAtOutcome;
         return projection;
       }
     });
-    await assertRejectedProjection('fixture-v2-invalid-palliative-field', {
+    await assertRejectedProjection('fixture-v3-invalid-palliative-field', {
       mutateProjection(projection) {
         projection.palliativeAlertPresentAtOutcome = 'true';
         return projection;
       }
     });
-    await assertRejectedProjection('fixture-v1-with-v2-field', {
+    await assertRejectedProjection('fixture-v2-with-v3-field', {
       mutateProjection(projection) {
-        projection.schemaVersion = 1;
+        projection.schemaVersion = 2;
         return projection;
       }
     });
@@ -558,7 +828,64 @@ describe('Desfecho atômico', () => {
     await assertFails(batch.commit());
   });
 
-  test('nega médico ausente, CID incompatível ou DIH fora do formato', async () => {
+  test('exige CID estruturado em Alta, Óbito e Transferência externa', async () => {
+    const db = clinicianDb();
+    const matrix = [
+      ['treated', 'Alta médica'],
+      ['death', 'Óbito'],
+      ['transferred', 'Transferência externa']
+    ];
+
+    for (const [outcomeType, outcomeLabel] of matrix) {
+      const validId = `fixture-valid-cid-${outcomeType}`;
+      await seedPatient(validId);
+      await assertSucceeds(closePatient(db, validId, {
+        outcomeType,
+        primaryIcdCode: 'I48.0'
+      }));
+      let persistedOutcome;
+      await testEnvironment.withSecurityRulesDisabled(async context => {
+        persistedOutcome = (
+          await getDoc(doc(
+            context.firestore(),
+            outcomePath(SECTOR, validId)
+          ))
+        ).data();
+      });
+      assert.equal(persistedOutcome.outcomeLabel, outcomeLabel);
+      assert.equal(persistedOutcome.primaryIcdCode, 'I48.0');
+
+      const blankId = `fixture-blank-cid-${outcomeType}`;
+      await seedPatient(blankId);
+      await assertFails(closePatient(db, blankId, {
+        outcomeType,
+        primaryIcdCode: ''
+      }));
+
+      const invalidId = `fixture-invalid-cid-${outcomeType}`;
+      await seedPatient(invalidId);
+      await assertFails(closePatient(db, invalidId, {
+        outcomeType,
+        primaryIcdCode: 'TEXTO IDENTIFICÁVEL'
+      }));
+
+      const lowercaseId = `fixture-lowercase-cid-${outcomeType}`;
+      await seedPatient(lowercaseId);
+      await assertFails(closePatient(db, lowercaseId, {
+        outcomeType,
+        primaryIcdCode: 'i48.0'
+      }));
+
+      const paddedId = `fixture-padded-cid-${outcomeType}`;
+      await seedPatient(paddedId);
+      await assertFails(closePatient(db, paddedId, {
+        outcomeType,
+        primaryIcdCode: ' I48.0 '
+      }));
+    }
+  });
+
+  test('nega médico ausente ou DIH fora do formato', async () => {
     const db = clinicianDb();
 
     const missingDoctorId = 'fixture-missing-doctor';
@@ -582,54 +909,6 @@ describe('Desfecho atômico', () => {
       doc(db, patientPath(SECTOR, missingDoctorId))
     );
     await assertFails(missingDoctorBatch.commit());
-
-    const blankCidId = 'fixture-blank-death-cid';
-    await seedPatient(blankCidId);
-    const blankCidOutcome = {
-      ...fictitiousOutcome(blankCidId, { outcomeType: 'death' }),
-      primaryIcdCode: '   '
-    };
-    const blankCidBatch = writeBatch(db);
-    blankCidBatch.set(
-      doc(db, outcomePath(SECTOR, blankCidId)),
-      blankCidOutcome
-    );
-    blankCidBatch.set(
-      doc(db, markerPath(SECTOR, blankCidId)),
-      closedPatientMarker(blankCidId, { outcomeType: 'death' })
-    );
-    blankCidBatch.set(
-      doc(db, adminOutcomePath(SECTOR, blankCidId)),
-      fictitiousAdminOutcome(blankCidId, { outcomeType: 'death' })
-    );
-    blankCidBatch.delete(doc(db, patientPath(SECTOR, blankCidId)));
-    await assertFails(blankCidBatch.commit());
-
-    const invalidCidId = 'fixture-invalid-death-cid';
-    await seedPatient(invalidCidId);
-    const invalidCidOutcome = {
-      ...fictitiousOutcome(invalidCidId, { outcomeType: 'death' }),
-      primaryIcdCode: 'TEXTO IDENTIFICÁVEL'
-    };
-    const invalidCidProjection = {
-      ...fictitiousAdminOutcome(invalidCidId, { outcomeType: 'death' }),
-      primaryIcdCode: 'TEXTO IDENTIFICÁVEL'
-    };
-    const invalidCidBatch = writeBatch(db);
-    invalidCidBatch.set(
-      doc(db, outcomePath(SECTOR, invalidCidId)),
-      invalidCidOutcome
-    );
-    invalidCidBatch.set(
-      doc(db, markerPath(SECTOR, invalidCidId)),
-      closedPatientMarker(invalidCidId, { outcomeType: 'death' })
-    );
-    invalidCidBatch.set(
-      doc(db, adminOutcomePath(SECTOR, invalidCidId)),
-      invalidCidProjection
-    );
-    invalidCidBatch.delete(doc(db, patientPath(SECTOR, invalidCidId)));
-    await assertFails(invalidCidBatch.commit());
 
     const invalidAdmissionId = 'fixture-invalid-admission-date';
     await seedPatient(invalidAdmissionId);
@@ -704,6 +983,99 @@ describe('Desfecho atômico', () => {
     );
     divergentBatch.delete(doc(db, patientPath(SECTOR, divergentId)));
     await assertFails(divergentBatch.commit());
+  });
+
+  test('vincula evento e snapshot às dimensões essenciais do paciente ativo', async () => {
+    const db = clinicianDb();
+
+    async function assertRejected(patientId, mutate, activeExtra = {}) {
+      await seedPatient(patientId, SECTOR, activeExtra);
+      const outcome = fictitiousOutcome(patientId);
+      const projection = fictitiousAdminOutcome(patientId);
+      mutate(outcome, projection);
+      const batch = writeBatch(db);
+      batch.set(doc(db, outcomePath(SECTOR, patientId)), outcome);
+      batch.set(
+        doc(db, markerPath(SECTOR, patientId)),
+        closedPatientMarker(patientId)
+      );
+      batch.set(
+        doc(db, adminOutcomePath(SECTOR, patientId)),
+        projection
+      );
+      batch.delete(doc(db, patientPath(SECTOR, patientId)));
+      await assertFails(batch.commit());
+    }
+
+    await assertRejected('fixture-private-outcome-extra-field', outcome => {
+      outcome.arbitraryTopLevelField = 'CONTEÚDO FICTÍCIO';
+    });
+    await assertRejected(
+      'fixture-active-id-divergent',
+      () => {},
+      { id: 'fixture-active-id-forged' }
+    );
+    await assertRejected(
+      'fixture-forged-outcome-name',
+      (outcome, projection) => {
+        outcome.patientName = 'NOME FICTÍCIO FORJADO';
+        outcome.patientSnapshot = {
+          ...outcome.patientSnapshot,
+          name: 'NOME FICTÍCIO FORJADO'
+        };
+        projection.patientName = outcome.patientName;
+      }
+    );
+    await assertRejected(
+      'fixture-forged-outcome-location',
+      (outcome, projection) => {
+        outcome.unit = 'UNIDADE FICTÍCIA FORJADA';
+        outcome.bed = 'LEITO FICTÍCIO FORJADO';
+        outcome.patientSnapshot = {
+          ...outcome.patientSnapshot,
+          unit: outcome.unit,
+          bed: outcome.bed
+        };
+        projection.unit = outcome.unit;
+        projection.bed = outcome.bed;
+      }
+    );
+    await assertRejected(
+      'fixture-forged-outcome-snapshot',
+      outcome => {
+        outcome.patientSnapshot = {
+          ...outcome.patientSnapshot,
+          specialty: 'ESPECIALIDADE FICTÍCIA FORJADA'
+        };
+      }
+    );
+    await assertRejected(
+      'fixture-forged-outcome-clinical-snapshot',
+      outcome => {
+        outcome.patientSnapshot = {
+          ...outcome.patientSnapshot,
+          diagnosis: 'HIPÓTESE FICTÍCIA FORJADA'
+        };
+      }
+    );
+    await assertRejected(
+      'fixture-forged-outcome-sector-name',
+      (outcome, projection) => {
+        outcome.sectorName = 'SETOR FICTÍCIO FORJADO';
+        projection.sectorName = outcome.sectorName;
+      }
+    );
+    await assertRejected(
+      'fixture-forged-outcome-alerts',
+      (outcome, projection) => {
+        outcome.alerts = ['Isolamento'];
+        outcome.patientSnapshot = {
+          ...outcome.patientSnapshot,
+          alerts: ['Isolamento']
+        };
+        projection.palliativeAlertPresentAtOutcome = false;
+      }
+    );
   });
 
   test('nega qualquer campo extra na lápide mínima', async () => {
@@ -887,12 +1259,17 @@ describe('Separação de leitura clínica e administrativa', () => {
 });
 
 describe('Pacientes ativos e migração', () => {
-  test('mantém create, update, get e list para o clínico autenticado anônimo', async () => {
+  test('mantém create v1, update, get e list para o clínico autenticado anônimo', async () => {
     const patientId = 'fixture-active-clinical';
     const db = clinicianDb();
     const patientRef = doc(db, patientPath(SECTOR, patientId));
 
-    await assertSucceeds(setDoc(patientRef, fictitiousPatient(patientId)));
+    await assertSucceeds(setDoc(patientRef, fictitiousPatient(patientId, {
+      ...trackedPatientFields({
+        episodeId: expectedEpisodeId(patientId),
+        sectorEnteredAt: serverTimestamp()
+      })
+    })));
     await assertSucceeds(updateDoc(patientRef, {
       diagnosis: 'HIPÓTESE FICTÍCIA ATUALIZADA'
     }));
@@ -905,25 +1282,84 @@ describe('Pacientes ativos e migração', () => {
     assert.equal(patientList.size, 1);
   });
 
-  test('preserva migração válida e atômica entre setores', async () => {
-    const patientId = 'fixture-valid-migration';
+  test('cria tracking inicial válido e impede adulteração em update comum', async () => {
+    const patientId = 'fixture-tracked-active';
     const db = clinicianDb();
-    await seedPatient(patientId);
+    const patientRef = doc(db, patientPath(SECTOR, patientId));
+    await assertSucceeds(setDoc(patientRef, fictitiousPatient(patientId, {
+      ...trackedPatientFields({
+        episodeId: expectedEpisodeId(patientId),
+        sectorEnteredAt: serverTimestamp()
+      })
+    })));
+    await assertSucceeds(updateDoc(patientRef, {
+      diagnosis: 'HIPÓTESE FICTÍCIA ATUALIZADA'
+    }));
+    await assertFails(updateDoc(patientRef, {
+      lastSectorTransitionFactId: 'forged-transition'
+    }));
+    await assertFails(updateDoc(patientRef, {
+      episodeId: 'forged-episode'
+    }));
+    await assertFails(updateDoc(patientRef, {
+      id: 'forged-patient-id'
+    }));
 
-    const migratedPatient = fictitiousPatient(patientId, {
-      bed: 'UTI F-01',
-      unit: 'UTI 1',
-      migratedFrom: SECTOR,
-      migratedTo: TARGET_SECTOR
-    });
-    const batch = writeBatch(db);
-    batch.set(
-      doc(db, patientPath(TARGET_SECTOR, patientId)),
-      migratedPatient
+    const invalidBaselineRef = doc(
+      db,
+      patientPath(SECTOR, 'fixture-invalid-baseline-create')
     );
-    batch.delete(doc(db, patientPath(SECTOR, patientId)));
+    await assertFails(setDoc(
+      invalidBaselineRef,
+      fictitiousPatient('fixture-invalid-baseline-create', {
+        ...trackedPatientFields({
+          episodeId: expectedEpisodeId('fixture-invalid-baseline-create'),
+          sectorTrackingOrigin: 'baseline_observation',
+          sectorEnteredAt: serverTimestamp()
+        })
+      })
+    ));
 
-    await assertSucceeds(batch.commit());
+    const legacyCreateId = 'fixture-rejected-legacy-create';
+    await assertFails(setDoc(
+      doc(db, patientPath(SECTOR, legacyCreateId)),
+      fictitiousPatient(legacyCreateId)
+    ));
+
+    const wrongEpisodeId = 'fixture-wrong-initial-episode';
+    await assertFails(setDoc(
+      doc(db, patientPath(SECTOR, wrongEpisodeId)),
+      fictitiousPatient(wrongEpisodeId, {
+        ...trackedPatientFields({
+          episodeId: 'patient_episode_forged',
+          sectorEnteredAt: serverTimestamp()
+        })
+      })
+    ));
+
+    const wrongDocumentId = 'fixture-wrong-document-id';
+    await assertFails(setDoc(
+      doc(db, patientPath(SECTOR, wrongDocumentId)),
+      fictitiousPatient('different-patient-id', {
+        ...trackedPatientFields({
+          episodeId: expectedEpisodeId(wrongDocumentId),
+          sectorEnteredAt: serverTimestamp()
+        })
+      })
+    ));
+  });
+
+  test('aceita fato atômico em migração de paciente rastreado', async () => {
+    const patientId = 'fixture-valid-tracked-migration';
+    const db = clinicianDb();
+    const documents = migrationDocuments(patientId);
+    await seedDocument(
+      patientPath(SECTOR, patientId),
+      documents.source
+    );
+
+    await assertSucceeds(migratePatient(db, patientId, documents));
+
     const source = await assertSucceeds(
       getDoc(doc(db, patientPath(SECTOR, patientId)))
     );
@@ -933,6 +1369,284 @@ describe('Pacientes ativos e migração', () => {
     assert.equal(source.exists(), false);
     assert.equal(target.data().migratedFrom, SECTOR);
     assert.equal(target.data().migratedTo, TARGET_SECTOR);
+    assert.equal(target.data().sectorTrackingVersion, 1);
+    assert.equal(target.data().episodeId, documents.fact.episodeId);
+    assert.equal(
+      target.data().lastSectorTransitionFactId,
+      documents.factId
+    );
+    assert.equal(
+      target.data().sectorTrackingOrigin,
+      documents.source.sectorTrackingOrigin
+    );
+
+    let persistedFact;
+    await testEnvironment.withSecurityRulesDisabled(async context => {
+      persistedFact = (
+        await getDoc(doc(
+          context.firestore(),
+          transitionPath(documents.factId)
+        ))
+      ).data();
+    });
+    assert.equal(persistedFact.patientId, patientId);
+    assert.equal(
+      persistedFact.predecessorFactId,
+      documents.source.lastSectorTransitionFactId
+    );
+    assert.equal(
+      persistedFact.originEnteredAt.toMillis(),
+      TRACKING_ENTERED_AT.toMillis()
+    );
+    assert.equal(
+      persistedFact.occurredAt.toMillis(),
+      target.data().sectorEnteredAt.toMillis()
+    );
+  });
+
+  test('nega reaproveitar fato válido para migrar outro paciente no mesmo batch', async () => {
+    const db = clinicianDb();
+    const validPatientId = 'fixture-fact-owner';
+    const reusedPatientId = 'fixture-fact-cross-patient';
+    const valid = migrationDocuments(validPatientId);
+    const reused = migrationDocuments(reusedPatientId);
+    await seedDocument(
+      patientPath(SECTOR, validPatientId),
+      valid.source
+    );
+    await seedDocument(
+      patientPath(SECTOR, reusedPatientId),
+      reused.source
+    );
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, transitionPath(valid.factId)), valid.fact);
+    batch.set(
+      doc(db, patientPath(TARGET_SECTOR, validPatientId)),
+      valid.target
+    );
+    batch.delete(doc(db, patientPath(SECTOR, validPatientId)));
+    batch.set(
+      doc(db, patientPath(TARGET_SECTOR, reusedPatientId)),
+      {
+        ...reused.target,
+        lastSectorTransitionFactId: valid.factId
+      }
+    );
+    batch.delete(doc(db, patientPath(SECTOR, reusedPatientId)));
+
+    await assertFails(batch.commit());
+  });
+
+  test('nega reaproveitar fato do paciente em outro par de setores', async () => {
+    const db = clinicianDb();
+    const patientId = 'fixture-fact-cross-sector';
+    const valid = migrationDocuments(patientId);
+    const reused = migrationDocuments(patientId, {
+      sourceSector: 'enfermaria',
+      targetSector: 'convenio'
+    });
+    await seedDocument(patientPath(SECTOR, patientId), valid.source);
+    await seedDocument(
+      patientPath('enfermaria', patientId),
+      reused.source
+    );
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, transitionPath(valid.factId)), valid.fact);
+    batch.set(
+      doc(db, patientPath(TARGET_SECTOR, patientId)),
+      valid.target
+    );
+    batch.delete(doc(db, patientPath(SECTOR, patientId)));
+    batch.set(
+      doc(db, patientPath('convenio', patientId)),
+      {
+        ...reused.target,
+        lastSectorTransitionFactId: valid.factId
+      }
+    );
+    batch.delete(doc(db, patientPath('enfermaria', patientId)));
+
+    await assertFails(batch.commit());
+  });
+
+  test('faz bootstrap baseline_observation ao migrar paciente legado', async () => {
+    const patientId = 'fixture-valid-legacy-migration-%';
+    const db = clinicianDb();
+    const documents = migrationDocuments(patientId, {
+      legacySource: true
+    });
+    await seedDocument(
+      patientPath(SECTOR, patientId),
+      documents.source
+    );
+
+    await assertSucceeds(migratePatient(db, patientId, documents));
+
+    const target = await assertSucceeds(
+      getDoc(doc(db, patientPath(TARGET_SECTOR, patientId)))
+    );
+    assert.equal(target.data().sectorTrackingVersion, 1);
+    assert.equal(
+      target.data().sectorTrackingOrigin,
+      'baseline_observation'
+    );
+    assert.equal(target.data().episodeId, expectedEpisodeId(patientId));
+
+    let persistedFact;
+    await testEnvironment.withSecurityRulesDisabled(async context => {
+      persistedFact = (
+        await getDoc(doc(
+          context.firestore(),
+          transitionPath(documents.factId)
+        ))
+      ).data();
+    });
+    assert.equal(persistedFact.predecessorFactId, '');
+    assert.equal(persistedFact.trackingOrigin, 'baseline_observation');
+    assert.equal(persistedFact.originEnteredAt, null);
+  });
+
+  test('aceita counterflow_transfer somente no contrafluxo homologado', async () => {
+    const patientId = 'fixture-valid-counterflow-transition';
+    const db = clinicianDb();
+    const documents = migrationDocuments(patientId, {
+      sourceSector: 'convenio',
+      targetSector: 'emergencia',
+      legacySource: true
+    });
+    await seedDocument(
+      patientPath('convenio', patientId),
+      documents.source
+    );
+
+    await assertSucceeds(migratePatient(db, patientId, documents));
+
+    let persistedFact;
+    await testEnvironment.withSecurityRulesDisabled(async context => {
+      persistedFact = (
+        await getDoc(doc(
+          context.firestore(),
+          transitionPath(documents.factId)
+        ))
+      ).data();
+    });
+    assert.equal(
+      persistedFact.movementClassification,
+      'counterflow_transfer'
+    );
+    assert.equal(persistedFact.origin.sectorUnit, 'convenio');
+    assert.equal(persistedFact.destination.sectorUnit, 'emergencia');
+  });
+
+  test('nega fato isolado e migração sem fato', async () => {
+    const db = clinicianDb();
+    const isolatedId = 'fixture-isolated-transition-fact';
+    const isolated = migrationDocuments(isolatedId);
+    await seedDocument(patientPath(SECTOR, isolatedId), isolated.source);
+    await assertFails(setDoc(
+      doc(db, transitionPath(isolated.factId)),
+      isolated.fact
+    ));
+
+    const missingFactId = 'fixture-migration-without-fact';
+    const missingFact = migrationDocuments(missingFactId);
+    await seedDocument(patientPath(SECTOR, missingFactId), missingFact.source);
+    const batch = writeBatch(db);
+    batch.set(
+      doc(db, patientPath(TARGET_SECTOR, missingFactId)),
+      missingFact.target
+    );
+    batch.delete(doc(db, patientPath(SECTOR, missingFactId)));
+    await assertFails(batch.commit());
+
+    const forgedEpisodeId = 'fixture-legacy-bootstrap-forged-episode';
+    const forgedEpisode = migrationDocuments(forgedEpisodeId, {
+      legacySource: true
+    });
+    await seedDocument(
+      patientPath(SECTOR, forgedEpisodeId),
+      forgedEpisode.source
+    );
+    await assertFails(migratePatient(db, forgedEpisodeId, {
+      ...forgedEpisode,
+      target: {
+        ...forgedEpisode.target,
+        episodeId: 'patient_episode_forged'
+      },
+      fact: {
+        ...forgedEpisode.fact,
+        episodeId: 'patient_episode_forged'
+      }
+    }));
+  });
+
+  test('nega fato divergente da origem, predecessor ou destino', async () => {
+    const db = clinicianDb();
+    const patientId = 'fixture-divergent-transition';
+    const documents = migrationDocuments(patientId);
+    await seedDocument(patientPath(SECTOR, patientId), documents.source);
+
+    await assertFails(migratePatient(db, patientId, {
+      ...documents,
+      fact: {
+        ...documents.fact,
+        predecessorFactId: 'forged-predecessor',
+        destination: {
+          ...documents.fact.destination,
+          bed: 'LEITO DIVERGENTE'
+        }
+      }
+    }));
+
+    await assertFails(migratePatient(db, patientId, {
+      ...documents,
+      fact: {
+        ...documents.fact,
+        movementClassification: 'counterflow_transfer'
+      }
+    }));
+
+    await assertFails(migratePatient(db, patientId, {
+      ...documents,
+      fact: {
+        ...documents.fact,
+        arbitraryTopLevelField: 'CONTEÚDO FICTÍCIO'
+      }
+    }));
+
+    await assertFails(migratePatient(db, patientId, {
+      ...documents,
+      fact: {
+        ...documents.fact,
+        sourceVersion: 'FOUNDATION-1.0-RC1.3.2-SECTOR-TRACKING'
+      }
+    }));
+  });
+
+  test('torna fato imutável e restringe sua leitura ao histórico admin', async () => {
+    const db = clinicianDb();
+    const patientId = 'fixture-immutable-transition';
+    const documents = migrationDocuments(patientId);
+    await seedDocument(patientPath(SECTOR, patientId), documents.source);
+    await assertSucceeds(migratePatient(db, patientId, documents));
+
+    const factRef = doc(db, transitionPath(documents.factId));
+    await assertFails(getDoc(factRef));
+    await assertFails(updateDoc(factRef, {
+      movementClassification: 'counterflow_transfer'
+    }));
+    await assertFails(deleteDoc(factRef));
+
+    await seedAdmin(ADMIN_UID, 'admin', true);
+    const adminDb = realUserDb(ADMIN_UID);
+    await assertSucceeds(getDoc(
+      doc(adminDb, transitionPath(documents.factId))
+    ));
+    await assertSucceeds(getDocs(
+      collection(adminDb, 'admin_sector_transitions')
+    ));
   });
 
   test('preserva atualizações atômicas de vários pacientes ativos', async () => {

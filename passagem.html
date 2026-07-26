@@ -6035,16 +6035,16 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 <p class="patient-outcome-patient" id="patientOutcomePatientLabel"></p>
 <fieldset class="patient-outcome-options">
 <legend>Selecione o desfecho <span class="required-mark">*</span></legend>
-<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="treated"/><span><strong>Tratado</strong><small>Atendimento concluído neste HUB.</small></span></label>
-<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="death"/><span><strong>Óbito</strong><small>Exige o CID principal para concluir.</small></span></label>
-<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="transferred"/><span><strong>Transferido</strong><small>Continuidade do cuidado em outro serviço.</small></span></label>
+<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="treated"/><span><strong>Alta médica</strong><small>Atendimento concluído neste HUB.</small></span></label>
+<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="death"/><span><strong>Óbito</strong><small>Encerramento por óbito neste atendimento.</small></span></label>
+<label><input name="patientOutcomeType" onchange="updatePatientOutcomeForm()" type="radio" value="transferred"/><span><strong>Transferência externa</strong><small>Continuidade do cuidado em outro serviço.</small></span></label>
 </fieldset>
 <div class="patient-outcome-field">
 <label for="patientOutcomeResponsibleDoctor">Médico responsável pelo desfecho <span class="required-mark">*</span></label>
 <input autocomplete="name" id="patientOutcomeResponsibleDoctor" oninput="updatePatientOutcomeForm()" placeholder="Nome do médico responsável"/>
 </div>
 <div class="patient-outcome-field is-hidden" id="patientOutcomeCidWrap">
-<label for="patientOutcomePrimaryCid">CID principal do óbito <span class="required-mark">*</span></label>
+<label for="patientOutcomePrimaryCid">CID principal do desfecho <span class="required-mark">*</span></label>
 <input autocapitalize="characters" id="patientOutcomePrimaryCid" maxlength="8" oninput="updatePatientOutcomeForm()" placeholder="Ex.: I21.9" spellcheck="false"/>
 </div>
 <p aria-live="polite" class="patient-outcome-status" id="patientOutcomeStatus"></p>
@@ -6253,8 +6253,66 @@ const META_KEY = 'sbar_breve_santa_casa_meta_v1_' + CURRENT_SECTOR.firestoreUnit
 const CONFIRMATIONS_KEY = 'sbar_breve_santa_casa_confirmacoes_v1_' + CURRENT_SECTOR.firestoreUnit;
 const OUTCOMES_KEY = 'sbar_breve_santa_casa_desfechos_v1_' + CURRENT_SECTOR.firestoreUnit;
 const FIRESTORE_ROOT = 'connect_hub_v55';
+const OUTCOME_NOSOLOGY_SECTOR_LOS_SOURCE_VERSION = 'FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS';
+const SECTOR_TRACKING_FIELDS_V73 = Object.freeze([
+  'sectorTrackingVersion',
+  'episodeId',
+  'sectorTrackingOrigin',
+  'lastSectorTransitionFactId',
+  'sectorEnteredAt'
+]);
 
 const HISTORY_COLLECTION_V41 = 'historico_eventos';
+
+function deterministicPatientEpisodeIdV73(patientId='') {
+  return `patient_episode_${String(patientId || '')}`;
+}
+
+function copyExistingSectorTrackingV73(patient={}) {
+  const tracking = {};
+  SECTOR_TRACKING_FIELDS_V73.forEach(field => {
+    if(Object.prototype.hasOwnProperty.call(patient,field)) tracking[field]=patient[field];
+  });
+  return tracking;
+}
+
+function withoutSectorTrackingV73(patient={}) {
+  const clone={...patient};
+  SECTOR_TRACKING_FIELDS_V73.forEach(field=>{delete clone[field]});
+  return clone;
+}
+
+function isFirestoreTimestampV73(value) {
+  return !!value && typeof value === 'object' && typeof value.toDate === 'function';
+}
+
+function authoritativeSectorTrackingV73(patient={}) {
+  const tracked=patient.sectorTrackingVersion===1;
+  return {
+    sectorTrackingVersion:tracked?1:0,
+    episodeId:tracked?String(patient.episodeId||''):'',
+    sectorTrackingOrigin:tracked&&(
+      patient.sectorTrackingOrigin==='initial_entry'
+      ||patient.sectorTrackingOrigin==='baseline_observation'
+    )?patient.sectorTrackingOrigin:'',
+    lastSectorTransitionFactId:tracked?String(patient.lastSectorTransitionFactId||''):'',
+    sectorEnteredAt:tracked&&isFirestoreTimestampV73(patient.sectorEnteredAt)
+      ?patient.sectorEnteredAt
+      :null
+  };
+}
+
+function initialSectorTrackingV73(patientId,{firebaseTimestamp=false}={}) {
+  return {
+    sectorTrackingVersion:1,
+    episodeId:deterministicPatientEpisodeIdV73(patientId),
+    sectorTrackingOrigin:'initial_entry',
+    lastSectorTransitionFactId:'',
+    sectorEnteredAt:firebaseTimestamp
+      ?firebase.firestore.FieldValue.serverTimestamp()
+      :new Date().toISOString()
+  };
+}
 
 function currentUserNameV41(){
   return (
@@ -6367,6 +6425,7 @@ let patientOutcomeRemovalConfirmedPatientId = '';
 let patientOutcomeDeferredPatientsSnapshot = null;
 let patientOutcomeDeferredSnapshotPending = false;
 let patientAutosaveScheduledOptions = null;
+let patientDrawerPersistedPatientIdV73 = '';
 const patientMutationPromises = new Map();
 
 function patientMutationIds(ids=[]) {
@@ -9910,16 +9969,32 @@ function applyMigrationAdjustments(patient={}, target={}) {
     migrated.inpatientUnit = selectedMigrationUnitV37;
     migrated.wardUnit = selectedMigrationUnitV37;
     migrated.unit = selectedMigrationUnitV37;
+    migrated.obsLocation = '';
     migrated.bed = selectedMigrationBedV37;
   } else if(target.unit === 'uti_1' || target.unit === 'uti_2') {
     const utiName = target.unit === 'uti_1' ? 'UTI 1' : 'UTI 2';
     migrated.inpatientUnit = utiName;
+    migrated.wardUnit = '';
     migrated.unit = utiName;
+    migrated.obsLocation = '';
     migrated.bed = selectedMigrationBedV37;
   } else if(target.unit === 'observacao_sus') {
+    migrated.inpatientUnit = '';
+    migrated.wardUnit = '';
     migrated.obsLocation = selectedMigrationObsV37;
     migrated.unit = selectedMigrationObsV37;
     migrated.bed = 'Maca';
+  } else if(target.unit === 'emergencia') {
+    migrated.inpatientUnit = '';
+    migrated.wardUnit = '';
+    migrated.obsLocation = '';
+    migrated.unit = 'Emergência';
+    migrated.bed = 'Maca';
+  } else if(target.unit === 'convenio') {
+    migrated.inpatientUnit = '';
+    migrated.wardUnit = '';
+    migrated.obsLocation = '';
+    migrated.unit = 'Convênio';
   }
 
   if(target.unit !== 'observacao_sus') {
@@ -9929,14 +10004,63 @@ function applyMigrationAdjustments(patient={}, target={}) {
   }
   return migrated;
 }
+function patientOperationalUnitV73(patient={}) {
+  return patient.inpatientUnit||patient.wardUnit||patient.unit||patient.obsLocation||'';
+}
+function migrationDestinationUnitV73(target={},patient={}) {
+  if(target.unit==='enfermaria')return selectedMigrationUnitV37||patientOperationalUnitV73(patient);
+  if(target.unit==='uti_1')return 'UTI 1';
+  if(target.unit==='uti_2')return 'UTI 2';
+  if(target.unit==='observacao_sus')return selectedMigrationObsV37||patientOperationalUnitV73(patient);
+  return target.name||patientOperationalUnitV73(patient);
+}
+function sectorLocationAdminV73(patient={},sectorUnit='',sectorName='',unitOverride='') {
+  return {
+    catalogVersion:1,
+    canonicalSectorId:String(sectorUnit||''),
+    sectorUnit:String(sectorUnit||''),
+    sectorName:String(sectorName||''),
+    unit:String(unitOverride||patientOperationalUnitV73(patient)||''),
+    bed:String(patient.bed||'')
+  };
+}
+function sectorTransitionContextV73(patient={},patientId='') {
+  const tracking=authoritativeSectorTrackingV73(patient);
+  const canContinue=tracking.sectorTrackingVersion===1
+    &&!!tracking.episodeId
+    &&(
+      tracking.sectorTrackingOrigin==='initial_entry'
+      ||tracking.sectorTrackingOrigin==='baseline_observation'
+    );
+  return canContinue
+    ?{
+      episodeId:tracking.episodeId,
+      trackingOrigin:tracking.sectorTrackingOrigin,
+      predecessorFactId:tracking.lastSectorTransitionFactId,
+      originEnteredAt:tracking.sectorEnteredAt
+    }
+    :{
+      episodeId:deterministicPatientEpisodeIdV73(patientId),
+      trackingOrigin:'baseline_observation',
+      predecessorFactId:'',
+      originEnteredAt:null
+    };
+}
+function firebaseActorUidV73() {
+  try{return String(window.firebase?.auth?.()?.currentUser?.uid||'').trim()}
+  catch(error){return ''}
+}
+function sectorTransitionFactIdV73(patientId='') {
+  return `patient_sector_transition_${encodeURIComponent(String(patientId||''))}_${makeId()}`;
+}
 async function remanejarPacienteNoMesmoSetorV39(id, target={}) {
-  if(!id || !ensureFirebaseReady('remanejar paciente')) return;
+  if(!id || !ensureFirebaseReady('remanejar paciente')) return {committed:false};
   if(isPatientMutationLocked(id)) {
     showToast('Aguarde a conclusão do desfecho antes de remanejar o paciente.');
-    return;
+    return {committed:false};
   }
   const p = patients.find(x => x.id === id);
-  if(!p) { showToast('Paciente não encontrado.'); return; }
+  if(!p) { showToast('Paciente não encontrado.'); return {committed:false}; }
 
   const previousBed = p.bed || '';
   const previousUnit = p.inpatientUnit || p.wardUnit || p.unit || p.obsLocation || '';
@@ -9980,82 +10104,169 @@ async function remanejarPacienteNoMesmoSetorV39(id, target={}) {
 
   if(firebaseActive && db && patientsRef) {
     try {
-      await commitGuardedPatientMutation(id, transaction => {
-        transaction.set(patientsRef.doc(id), updated, { merge:true });
+      await commitGuardedPatientMutation(id, async transaction => {
+        const patientRef=patientsRef.doc(id);
+        const patientSnapshot=await transaction.get(patientRef);
+        if(!patientSnapshot.exists){
+          const missing=new Error('O paciente não está mais disponível neste setor.');
+          missing.code='connect-hub/patient-missing';
+          throw missing;
+        }
+        const currentPatient=patientSnapshot.data()||{};
+        transaction.set(patientRef,{
+          ...currentPatient,
+          ...withoutSectorTrackingV73(updated),
+          ...copyExistingSectorTrackingV73(currentPatient)
+        },{merge:false});
       });
       const index = patients.findIndex(x => x.id === id);
       if(index >= 0) patients[index] = updated;
       cancelMigration();
       render();
       showToast(`Paciente remanejado para ${nextUnit ? nextUnit + ' — ' : ''}${nextBed}.`);
+      return {committed:true,kind:'bed_reassignment'};
     } catch(error) {
       console.error('Erro ao remanejar paciente:', error);
       showToast('Não foi possível concluir o remanejamento.');
+      return {committed:false};
     }
   }
+  return {committed:false};
 }
 
 async function migratePatientToSector(id, targetUnit='') {
-  if(!id) return;
-  if(!ensureFirebaseReady('migrar paciente')) return;
+  if(!id) return {committed:false};
+  if(!ensureFirebaseReady('migrar paciente')) return {committed:false};
   if(isPatientMutationLocked(id)) {
     showToast('Aguarde a conclusão do desfecho antes de migrar o paciente.');
-    return;
+    return {committed:false};
   }
   const p = patients.find(x => x.id === id);
-  if(!p) { showToast('Paciente não encontrado.'); return; }
+  if(!p) { showToast('Paciente não encontrado.'); return {committed:false}; }
 
   const target = resolveMigrationTarget(targetUnit);
   if(!target) {
     showToast('Selecione um setor válido para migração.');
-    return;
+    return {committed:false};
   }
 
   if(target.unit === CURRENT_SECTOR.firestoreUnit) {
-    await remanejarPacienteNoMesmoSetorV39(id, target);
-    return;
+    return remanejarPacienteNoMesmoSetorV39(id, target);
   }
 
   const label = `${p.bed || 'Leito não informado'} — ${p.name || 'Paciente sem nome'}`;
   const counterflowNotice = target.setCounterflowToday ? '\n\nA data de hoje será registrada automaticamente como Contra-fluxo.' : '';
-  if(!confirm(`Confirmar migração de ${label} de ${CURRENT_SECTOR.name} para ${target.name}?\n\nApós confirmar, o paciente sairá do setor atual e aparecerá no setor ${target.name}.${counterflowNotice}`)) return;
+  if(!confirm(`Confirmar migração de ${label} de ${CURRENT_SECTOR.name} para ${target.name}?\n\nApós confirmar, o paciente sairá do setor atual e aparecerá no setor ${target.name}.${counterflowNotice}`)) return {committed:false};
 
   const migratedPatient = applyMigrationAdjustments(p, target);
+  const transitionFactId=sectorTransitionFactIdV73(id);
 
   if(firebaseActive && db && patientsRef) {
     try {
       const targetRef = db.collection(FIRESTORE_ROOT).doc(target.unit).collection('pacientes').doc(id);
+      const transitionRef=db.collection('admin_sector_transitions').doc(transitionFactId);
       await commitGuardedPatientMutation(id, async transaction => {
+        const sourceRef=patientsRef.doc(id);
+        const sourceSnapshot=await transaction.get(sourceRef);
         const targetSnapshot=await transaction.get(targetRef);
+        if(!sourceSnapshot.exists){
+          const missing=new Error('O paciente não está mais disponível no setor de origem.');
+          missing.code='connect-hub/patient-missing';
+          throw missing;
+        }
         if(targetSnapshot.exists){
           const conflict=new Error('Já existe um paciente com este identificador no setor de destino.');
           conflict.code='connect-hub/migration-target-conflict';
           throw conflict;
         }
+        const currentPatient=sourceSnapshot.data()||{};
+        const currentMigratedPatient=applyMigrationAdjustments(currentPatient,target);
+        const tracking=sectorTransitionContextV73(currentPatient,id);
+        const actorUid=firebaseActorUidV73();
+        if(!actorUid){
+          const unauthenticated=new Error('Usuário Firebase não identificado para migrar o paciente.');
+          unauthenticated.code='connect-hub/migration-auth-required';
+          throw unauthenticated;
+        }
+        const destinationTracking={
+          sectorTrackingVersion:1,
+          episodeId:tracking.episodeId,
+          sectorTrackingOrigin:tracking.trackingOrigin,
+          lastSectorTransitionFactId:transitionFactId,
+          sectorEnteredAt:firebase.firestore.FieldValue.serverTimestamp()
+        };
+        const destinationPatient={
+          ...withoutSectorTrackingV73(currentMigratedPatient),
+          ...destinationTracking
+        };
+        const movementClassification=target.setCounterflowToday
+          ||(
+            ['enfermaria','convenio'].includes(CURRENT_SECTOR.firestoreUnit)
+            &&target.unit==='emergencia'
+          )
+          ?'counterflow_transfer'
+          :'sector_transfer';
+        const transitionFact={
+          schemaVersion:1,
+          sourceVersion:OUTCOME_NOSOLOGY_SECTOR_LOS_SOURCE_VERSION,
+          type:'patient_sector_transition_admin',
+          factId:transitionFactId,
+          episodeId:tracking.episodeId,
+          patientId:id,
+          occurredAt:firebase.firestore.FieldValue.serverTimestamp(),
+          actorUid,
+          predecessorFactId:tracking.predecessorFactId,
+          movementClassification,
+          trackingOrigin:tracking.trackingOrigin,
+          originEnteredAt:tracking.originEnteredAt,
+          origin:sectorLocationAdminV73(
+            currentPatient,
+            CURRENT_SECTOR.firestoreUnit,
+            CURRENT_SECTOR.name
+          ),
+          destination:sectorLocationAdminV73(
+            destinationPatient,
+            target.unit,
+            target.name,
+            migrationDestinationUnitV73(target,destinationPatient)
+          )
+        };
         transaction.set(targetRef, {
-          ...migratedPatient,
+          ...destinationPatient,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
           migratedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge:true });
-        transaction.delete(patientsRef.doc(id));
+        }, { merge:false });
+        transaction.set(transitionRef,transitionFact,{merge:false});
+        transaction.delete(sourceRef);
       }, {
         guardTargets:[
           {patientId:id,sectorUnit:CURRENT_SECTOR.firestoreUnit},
           {patientId:id,sectorUnit:target.unit}
         ]
       });
+      patients=patients.filter(patient=>patient.id!==id);
+      render();
       openMigrationPatientId = null;
       selectedMigrationTarget = '';
       showToast(`Paciente migrado para ${target.name}.`);
+      return {committed:true,kind:'sector_migration'};
     } catch(error) {
       console.error('Erro ao migrar paciente:', error);
       const code = error && error.code ? error.code : 'erro';
       showToast('Erro ao migrar paciente: ' + code);
+      return {committed:false};
     }
-    return;
   }
 
   // Fallback local para testes sem Firebase configurado.
+  const localTracking=sectorTransitionContextV73(p,id);
+  Object.assign(migratedPatient,{
+    sectorTrackingVersion:1,
+    episodeId:localTracking.episodeId,
+    sectorTrackingOrigin:localTracking.trackingOrigin,
+    lastSectorTransitionFactId:transitionFactId,
+    sectorEnteredAt:new Date().toISOString()
+  });
   const targetKey = 'sbar_breve_santa_casa_v1_' + target.unit;
   const targetPatients = JSON.parse(localStorage.getItem(targetKey) || '[]').filter(x => x.id !== id);
   targetPatients.push(migratedPatient);
@@ -10066,6 +10277,7 @@ async function migratePatientToSector(id, targetUnit='') {
   save();
   render();
   showToast(`Paciente migrado para ${target.name}.`);
+  return {committed:true,kind:'sector_migration'};
 }
 
 function orderedPatients() {
@@ -10145,6 +10357,7 @@ function openDrawer(id=null) {
   clearForm();
   if(id) {
     const p = patients.find(x => x.id === id); if(!p) return;
+    patientDrawerPersistedPatientIdV73 = String(p.id || id);
     document.getElementById('drawerTitle').innerText = 'Editar paciente';
     setDrawerMode(true);
     document.getElementById('patientId').value = p.id || id;
@@ -10217,10 +10430,12 @@ function openDrawer(id=null) {
 function closeDrawer() {
   if(patientAutosaveTimer) { clearTimeout(patientAutosaveTimer); patientAutosaveTimer = null; }
   patientAutosaveScheduledOptions = null;
+  patientDrawerPersistedPatientIdV73 = '';
   document.getElementById('drawer').classList.remove('open');
   document.getElementById('overlay').classList.remove('show');
 }
 function clearForm() {
+  patientDrawerPersistedPatientIdV73 = '';
   ['patientId','bed','name','age','admissionDate','dischargeForecast','specialty','diagnosis','background','assessment','recommendation','counterflowDate','atbName','atbStartDate','atbEscalationName','atbEscalationDate','criticalExam','deviceIotFiO2','deviceIotFr','deviceIotPeep','deviceIotSync','deviceCvcSite','deviceCvcDate','deviceSneChecked','deviceSvdType','deviceChestSide','mewsRR','mewsHR','mewsSBP','mewsTemp','mewsAVPU','dvaNoradWeight','dvaNoradConcentration','dvaNoradRate'].forEach(id => { const el=document.getElementById(id); if(el) el.value = ''; });
   const unitV42=document.getElementById('inpatientUnitV42');
   if(unitV42) unitV42.value='';
@@ -10476,6 +10691,10 @@ async function savePatient(keepOpen=false, options={}) {
   } else if(!ensureFirebaseReady('salvar paciente')) return false;
 
   const isEditing = Boolean(editingId);
+  const wasPersistedPatientAtSave = isEditing&&(
+    patientDrawerPersistedPatientIdV73===editingId
+    ||patients.some(patient=>patient.id===editingId)
+  );
   if(isEditing) keepOpen = false;
   const selectedAlerts = normalizeAlertList(Array.from(document.querySelectorAll('.alertCheck:checked')).map(c => c.value));
   const allowIncompleteArrhythmiaAutosave = auto && options?.allowIncompleteArrhythmiaAutosave === true;
@@ -10505,12 +10724,29 @@ async function savePatient(keepOpen=false, options={}) {
 
   if(firebaseActive && patientsRef) {
     try {
-      await commitGuardedPatientMutation(id, transaction => {
-        transaction.set(patientsRef.doc(id), {
+      await commitGuardedPatientMutation(id, async transaction => {
+        const patientRef=patientsRef.doc(id);
+        const patientSnapshot=await transaction.get(patientRef);
+        if(wasPersistedPatientAtSave&&!patientSnapshot.exists){
+          const missing=new Error('O paciente não está mais disponível neste setor.');
+          missing.code='connect-hub/patient-missing';
+          throw missing;
+        }
+        if(!isEditing&&patientSnapshot.exists){
+          const conflict=new Error('Já existe um paciente com este identificador.');
+          conflict.code='connect-hub/patient-create-conflict';
+          throw conflict;
+        }
+        const tracking=patientSnapshot.exists
+          ?copyExistingSectorTrackingV73(patientSnapshot.data()||{})
+          :initialSectorTrackingV73(id,{firebaseTimestamp:true});
+        transaction.set(patientRef, {
           ...p,
+          ...tracking,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge:false });
       });
+      patientDrawerPersistedPatientIdV73=id;
       patientAutosaveLastSignature = signature;
       if(auto) {
         document.getElementById('drawerTitle').innerText = 'Editar paciente';
@@ -10541,7 +10777,10 @@ async function savePatient(keepOpen=false, options={}) {
   }
 
   const idx = patients.findIndex(x => x.id === id);
+  if(idx>=0)Object.assign(p,copyExistingSectorTrackingV73(patients[idx]));
+  else Object.assign(p,initialSectorTrackingV73(id));
   if(idx >= 0) patients[idx] = p; else patients.push(p);
+  patientDrawerPersistedPatientIdV73=id;
   patientAutosaveLastSignature = signature;
   save(); render();
   if(auto) {
@@ -11613,7 +11852,12 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
       const input = findInputByValue(grid, '.deviceCheck', key);
       const label = input ? input.closest('label') : null;
       if(selected.includes(key) && label && label.parentElement){
-        label.insertAdjacentElement('afterend', panel);
+        /*
+         * Não reinsere o painel que já está na posição correta. Reanexar o
+         * ancestral do campo a cada `input` remove o foco durante a digitação
+         * (por exemplo, FiO2 "50" podia parar em "5" ou ficar vazio).
+         */
+        if(label.nextElementSibling !== panel) label.insertAdjacentElement('afterend', panel);
       }else if(body && panel.parentElement !== body){
         body.appendChild(panel);
       }
@@ -17243,7 +17487,13 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
     const wrappedMigratePatientV41 = async function(id,targetUnit){
       const before = patients.find(p=>p.id===id) || {};
       const target = typeof resolveMigrationTarget==='function' ? resolveMigrationTarget(targetUnit) : null;
+      const plannedDestination = {
+        unit:selectedMigrationUnitV37 || selectedMigrationObsV37 || (target?.unit==='uti_1'?'UTI 1':target?.unit==='uti_2'?'UTI 2':''),
+        bed:selectedMigrationBedV37 || (target?.unit==='observacao_sus' || target?.unit==='emergencia' ? 'Maca' : '')
+      };
       const result = await oldMigratePatientV41.apply(this,arguments);
+      if(!result?.committed)return result;
+      if(target?.unit===CURRENT_SECTOR.firestoreUnit)return result;
 
       const details = {
         description:'Migração de setor',
@@ -17253,8 +17503,8 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
         toSectorName:target?.name || '',
         fromUnit:before.inpatientUnit || before.wardUnit || before.unit || before.obsLocation || '',
         fromBed:before.bed || '',
-        toUnit:selectedMigrationUnitV37 || selectedMigrationObsV37 || (target?.unit==='uti_1'?'UTI 1':target?.unit==='uti_2'?'UTI 2':''),
-        toBed:selectedMigrationBedV37 || (target?.unit==='observacao_sus' || target?.unit==='emergencia' ? 'Maca' : ''),
+        toUnit:plannedDestination.unit,
+        toBed:plannedDestination.bed,
         counterflow:!!(target?.setCounterflowToday)
       };
 
@@ -17286,7 +17536,12 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
   if(typeof oldInternalMoveV41 === 'function' && !oldInternalMoveV41.__v41){
     const wrappedInternalMoveV41 = async function(id,target){
       const before = patients.find(p=>p.id===id) || {};
+      const plannedDestination = {
+        unit:selectedMigrationUnitV37 || selectedMigrationObsV37 || before.inpatientUnit || before.wardUnit || before.unit || before.obsLocation || '',
+        bed:selectedMigrationBedV37 || ''
+      };
       const result = await oldInternalMoveV41.apply(this,arguments);
+      if(!result?.committed)return result;
       await logHistoryEventV41('bed_reassignment',before,{
         description:'Remanejamento interno',
         fromSectorUnit:CURRENT_SECTOR.firestoreUnit || '',
@@ -17295,8 +17550,8 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
         toSectorName:CURRENT_SECTOR.name || '',
         fromUnit:before.inpatientUnit || before.wardUnit || before.unit || before.obsLocation || '',
         fromBed:before.bed || '',
-        toUnit:selectedMigrationUnitV37 || selectedMigrationObsV37 || before.inpatientUnit || before.wardUnit || before.unit || before.obsLocation || '',
-        toBed:selectedMigrationBedV37 || ''
+        toUnit:plannedDestination.unit,
+        toBed:plannedDestination.bed
       });
       return result;
     };
@@ -25733,12 +25988,12 @@ body.patient-outcome-open{overflow:hidden!important}
 <script id="v66-patient-outcomes">
 (function(){
   const OUTCOME_TYPES_V66 = Object.freeze({
-    treated:{label:'Tratado'},
+    treated:{label:'Alta médica'},
     death:{label:'Óbito'},
-    transferred:{label:'Transferido'}
+    transferred:{label:'Transferência externa'}
   });
-  const OUTCOME_SOURCE_VERSION_V66 = 'FOUNDATION-1.0-RC1.3.2-ADMIN-INTELLIGENCE';
-  const OUTCOME_ADMIN_SCHEMA_VERSION_V70 = 2;
+  const OUTCOME_SOURCE_VERSION_V66 = OUTCOME_NOSOLOGY_SECTOR_LOS_SOURCE_VERSION;
+  const OUTCOME_ADMIN_SCHEMA_VERSION_V70 = 3;
   let outcomePatientIdV66 = '';
   let outcomeIdV66 = '';
   let outcomeBusyV66 = false;
@@ -25757,6 +26012,9 @@ body.patient-outcome-open{overflow:hidden!important}
   }
   function validPrimaryIcdCodeV70(value){
     return /^[A-Z][0-9]{2}(?:\.[A-Z0-9]{1,4})?$/.test(String(value||'').trim().toUpperCase());
+  }
+  function normalizedPrimaryIcdCodeV73(value){
+    return String(value||'').trim().toUpperCase();
   }
   function outcomeStatusV66(message='',isError=false){
     const status=byIdV66('patientOutcomeStatus');
@@ -25820,6 +26078,7 @@ body.patient-outcome-open{overflow:hidden!important}
   }
   function withOutcomePatientFieldsV66(record,patient){
     const closedAt=new Date(record.createdAtLocal);
+    const tracking=authoritativeSectorTrackingV73(patient);
     return {
       ...record,
       patientId:patient.id||'',
@@ -25832,7 +26091,8 @@ body.patient-outcome-open{overflow:hidden!important}
       status:patient.status||'',
       severity:patient.severity||'',
       alerts:Array.isArray(patient.alerts)?[...patient.alerts]:[],
-      patientSnapshot:{...patient}
+      patientSnapshot:{...patient},
+      ...tracking
     };
   }
   function patientOutcomeAdminProjectionV66(record){
@@ -25857,7 +26117,12 @@ body.patient-outcome-open{overflow:hidden!important}
       responsibleDoctor:record.responsibleDoctor,
       primaryIcdCode:record.primaryIcdCode,
       palliativeAlertPresentAtOutcome:Array.isArray(record.alerts)&&record.alerts.includes('Paliativo'),
-      actorUid:record.actorUid
+      actorUid:record.actorUid,
+      sectorTrackingVersion:record.sectorTrackingVersion,
+      episodeId:record.episodeId,
+      sectorTrackingOrigin:record.sectorTrackingOrigin,
+      lastSectorTransitionFactId:record.lastSectorTransitionFactId,
+      sectorEnteredAt:record.sectorEnteredAt
     };
   }
   function setOutcomeBusyV66(busy){
@@ -25874,6 +26139,12 @@ body.patient-outcome-open{overflow:hidden!important}
       confirmButton.textContent=busy?'Encerrando atendimento...':'Confirmar desfecho';
       if(busy)confirmButton.disabled=true;
     }
+  }
+  function setOutcomeAttemptFieldsLockedV73(locked){
+    document.querySelectorAll(
+      '#patientOutcomeDialog input[name="patientOutcomeType"],'
+      +'#patientOutcomeResponsibleDoctor,#patientOutcomePrimaryCid'
+    ).forEach(input=>{input.disabled=!!locked});
   }
   function latestPatientSnapshotV66(patientId){
     const persisted=patients.find(patient=>patient.id===patientId);
@@ -25897,9 +26168,15 @@ body.patient-outcome-open{overflow:hidden!important}
   function buildPatientOutcomeRecordV66(patient,form){
     const definition=OUTCOME_TYPES_V66[form.outcomeType];
     if(!patient||!definition)throw new Error('Desfecho ou paciente inválido.');
+    const primaryIcdCode=normalizedPrimaryIcdCodeV73(form.primaryIcdCode);
+    if(!validPrimaryIcdCodeV70(primaryIcdCode)){
+      const invalid=new Error('CID principal inválido para o desfecho.');
+      invalid.code='connect-hub/outcome-invalid-primary-icd';
+      throw invalid;
+    }
     const now=new Date();
     return withOutcomePatientFieldsV66({
-      schemaVersion:1,
+      schemaVersion:2,
       sourceVersion:OUTCOME_SOURCE_VERSION_V66,
       outcomeId:outcomeIdV66,
       type:'patient_outcome',
@@ -25915,7 +26192,7 @@ body.patient-outcome-open{overflow:hidden!important}
       lengthOfStayMethod:'inclusive_calendar_days',
       responsibleDoctor:form.responsibleDoctor,
       actor:form.responsibleDoctor,
-      primaryIcdCode:form.outcomeType==='death'?form.primaryIcdCode:'',
+      primaryIcdCode,
     },patient);
   }
   async function waitForPatientWritesV66(){
@@ -25938,7 +26215,7 @@ body.patient-outcome-open{overflow:hidden!important}
     }
     patientAutosaveQueued=false;
   }
-  async function persistPatientOutcomeFirebaseV66(record,{preferLocalSnapshot=false}={}){
+  async function persistPatientOutcomeFirebaseV66(record){
     if(!firebaseActive||!db||!patientsRef)throw new Error('Firebase indisponível.');
     const actorUid=firebaseUserUidV66();
     if(!actorUid){
@@ -25977,22 +26254,7 @@ body.patient-outcome-open{overflow:hidden!important}
         throw missing;
       }
       const currentPatient=patientSnapshot.data()||{};
-      const mergedPatientSnapshot=preferLocalSnapshot
-        ? {...currentPatient,...record.patientSnapshot,id:record.patientId}
-        : {...record.patientSnapshot,...currentPatient,id:record.patientId};
-      const currentAlerts=Array.isArray(currentPatient.alerts)?currentPatient.alerts:[];
-      const mergedAlerts=Array.isArray(mergedPatientSnapshot.alerts)
-        ?mergedPatientSnapshot.alerts.filter(alert=>alert!=='Paliativo')
-        :[];
-      if(currentAlerts.includes('Paliativo'))mergedAlerts.push('Paliativo');
-      mergedPatientSnapshot.alerts=mergedAlerts;
-      if(preferLocalSnapshot&&!record.patientSnapshot?.alerts?.includes('Profilaxia de TEV')){
-        delete mergedPatientSnapshot.tevProtocol;
-        delete mergedPatientSnapshot.improveBleedingScore;
-        delete mergedPatientSnapshot.capriniScore;
-        delete mergedPatientSnapshot.tevProtocolStatus;
-      }
-      const immutableRecord=withOutcomePatientFieldsV66(recordWithActorUid,mergedPatientSnapshot);
+      const immutableRecord=withOutcomePatientFieldsV66(recordWithActorUid,currentPatient);
       const adminProjection=patientOutcomeAdminProjectionV66(immutableRecord);
       const tombstone=patientClosedTombstoneV66(immutableRecord,actorUid);
       transaction.set(historyRef,immutableRecord,{merge:false});
@@ -26046,6 +26308,7 @@ body.patient-outcome-open{overflow:hidden!important}
     const cid=byIdV66('patientOutcomePrimaryCid');
     if(responsible)responsible.value=suggestedResponsibleDoctorV66();
     if(cid)cid.value='';
+    setOutcomeAttemptFieldsLockedV73(false);
     outcomeStatusV66('');
     setOutcomeBusyV66(false);
     window.updatePatientOutcomeForm();
@@ -26078,24 +26341,23 @@ body.patient-outcome-open{overflow:hidden!important}
     const cidWrap=byIdV66('patientOutcomeCidWrap');
     const cidInput=byIdV66('patientOutcomePrimaryCid');
     const confirmButton=byIdV66('patientOutcomeConfirmBtn');
-    const isDeath=type==='death';
-    cidWrap?.classList.toggle('is-hidden',!isDeath);
+    const hasOutcome=!!OUTCOME_TYPES_V66[type];
+    cidWrap?.classList.toggle('is-hidden',!hasOutcome);
     if(cidInput){
       if(cidInput.value!==cid)cidInput.value=cid;
-      cidInput.required=isDeath;
-      cidInput.setAttribute('aria-invalid',isDeath&&cid&&!validPrimaryIcdCodeV70(cid)?'true':'false');
-      if(!isDeath)cidInput.value='';
+      cidInput.required=hasOutcome;
+      cidInput.setAttribute('aria-invalid',hasOutcome&&cid&&!validPrimaryIcdCodeV70(cid)?'true':'false');
     }
-    const cidValid=!isDeath||validPrimaryIcdCodeV70(cid);
+    const cidValid=hasOutcome&&validPrimaryIcdCodeV70(cid);
     if(confirmButton&&!outcomeBusyV66){
       confirmButton.disabled=!(type&&responsible&&cidValid);
     }
     if(!outcomeBusyV66){
       outcomeStatusV66(
-        isDeath&&cid&&!cidValid
+        hasOutcome&&cid&&!cidValid
           ?'Informe um CID no formato esperado, como I21.9 ou A41.'
           :'',
-        isDeath&&!!cid&&!cidValid
+        hasOutcome&&!!cid&&!cidValid
       );
     }
   };
@@ -26235,11 +26497,11 @@ body.patient-outcome-open{overflow:hidden!important}
     if(
       !OUTCOME_TYPES_V66[outcomeType]
       ||!responsibleDoctor
-      ||(outcomeType==='death'&&!validPrimaryIcdCodeV70(primaryIcdCode))
+      ||!validPrimaryIcdCodeV70(primaryIcdCode)
     ){
       window.updatePatientOutcomeForm();
       outcomeStatusV66(
-        outcomeType==='death'&&primaryIcdCode
+        primaryIcdCode
           ?'Informe um CID no formato esperado, como I21.9 ou A41.'
           :'Preencha os campos obrigatórios antes de confirmar.',
         true
@@ -26265,9 +26527,11 @@ body.patient-outcome-open{overflow:hidden!important}
         outcomeRecordFormSignatureV66=formSignature;
       }
       let record=outcomeRecordV66;
+      let alreadyCommitted=false;
       if(firebaseActive){
-        const result=await persistPatientOutcomeFirebaseV66(record,{preferLocalSnapshot});
+        const result=await persistPatientOutcomeFirebaseV66(record);
         record=result.record;
+        alreadyCommitted=!!result.alreadyCommitted;
         patientOutcomeRemovalConfirmedPatientId=record.patientId;
         removePatientAfterOutcomeV66(record.patientId);
       }else{
@@ -26280,10 +26544,15 @@ body.patient-outcome-open{overflow:hidden!important}
       outcomeBusyV66=false;
       window.closePatientOutcomeDialog({force:true,resumeAutosave:false});
       if(drawerIsOpen()&&val('patientId')===completedPatientId)closeDrawer();
-      showToast(`Desfecho registrado: ${label}.`);
+      showToast(
+        alreadyCommitted
+          ?`Desfecho já registrado: ${label}. Os dados da primeira confirmação foram preservados.`
+          :`Desfecho registrado: ${label}.`
+      );
     }catch(error){
       console.warn('Falha ao registrar desfecho:',error);
       setOutcomeBusyV66(false);
+      if(outcomeRecordV66)setOutcomeAttemptFieldsLockedV73(true);
       outcomeStatusV66('Não foi possível registrar o desfecho. O paciente permanece no HUB. Tente novamente.',true);
       const confirmButton=byIdV66('patientOutcomeConfirmBtn');
       if(confirmButton)confirmButton.disabled=false;

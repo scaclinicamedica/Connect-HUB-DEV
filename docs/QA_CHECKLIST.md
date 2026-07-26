@@ -104,21 +104,24 @@ Em todas as larguras:
 ## 9. Desfecho
 
 - [ ] Card e drawer apresentam `Desfecho`, sem ação `Excluir` do paciente.
-- [ ] Existem somente Tratado, Óbito e Transferido.
+- [ ] Existem somente Alta médica, Óbito e Transferência externa, preservando
+      os códigos internos homologados.
 - [ ] Abrir, navegar e cancelar não criam escrita de Desfecho.
-- [ ] Óbito exige CID principal; os demais não persistem CID.
+- [ ] Os três tipos exigem CID principal em formato estruturado antes de
+      habilitar a confirmação.
 - [ ] Médico responsável é obrigatório e explicitamente confirmado.
 - [ ] `Encerrando atendimento...` permanece visível durante a persistência.
 - [ ] O paciente permanece ativo quando a persistência falha.
-- [ ] Evento privado, lápide mínima e retirada do ativo são atômicos e
-      idempotentes no Firebase.
+- [ ] Evento privado, projeção administrativa, lápide mínima e retirada do
+      ativo são atômicos e idempotentes no Firebase.
 - [ ] A lápide contém somente identificadores técnicos, tipo, timestamps e
       `closedByUid`, sem nome, CID, diagnóstico, alertas ou snapshot.
 - [ ] Retry após perda de confirmação não sobrescreve o primeiro registro.
 - [ ] Retry confirmado consulta somente a lápide e não lê nem reescreve o
       histórico privado.
 - [ ] `actorUid` e `closedByUid` correspondem ao UID Firebase autenticado.
-- [ ] `patientSnapshot` preserva os dados clínicos integrais.
+- [ ] `patientSnapshot` é integralmente idêntico ao paciente autoritativo lido
+      dentro da transação.
 - [ ] Autosave, salvamento manual e reordenação em voo não recriam o paciente
       encerrado.
 - [ ] O eco local otimista do Firestore não oculta o card antes do ACK.
@@ -132,11 +135,22 @@ Em todas as larguras:
       demais setores conhecidos.
 - [ ] Migração válida e atualizações em lote de pacientes ativos continuam
       permitidas.
+- [ ] Paciente novo inicia rastreamento v1 com `initial_entry` e timestamp do
+      servidor no mesmo commit de criação.
+- [ ] Migração entre setores cria o fato administrativo e o paciente de
+      destino na mesma transação; nenhuma das partes pode existir isoladamente.
+- [ ] Primeira migração de paciente legado usa `baseline_observation` e não
+      inventa o instante de entrada na origem.
+- [ ] Remanejamento de unidade/leito no mesmo setor preserva
+      `sectorEnteredAt` e não cria fato setorial.
+- [ ] Atualização clínica comum não pode alterar versão, episódio, origem,
+      predecessor ou entrada setorial.
 - [ ] O modal permanece utilizável e sem overflow nas larguras obrigatórias.
 
 ## 10. Firestore e Área Administrativa
 
-- [ ] `npm run test:rules` conclui os 22 cenários no Firestore Emulator.
+- [ ] `npm run test:rules` conclui todos os cenários descobertos no Firestore
+      Emulator.
 - [ ] Cliente clínico anônimo pode consultar por `get` uma lápide conhecida,
       mas não pode listar lápides nem ler/listar `historico_eventos`.
 - [ ] Usuário não-anônimo com `admin_users/<uid>` ativo e papel `admin` lê o
@@ -161,17 +175,17 @@ Em todas as larguras:
 - [ ] Falha ou truncamento do histórico invalida relatório anterior e bloqueia
       geração/exportação incompleta.
 - [ ] Conteúdo persistido é escapado antes de ser inserido no HTML do painel.
-- [ ] A aba Desfechos consulta somente `admin_outcomes` com
-      `patient_outcome_admin` versões 1 ou 2 e tipos homologados.
-- [ ] A projeção versão 2 exige `palliativeAlertPresentAtOutcome` booleano igual à
+- [ ] A aba Desfechos consulta somente `admin_outcomes` versões 1, 2 ou 3 e
+      `admin_sector_transitions` versão 1, nos tipos homologados.
+- [ ] A projeção versão 3 exige `palliativeAlertPresentAtOutcome` booleano igual à
       presença do alerta estruturado `Paliativo` no evento privado e no
       paciente ativo lido antes da exclusão.
 - [ ] Evento e projeção que forjam juntos o alerta em divergência com o
       paciente ativo são negados.
-- [ ] Projeções versão 1 permanecem nos totais como registro do alerta
-      indisponível, nunca como “não paliativo”.
+- [ ] Projeções legadas permanecem nos totais e conservam cobertura
+      indisponível onde o respectivo campo não existia.
 - [ ] O período padrão cobre 30 dias e os filtros por data, setor,
-      especialidade, tipo e registro paliativo funcionam em conjunto.
+      especialidade, tipo, CID e registro paliativo funcionam em conjunto.
 - [ ] Hoje e D-29 entram no período padrão; D-30 fica fora, e intervalo
       invertido exibe erro sem métricas.
 - [ ] Período, ordenação e auditoria usam exclusivamente `createdAt` do
@@ -182,8 +196,8 @@ Em todas as larguras:
       alterações reais de Paliativo e PaO₂/FiO₂ continuam agendando autosave.
 - [ ] DIH com sufixo, formato incompleto ou data impossível não entra na
       permanência nem é apresentada como data válida na auditoria.
-- [ ] Total, Tratados, Óbitos, Transferidos, média, mediana e cobertura usam
-      somente os registros filtrados.
+- [ ] Total, Altas médicas, Óbitos, Transferências externas, média, mediana e
+      cobertura usam somente os registros filtrados.
 - [ ] Óbitos gerais, com alerta, sem alerta e com registro indisponível
       respeitam os invariantes `com alerta <= com registro <= óbitos <= total`.
 - [ ] Percentual do alerta usa somente Óbitos com registro disponível;
@@ -196,9 +210,19 @@ Em todas as larguras:
 - [ ] CIDs novos aceitam somente formato estruturado; texto livre ou
       identificável é negado e valores legados inválidos não entram na
       cobertura.
-- [ ] O recorte nosológico é rotulado como CIDs principais em formato esperado
-      informados nos Óbitos, sem inferir diagnóstico geral dos demais
-      Desfechos nem afirmar validação contra terminologia oficial.
+- [ ] O perfil nosológico usa os CIDs principais dos três Desfechos, discrimina
+      Alta médica, Óbito e Transferência externa e não afirma validação contra
+      terminologia oficial.
+- [ ] A permanência setorial usa intervalos `[entrada, saída)` em horas,
+      encerra o último setor no Desfecho e soma retornos ao mesmo setor.
+- [ ] Média, mediana, total de horas e episódios por setor reconciliam com a
+      tabela exata e distinguem cobertura completa, parcial e indisponível.
+- [ ] Cadeia ausente, quebrada, contraditória, negativa ou truncada não produz
+      zero nem duração estimada.
+- [ ] Intervalo válido com entrada e saída no mesmo instante permanece completo
+      e aparece como `0 h`.
+- [ ] Falha/truncamento de `admin_sector_transitions` bloqueia somente a
+      análise setorial e preserva os demais indicadores íntegros.
 - [ ] Consolidações por setor/especialidade exibem cobertura local do alerta;
       CIDs e auditoria correspondem ao mesmo conjunto filtrado.
 - [ ] Falha total ou parcial de Chart.js preserva KPIs e tabelas exatas e

@@ -93,7 +93,7 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 .charts-grid-v40{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.chart-card-v40{min-height:320px;padding:14px;border-radius:14px;border:1px solid var(--border);background:#081523}.chart-card-v40 h3{margin:0 0 12px;font-size:14px}.chart-card-v40 canvas{width:100%!important;max-height:255px!important}.admin-select-v40,.admin-input-v40{min-height:40px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:#06101d;color:var(--text)}.admin-warning-v40{margin:0 0 12px;padding:10px 12px;border-radius:11px;border:1px solid #ca8a04;background:#3f2d08;color:#fde68a;font-size:12px;line-height:1.45}.report-controls-v40{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:end;margin-bottom:12px}.report-controls-v40 label{display:block;color:var(--muted);font-size:12px;font-weight:850;margin-bottom:5px}.report-controls-v40 select,.report-controls-v40 input{width:100%}.report-actions-v40{display:flex;gap:8px;flex-wrap:wrap}.report-preview-v40{margin-top:12px}.report-head-v40{padding:16px;border:1px solid var(--border);border-radius:14px;background:#081523;margin-bottom:12px}.report-kpis-v40{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.report-kpi-v40{padding:12px;border:1px solid var(--border);border-radius:12px;background:#0b223d}.report-kpi-v40 small{display:block;color:var(--muted)}.report-kpi-v40 strong{display:block;font-size:23px;margin-top:4px}@media(max-width:900px){.charts-grid-v40{grid-template-columns:1fr}.report-controls-v40{grid-template-columns:1fr 1fr}.report-actions-v40{grid-column:1/-1}.report-kpis-v40{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.report-controls-v40{grid-template-columns:1fr}.report-actions-v40{grid-column:auto;flex-direction:column}.report-actions-v40 .btn{width:100%}.report-kpis-v40{grid-template-columns:1fr}}@media print{.topbar,.tabs,.toolbar,.report-controls-v40,.admin-warning-v40,#refreshBtn{display:none!important}body{background:#fff!important;color:#111!important}.panel,.chart-card-v40,.report-head-v40,.report-kpi-v40{box-shadow:none!important;background:#fff!important;color:#111!important;border-color:#bbb!important}.status,.muted,.metric small,.metric span{color:#444!important}#adminContent{display:block!important}}
 </style>
 <style id="v43-admin-outcomes">
-.outcomes-filters-v43{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:14px 0}
+.outcomes-filters-v43{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin:14px 0}
 .outcomes-filter-v43{min-width:0}
 .outcomes-filter-v43 label{display:block;margin-bottom:5px;color:var(--muted);font-size:12px;font-weight:850}
 .outcomes-filter-v43 input,.outcomes-filter-v43 select{width:100%;min-width:0}
@@ -105,7 +105,7 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 .outcomes-kpi-v43 small{display:block;color:var(--muted);font-weight:800;line-height:1.35}
 .outcomes-kpi-v43 strong{display:block;margin-top:5px;font-size:24px}
 .outcomes-kpi-v43 span{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.35}
-.outcomes-quality-v70{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.outcomes-quality-v70{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px}
 .outcomes-quality-v70 div{min-width:0;padding:9px 11px;border:1px solid #2f6fa7;border-radius:10px;background:#0b223d;color:#dbeafe;font-size:11px;line-height:1.45}
 .outcomes-quality-v70 strong{display:block;margin-bottom:2px;color:#fff;font-size:11px}
 .outcomes-insights-v70,.outcomes-breakdowns-v43{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}
@@ -118,6 +118,11 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 .outcomes-breakdowns-v43 table{min-width:760px}
 .outcomes-chart-v70{position:relative;height:190px;margin:8px 0 12px}
 .outcomes-chart-v70 canvas{width:100%!important;height:100%!important}
+.outcomes-sector-stay-v80{margin-bottom:12px}
+.outcomes-sector-stay-v80 .outcomes-chart-v70{height:260px}
+.outcomes-sector-stay-v80 table{min-width:780px}
+.outcomes-sector-state-v80{margin:8px 0 12px}
+.outcomes-sector-state-v80[data-state="error"],.outcomes-sector-state-v80[data-state="truncated"]{border-color:#ef4444;background:#3b1118;color:#fecaca}
 .outcomes-chart-fallback-v70{display:flex;align-items:center;justify-content:center;height:100%;padding:16px;border:1px dashed var(--border);border-radius:11px;color:var(--muted);text-align:center;font-size:11px;line-height:1.45}
 .outcomes-chart-fallback-v70.hidden{display:none}
 .outcomes-audit-v43{margin-top:12px}
@@ -253,10 +258,11 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 <div aria-label="Filtros de Desfechos" class="outcomes-filters-v43" role="group">
 <div class="outcomes-filter-v43"><label for="outcomeStartV43">Data inicial</label><input class="admin-input-v40" id="outcomeStartV43" type="date"/></div>
 <div class="outcomes-filter-v43"><label for="outcomeEndV43">Data final</label><input class="admin-input-v40" id="outcomeEndV43" type="date"/></div>
-<div class="outcomes-filter-v43"><label for="outcomeSectorV43">Setor</label><select class="admin-select-v40" id="outcomeSectorV43"><option value="all">Todos os setores</option></select></div>
+<div class="outcomes-filter-v43"><label for="outcomeSectorV43">Setor no desfecho</label><select class="admin-select-v40" id="outcomeSectorV43"><option value="all">Todos os setores</option></select></div>
 <div class="outcomes-filter-v43"><label for="outcomeSpecialtyV43">Especialidade</label><select class="admin-select-v40" id="outcomeSpecialtyV43"><option value="all">Todas as especialidades</option></select></div>
-<div class="outcomes-filter-v43"><label for="outcomeTypeV43">Desfecho</label><select class="admin-select-v40" id="outcomeTypeV43"><option value="all">Todos os desfechos</option><option value="treated">Tratado</option><option value="death">Óbito</option><option value="transferred">Transferido</option></select></div>
+<div class="outcomes-filter-v43"><label for="outcomeTypeV43">Desfecho</label><select class="admin-select-v40" id="outcomeTypeV43"><option value="all">Todos os desfechos</option><option value="treated">Alta médica</option><option value="death">Óbito</option><option value="transferred">Transferência externa</option></select></div>
 <div class="outcomes-filter-v43"><label for="outcomePalliativeV70">Alerta Paliativo no encerramento</label><select class="admin-select-v40" id="outcomePalliativeV70"><option value="all">Todos os registros</option><option value="registered">Alerta registrado</option><option value="not-registered">Sem alerta registrado</option><option value="unknown">Registro indisponível</option></select></div>
+<div class="outcomes-filter-v43"><label for="outcomeCidV80">CID principal</label><select class="admin-select-v40" id="outcomeCidV80"><option value="all">Todos os CIDs</option></select></div>
 <div class="outcomes-filter-actions-v70"><button class="btn" id="outcomeClearFiltersV70" onclick="resetOutcomeFiltersV70()" type="button">Limpar filtros</button></div>
 </div>
 <div aria-live="polite" class="outcomes-state-v43" data-state="loading" id="outcomesStateV43" role="status">Carregando Desfechos...</div>
@@ -264,8 +270,8 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 <p class="outcomes-caution-v70"><strong>Escopo dos indicadores:</strong> “Óbitos gerais” representa somente os Desfechos do tipo Óbito registrados nesta ferramenta, não a mortalidade institucional. A dimensão paliativa informa apenas se o alerta estruturado <strong>Paliativo</strong> estava registrado no encerramento; ausência do alerta não classifica o paciente como não paliativo.</p>
 <div class="outcomes-summary-v43">
 <div class="outcomes-kpi-v43"><small>Total de desfechos</small><strong id="outcomeTotalV43">0</strong><span>No período e nos filtros selecionados</span></div>
-<div class="outcomes-kpi-v43"><small>Tratados</small><strong id="outcomeTreatedV43">0</strong><span>Desfechos do tipo Tratado</span></div>
-<div class="outcomes-kpi-v43"><small>Transferidos</small><strong id="outcomeTransferredV43">0</strong><span>Desfechos do tipo Transferido</span></div>
+<div class="outcomes-kpi-v43"><small>Altas médicas</small><strong id="outcomeTreatedV43">0</strong><span>Desfechos do tipo Alta médica</span></div>
+<div class="outcomes-kpi-v43"><small>Transferências externas</small><strong id="outcomeTransferredV43">0</strong><span>Desfechos do tipo Transferência externa</span></div>
 <div class="outcomes-kpi-v43"><small>Óbitos gerais registrados</small><strong id="outcomeDeathsV43">0</strong><span id="outcomeDeathShareV43">Proporção de óbitos entre desfechos: —</span></div>
 <div class="outcomes-kpi-v43"><small>Óbitos com alerta Paliativo registrado</small><strong id="outcomePalliativeDeathsV70">0</strong><span id="outcomePalliativeDeathShareV70">Proporção entre óbitos com registro disponível: —</span></div>
 <div class="outcomes-kpi-v43"><small>Óbitos sem alerta Paliativo registrado</small><strong id="outcomeNonPalliativeDeathsV70">0</strong><span>Ausência do alerta no encerramento</span></div>
@@ -276,7 +282,8 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 <div aria-label="Qualidade e cobertura dos dados" class="outcomes-quality-v70">
 <div><strong>Permanência</strong><span id="outcomeLosQualityV70">Cobertura: 0/0 desfechos</span></div>
 <div><strong>Registro do alerta Paliativo nos óbitos</strong><span id="outcomePalliativeQualityV70">Cobertura: 0/0 óbitos</span></div>
-<div><strong>CID principal nos óbitos</strong><span id="outcomeCidQualityV70">Cobertura: 0/0 óbitos</span></div>
+<div><strong>CID principal nos desfechos</strong><span id="outcomeCidQualityV70">Cobertura: 0/0 desfechos</span></div>
+<div><strong>Permanência por setor</strong><span id="outcomeSectorStayQualityV80">Completa: 0 • Parcial: 0 • Indisponível: 0</span></div>
 </div>
 <div class="outcomes-insights-v70">
 <article class="outcomes-card-v43">
@@ -298,13 +305,13 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 <div aria-label="Tabela de distribuição do tempo de permanência" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Distribuição do tempo de permanência</caption><thead><tr><th scope="col">Faixa</th><th scope="col">Desfechos</th><th scope="col">Proporção com DIH válida</th></tr></thead><tbody id="outcomeLosRowsV70"></tbody></table></div>
 </article>
 <article class="outcomes-card-v43">
-<h3>CIDs principais informados nos óbitos</h3>
-<p>Recorte nosológico restrito aos códigos CID em formato esperado informados nos Óbitos; não representa todos os pacientes nem valida o código contra uma terminologia oficial.</p>
+<h3>Perfil nosológico dos desfechos</h3>
+<p>CIDs principais em formato esperado informados em Altas médicas, Óbitos e Transferências externas. O painel não valida o código contra uma terminologia oficial.</p>
 <div class="outcomes-chart-v70">
 <canvas aria-hidden="true" id="outcomeCidChartV70"></canvas>
 <div class="outcomes-chart-fallback-v70 hidden" id="outcomeCidChartFallbackV70">Gráfico indisponível. Os valores exatos permanecem na tabela abaixo.</div>
 </div>
-<div aria-label="Tabela de CIDs principais informados nos óbitos" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">CIDs principais em formato esperado informados nos óbitos</caption><thead><tr><th scope="col">CID principal</th><th scope="col">Óbitos</th><th scope="col">Proporção dos óbitos com CID em formato esperado</th></tr></thead><tbody id="outcomeCidRowsV43"></tbody></table></div>
+<div aria-label="Tabela do perfil nosológico dos desfechos" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">CIDs principais em formato esperado informados nos desfechos</caption><thead><tr><th scope="col">CID</th><th scope="col">Total</th><th scope="col">Altas médicas</th><th scope="col">Óbitos</th><th scope="col">Transferências externas</th><th scope="col">Proporção entre registros com CID</th></tr></thead><tbody id="outcomeCidRowsV43"></tbody></table></div>
 </article>
 <article class="outcomes-card-v43">
 <h3>Permanência por tipo de Desfecho</h3>
@@ -312,14 +319,26 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 <div aria-label="Tabela de permanência por tipo de Desfecho" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Permanência por tipo de Desfecho</caption><thead><tr><th scope="col">Desfecho</th><th scope="col">Total</th><th scope="col">Média</th><th scope="col">Mediana</th><th scope="col">Cobertura</th></tr></thead><tbody id="outcomeLosByTypeRowsV70"></tbody></table></div>
 </article>
 </div>
+<article class="outcomes-card-v43 outcomes-sector-stay-v80">
+<h3>Permanência por setor</h3>
+<p>Tempo decorrido entre entrada e saída de cada setor, em horas. Retornos ao mesmo setor são somados por episódio; esta métrica é independente da permanência hospitalar inclusiva calculada pela DIH. Quando “Setor no desfecho” é selecionado, este card procura o mesmo setor em toda a trajetória dos episódios elegíveis pelos demais filtros, inclusive quando o paciente terminou em outro setor.</p>
+<div aria-live="polite" class="outcomes-state-v43 outcomes-sector-state-v80" data-state="loading" id="outcomeSectorStayStateV80" role="status">Carregando fatos de transição setorial...</div>
+<div class="hidden" id="outcomeSectorStayResultsV80">
+<div class="outcomes-chart-v70">
+<canvas aria-hidden="true" id="outcomeSectorStayChartV80"></canvas>
+<div class="outcomes-chart-fallback-v70 hidden" id="outcomeSectorStayChartFallbackV80">Gráfico indisponível. Os valores exatos permanecem na tabela abaixo.</div>
+</div>
+<div aria-label="Tabela de permanência por setor" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Permanência observada por setor e episódio</caption><thead><tr><th scope="col">Setor</th><th scope="col">Episódios</th><th scope="col">Média</th><th scope="col">Mediana</th><th scope="col">Tempo total observado</th></tr></thead><tbody id="outcomeSectorStayRowsV80"></tbody></table></div>
+</div>
+</article>
 <div class="outcomes-breakdowns-v43">
 <article class="outcomes-card-v43">
 <h3>Desfechos por setor</h3>
-<div aria-label="Tabela de Desfechos por setor" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Desfechos por setor</caption><thead><tr><th scope="col">Setor</th><th scope="col">Total</th><th scope="col">Tratados</th><th scope="col">Óbitos gerais</th><th scope="col">Óbitos com alerta Paliativo</th><th scope="col">Cobertura do registro</th><th scope="col">Transferidos</th></tr></thead><tbody id="outcomeSectorRowsV43"></tbody></table></div>
+<div aria-label="Tabela de Desfechos por setor" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Desfechos por setor</caption><thead><tr><th scope="col">Setor</th><th scope="col">Total</th><th scope="col">Altas médicas</th><th scope="col">Óbitos gerais</th><th scope="col">Óbitos com alerta Paliativo</th><th scope="col">Cobertura do registro</th><th scope="col">Transferências externas</th></tr></thead><tbody id="outcomeSectorRowsV43"></tbody></table></div>
 </article>
 <article class="outcomes-card-v43">
 <h3>Desfechos por especialidade</h3>
-<div aria-label="Tabela de Desfechos por especialidade" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Desfechos por especialidade</caption><thead><tr><th scope="col">Especialidade</th><th scope="col">Total</th><th scope="col">Tratados</th><th scope="col">Óbitos gerais</th><th scope="col">Óbitos com alerta Paliativo</th><th scope="col">Cobertura do registro</th><th scope="col">Transferidos</th></tr></thead><tbody id="outcomeSpecialtyRowsV43"></tbody></table></div>
+<div aria-label="Tabela de Desfechos por especialidade" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Desfechos por especialidade</caption><thead><tr><th scope="col">Especialidade</th><th scope="col">Total</th><th scope="col">Altas médicas</th><th scope="col">Óbitos gerais</th><th scope="col">Óbitos com alerta Paliativo</th><th scope="col">Cobertura do registro</th><th scope="col">Transferências externas</th></tr></thead><tbody id="outcomeSpecialtyRowsV43"></tbody></table></div>
 </article>
 </div>
 <div class="outcomes-audit-v43">
@@ -418,8 +437,10 @@ let pendingSignOutNotice=null;
 let allPatients=[];
 let allHistoryEventsV41=[];
 let allOutcomeEventsV43=[];
+let allSectorTransitionFactsV80=[];
 let historyLoadState=HISTORY_LOAD_STATES.IDLE;
 let outcomeLoadStateV43=HISTORY_LOAD_STATES.IDLE;
+let sectorTransitionLoadStateV80=HISTORY_LOAD_STATES.IDLE;
 
 function setAccessFeedback(kind,message=''){
   const targets={
@@ -472,13 +493,20 @@ function setOutcomeLoadStateV43(nextState){
   if(typeof renderOutcomesV43==='function')renderOutcomesV43();
 }
 
+function setSectorTransitionLoadStateV80(nextState){
+  sectorTransitionLoadStateV80=nextState;
+  if(typeof renderOutcomesV43==='function')renderOutcomesV43();
+}
+
 function clearAdministrativeData(){
   dataLoadSequence+=1;
   allPatients=[];
   allHistoryEventsV41=[];
   allOutcomeEventsV43=[];
+  allSectorTransitionFactsV80=[];
 
   setHistoryLoadState(HISTORY_LOAD_STATES.IDLE);
+  setSectorTransitionLoadStateV80(HISTORY_LOAD_STATES.IDLE);
   setOutcomeLoadStateV43(HISTORY_LOAD_STATES.IDLE);
   if(typeof chartsV40!=='undefined'&&chartsV40){
     Object.values(chartsV40).forEach(chart=>{
@@ -770,6 +798,7 @@ async function loadAllData(){
 
   const loadId=++dataLoadSequence;
   setHistoryLoadState(HISTORY_LOAD_STATES.LOADING);
+  setSectorTransitionLoadStateV80(HISTORY_LOAD_STATES.LOADING);
   setOutcomeLoadStateV43(HISTORY_LOAD_STATES.LOADING);
   if(typeof invalidateHistoricalReportV40==='function'){
     invalidateHistoricalReportV40('O histórico está sendo carregado. Aguarde...');
@@ -820,10 +849,28 @@ async function loadAllData(){
       outcomesUnavailable=true;
     }
 
+    let sectorTransitionFacts=[];
+    let sectorTransitionsUnavailable=false;
+    let sectorTransitionsTruncated=false;
+    try{
+      const sectorTransitionSnap = await db
+        .collection('admin_sector_transitions')
+        .orderBy('occurredAt','asc')
+        .limit(5001)
+        .get();
+      sectorTransitionsTruncated=sectorTransitionSnap.docs.length>5000;
+      sectorTransitionFacts=sectorTransitionSnap.docs
+        .slice(0,5000)
+        .map(doc=>administrativeSectorTransitionV80(doc.id,doc.data()));
+    }catch(_sectorTransitionError){
+      sectorTransitionsUnavailable=true;
+    }
+
     if(loadId!==dataLoadSequence||!isAuthorizedAdminSession(authorizedUid))return;
     allPatients=result;
     allHistoryEventsV41=historyEvents;
     allOutcomeEventsV43=outcomeEvents;
+    allSectorTransitionFactsV80=sectorTransitionFacts;
     setHistoryLoadState(
       historyUnavailable
         ?HISTORY_LOAD_STATES.ERROR
@@ -838,6 +885,13 @@ async function loadAllData(){
           ?HISTORY_LOAD_STATES.TRUNCATED
         :HISTORY_LOAD_STATES.READY
     );
+    setSectorTransitionLoadStateV80(
+      sectorTransitionsUnavailable
+        ?HISTORY_LOAD_STATES.ERROR
+        :sectorTransitionsTruncated
+          ?HISTORY_LOAD_STATES.TRUNCATED
+        :HISTORY_LOAD_STATES.READY
+    );
     renderAll();
     if((historyUnavailable||historyTruncated)&&typeof showHistoricalReportErrorV41==='function'){
       showHistoricalReportErrorV41(
@@ -849,12 +903,16 @@ async function loadAllData(){
       invalidateHistoricalReportV40();
     }
     document.getElementById('lastUpdated').textContent='Atualizado em '+new Date().toLocaleString('pt-BR');
-    setStatus(
-      historyUnavailable||outcomesUnavailable
-        ?`Dados atuais carregados. ${historyUnavailable?'O histórico está temporariamente indisponível. ':''}${outcomesUnavailable?'Os Desfechos estão temporariamente indisponíveis.':''}`.trim()
-        :historyTruncated||outcomesTruncated
-          ?`Dados atuais carregados. ${historyTruncated?'O histórico excede o limite seguro de 5.000 eventos. ':''}${outcomesTruncated?'Os Desfechos excedem o limite seguro de 5.000 registros.':''}`.trim()
-        :'Dados, histórico e Desfechos carregados com sucesso.'
+    const loadNotices=[];
+    if(historyUnavailable)loadNotices.push('O histórico está temporariamente indisponível.');
+    if(outcomesUnavailable)loadNotices.push('Os Desfechos estão temporariamente indisponíveis.');
+    if(sectorTransitionsUnavailable)loadNotices.push('A permanência por setor está temporariamente indisponível.');
+    if(historyTruncated)loadNotices.push('O histórico excede o limite seguro de 5.000 eventos.');
+    if(outcomesTruncated)loadNotices.push('Os Desfechos excedem o limite seguro de 5.000 registros.');
+    if(sectorTransitionsTruncated)loadNotices.push('Os fatos setoriais excedem o limite seguro de 5.000 registros.');
+    setStatus(loadNotices.length
+      ?`Dados atuais carregados. ${loadNotices.join(' ')}`
+      :'Dados, histórico, Desfechos e permanência por setor carregados com sucesso.'
     );
   }catch(err){
     if(loadId!==dataLoadSequence)return;
@@ -1296,10 +1354,12 @@ const OUTCOME_VIEW_STATES_V43=Object.freeze({
   TRUNCATED:'truncated'
 });
 const OUTCOME_LABELS_V43=Object.freeze({
-  treated:'Tratado',
+  treated:'Alta médica',
   death:'Óbito',
-  transferred:'Transferido'
+  transferred:'Transferência externa'
 });
+const SECTOR_TRANSITION_SOURCE_VERSION_V80=
+  'FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS';
 const OUTCOME_AUDIT_PAGE_SIZE_V70=50;
 let outcomeDatesInitializedV43=false;
 let outcomeAuditPageV70=1;
@@ -1326,10 +1386,42 @@ function administrativeOutcomeV43(id,data={}){
     'schemaVersion','sourceVersion','type','outcomeId','outcomeType','outcomeLabel',
     'createdAt','patientId','patientName','sectorUnit','sectorName','unit','bed',
     'specialty','admissionDate','lengthOfStayDays','lengthOfStayMethod',
-    'responsibleDoctor','primaryIcdCode','palliativeAlertPresentAtOutcome','actorUid'
+    'responsibleDoctor','primaryIcdCode','palliativeAlertPresentAtOutcome','actorUid',
+    'sectorTrackingVersion','episodeId','sectorTrackingOrigin',
+    'lastSectorTransitionFactId','sectorEnteredAt'
   ].forEach(field=>{
     if(Object.prototype.hasOwnProperty.call(data,field))safe[field]=data[field];
   });
+  return safe;
+}
+
+function administrativeSectorLocationV80(data){
+  if(!data||typeof data!=='object'||Array.isArray(data))return null;
+  const safe={};
+  [
+    'catalogVersion','canonicalSectorId','sectorUnit',
+    'sectorName','unit','bed'
+  ].forEach(field=>{
+    if(Object.prototype.hasOwnProperty.call(data,field))safe[field]=data[field];
+  });
+  return safe;
+}
+
+function administrativeSectorTransitionV80(id,data={}){
+  const safe={id:String(id||'')};
+  [
+    'schemaVersion','sourceVersion','type','factId','episodeId','patientId','occurredAt',
+    'actorUid','predecessorFactId','movementClassification',
+    'trackingOrigin','originEnteredAt'
+  ].forEach(field=>{
+    if(Object.prototype.hasOwnProperty.call(data,field))safe[field]=data[field];
+  });
+  if(Object.prototype.hasOwnProperty.call(data,'origin')){
+    safe.origin=administrativeSectorLocationV80(data.origin);
+  }
+  if(Object.prototype.hasOwnProperty.call(data,'destination')){
+    safe.destination=administrativeSectorLocationV80(data.destination);
+  }
   return safe;
 }
 
@@ -1356,6 +1448,34 @@ function initializeOutcomeDatesV43(){
   outcomeDatesInitializedV43=true;
 }
 
+function validOutcomeSchemaThreeV80(event){
+  if(
+    event?.schemaVersion!==3 ||
+    typeof event?.palliativeAlertPresentAtOutcome!=='boolean' ||
+    typeof event?.episodeId!=='string' ||
+    typeof event?.sectorTrackingOrigin!=='string' ||
+    typeof event?.lastSectorTransitionFactId!=='string' ||
+    !Object.prototype.hasOwnProperty.call(event,'sectorEnteredAt') ||
+    typeof event?.primaryIcdCode!=='string' ||
+    !normalizedOutcomeIcdCodeV70(event.primaryIcdCode) ||
+    event.primaryIcdCode!==normalizedOutcomeIcdCodeV70(event.primaryIcdCode)
+  )return false;
+  if(event.sectorTrackingVersion===0){
+    return (
+      event.episodeId==='' &&
+      event.sectorTrackingOrigin==='' &&
+      event.lastSectorTransitionFactId==='' &&
+      event.sectorEnteredAt===null
+    );
+  }
+  return (
+    event.sectorTrackingVersion===1 &&
+    event.episodeId.trim()!=='' &&
+    validSectorTrackingOriginV80(event.sectorTrackingOrigin) &&
+    firestoreTimestampDateV46(event.sectorEnteredAt)!==null
+  );
+}
+
 function baseOutcomeEventsV43(){
   return allOutcomeEventsV43.filter(event=>(
     event?.type==='patient_outcome_admin' &&
@@ -1364,7 +1484,8 @@ function baseOutcomeEventsV43(){
       (
         event?.schemaVersion===2 &&
         typeof event?.palliativeAlertPresentAtOutcome==='boolean'
-      )
+      ) ||
+      validOutcomeSchemaThreeV80(event)
     ) &&
     firestoreTimestampDateV46(event?.createdAt)!==null &&
     Object.prototype.hasOwnProperty.call(OUTCOME_LABELS_V43,event?.outcomeType)
@@ -1372,7 +1493,7 @@ function baseOutcomeEventsV43(){
 }
 
 function outcomePalliativeClassificationV70(event={}){
-  if(event?.schemaVersion!==2)return 'unknown';
+  if(event?.schemaVersion!==2&&event?.schemaVersion!==3)return 'unknown';
   if(event?.palliativeAlertPresentAtOutcome===true)return 'registered';
   if(event?.palliativeAlertPresentAtOutcome===false)return 'not-registered';
   return 'unknown';
@@ -1414,14 +1535,29 @@ function replaceOutcomeSelectOptionsV43(selectId,items,allLabel){
 function updateOutcomeFilterOptionsV43(events){
   const sectors=new Map();
   const specialties=new Set();
+  const cids=new Set();
+  const addSector=(value,label)=>{
+    const key=String(value||'').trim();
+    if(key&&!sectors.has(key)){
+      const known=SECTORS.find(sector=>sector.unit===key);
+      sectors.set(key,String(known?.name||label||key).trim());
+    }
+  };
   events.forEach(event=>{
     const sectorKey=outcomeSectorKeyV43(event);
-    if(sectorKey&&!sectors.has(sectorKey)){
-      sectors.set(sectorKey,outcomeSectorLabelV43(event));
-    }
+    addSector(sectorKey,outcomeSectorLabelV43(event));
     const specialty=outcomeSpecialtyV43(event);
     if(specialty)specialties.add(specialty);
+    const cid=normalizedOutcomeIcdCodeV70(event.primaryIcdCode);
+    if(cid)cids.add(cid);
   });
+  if(sectorTransitionLoadStateV80===HISTORY_LOAD_STATES.READY){
+    allSectorTransitionFactsV80.forEach(fact=>{
+      if(!validSectorTransitionFactV80(fact))return;
+      addSector(fact.origin.sectorUnit,fact.origin.sectorName);
+      addSector(fact.destination.sectorUnit,fact.destination.sectorName);
+    });
+  }
   const byLabel=(left,right)=>left.label.localeCompare(right.label,'pt-BR',{sensitivity:'base'});
   replaceOutcomeSelectOptionsV43(
     'outcomeSectorV43',
@@ -1432,6 +1568,11 @@ function updateOutcomeFilterOptionsV43(events){
     'outcomeSpecialtyV43',
     [...specialties].map(value=>({value,label:value})).sort(byLabel),
     'Todas as especialidades'
+  );
+  replaceOutcomeSelectOptionsV43(
+    'outcomeCidV80',
+    [...cids].map(value=>({value,label:value})).sort(byLabel),
+    'Todos os CIDs'
   );
 }
 
@@ -1451,7 +1592,8 @@ function clearOutcomeResultsV43(resetOptions=false){
   [
     'outcomeSectorRowsV43','outcomeSpecialtyRowsV43',
     'outcomeCidRowsV43','outcomeAuditRowsV43',
-    'outcomePalliativeRowsV70','outcomeLosRowsV70','outcomeLosByTypeRowsV70'
+    'outcomePalliativeRowsV70','outcomeLosRowsV70','outcomeLosByTypeRowsV70',
+    'outcomeSectorStayRowsV80'
   ].forEach(id=>document.getElementById(id)?.replaceChildren());
   [
     'outcomeTotalV43','outcomeTreatedV43',
@@ -1479,16 +1621,18 @@ function clearOutcomeResultsV43(resetOptions=false){
   const qualityDefaults={
     outcomeLosQualityV70:'Cobertura: 0/0 desfechos',
     outcomePalliativeQualityV70:'Cobertura: 0/0 óbitos',
-    outcomeCidQualityV70:'Cobertura: 0/0 óbitos'
+    outcomeCidQualityV70:'Cobertura: 0/0 desfechos',
+    outcomeSectorStayQualityV80:'Completa: 0 • Parcial: 0 • Indisponível: 0'
   };
   Object.entries(qualityDefaults).forEach(([id,message])=>{
     const element=document.getElementById(id);
     if(element)element.textContent=message;
   });
   renderOutcomeAuditPageV70();
+  clearOutcomeSectorStayV80();
   if(resetOptions){
     updateOutcomeFilterOptionsV43([]);
-    ['outcomeTypeV43','outcomePalliativeV70'].forEach(id=>{
+    ['outcomeTypeV43','outcomePalliativeV70','outcomeCidV80'].forEach(id=>{
       const select=document.getElementById(id);
       if(select)select.value='all';
     });
@@ -1505,7 +1649,7 @@ function resetOutcomeFiltersV70(){
     const input=document.getElementById(id);
     if(input)input.value='';
   });
-  ['outcomeSectorV43','outcomeSpecialtyV43','outcomeTypeV43','outcomePalliativeV70'].forEach(id=>{
+  ['outcomeSectorV43','outcomeSpecialtyV43','outcomeTypeV43','outcomePalliativeV70','outcomeCidV80'].forEach(id=>{
     const select=document.getElementById(id);
     if(select)select.value='all';
   });
@@ -1528,22 +1672,24 @@ function outcomeDateRangeV43(){
   return {valid:true,startValue,endValue};
 }
 
-function filteredOutcomeEventsV43(events){
+function filteredOutcomeEventsV43(events,{ignoreSector=false}={}){
   const range=outcomeDateRangeV43();
   if(!range.valid)return {valid:false,events:[]};
   const sector=document.getElementById('outcomeSectorV43')?.value||'all';
   const specialty=document.getElementById('outcomeSpecialtyV43')?.value||'all';
   const outcomeType=document.getElementById('outcomeTypeV43')?.value||'all';
   const palliative=document.getElementById('outcomePalliativeV70')?.value||'all';
+  const cid=document.getElementById('outcomeCidV80')?.value||'all';
   const filtered=events.filter(event=>{
     const localDay=saoPauloCivilDayV46(firestoreTimestampDateV46(event.createdAt));
     if(!localDay)return false;
     if(range.startValue&&localDay<range.startValue)return false;
     if(range.endValue&&localDay>range.endValue)return false;
-    if(sector!=='all'&&outcomeSectorKeyV43(event)!==sector)return false;
+    if(!ignoreSector&&sector!=='all'&&outcomeSectorKeyV43(event)!==sector)return false;
     if(specialty!=='all'&&outcomeSpecialtyV43(event)!==specialty)return false;
     if(outcomeType!=='all'&&event.outcomeType!==outcomeType)return false;
     if(palliative!=='all'&&outcomePalliativeClassificationV70(event)!==palliative)return false;
+    if(cid!=='all'&&normalizedOutcomeIcdCodeV70(event.primaryIcdCode)!==cid)return false;
     return true;
   });
   return {valid:true,events:filtered};
@@ -1669,7 +1815,7 @@ function outcomeStayStatsV70(events){
 }
 
 function destroyOutcomeChartsV70(){
-  ['outcomePalliative','outcomeLos','outcomeCid'].forEach(key=>{
+  ['outcomePalliative','outcomeLos','outcomeCid','outcomeSectorStay'].forEach(key=>{
     if(typeof destroyChartV40==='function')destroyChartV40(key);
   });
 }
@@ -1708,25 +1854,30 @@ function normalizedOutcomeIcdCodeV70(value){
 
 function outcomeCidGroupsV70(events){
   const counts=new Map();
-  events
-    .filter(event=>event.outcomeType==='death')
-    .forEach(event=>{
-      const code=normalizedOutcomeIcdCodeV70(event.primaryIcdCode);
-      if(code)counts.set(code,(counts.get(code)||0)+1);
-    });
+  events.forEach(event=>{
+    const code=normalizedOutcomeIcdCodeV70(event.primaryIcdCode);
+    if(!code)return;
+    if(!counts.has(code)){
+      counts.set(code,{code,total:0,treated:0,death:0,transferred:0});
+    }
+    const row=counts.get(code);
+    row.total+=1;
+    row[event.outcomeType]+=1;
+  });
   return [...counts]
-    .sort((left,right)=>right[1]-left[1]||left[0].localeCompare(right[0],'pt-BR',{sensitivity:'base'}));
+    .map(([,row])=>row)
+    .sort((left,right)=>right.total-left.total||left.code.localeCompare(right.code,'pt-BR',{sensitivity:'base'}));
 }
 
 function renderOutcomeCidRowsV43(events){
   const target=document.getElementById('outcomeCidRowsV43');
   if(!target)return;
   const rows=outcomeCidGroupsV70(events);
-  const deaths=events.filter(event=>event.outcomeType==='death');
-  const deathsWithCid=deaths.filter(event=>normalizedOutcomeIcdCodeV70(event.primaryIcdCode)).length;
+  const outcomesWithCid=events.filter(event=>normalizedOutcomeIcdCodeV70(event.primaryIcdCode)).length;
   target.innerHTML=rows.length
-    ?rows.map(([code,total])=>`<tr><th scope="row">${escapeHtml(code)}</th><td>${escapeHtml(total)}</td><td>${escapeHtml(outcomePercentV70(total,deathsWithCid))}</td></tr>`).join('')
-    :'<tr><td class="outcomes-empty-row-v43" colspan="3">Nenhum CID principal em formato esperado informado nos óbitos filtrados.</td></tr>';
+    ?rows.map(row=>`<tr><th scope="row">${escapeHtml(row.code)}</th><td>${escapeHtml(row.total)}</td><td>${escapeHtml(row.treated)}</td><td>${escapeHtml(row.death)}</td><td>${escapeHtml(row.transferred)}</td><td>${escapeHtml(outcomePercentV70(row.total,outcomesWithCid))}</td></tr>`).join('')
+    :'<tr><td class="outcomes-empty-row-v43" colspan="6">Nenhum CID principal em formato esperado informado nos desfechos filtrados.</td></tr>';
+  const topRows=rows.slice(0,10);
   renderOutcomeChartV70(
     'outcomeCid',
     'outcomeCidChartV70',
@@ -1734,22 +1885,26 @@ function renderOutcomeCidRowsV43(events){
     {
       type:'bar',
       data:{
-        labels:rows.slice(0,10).map(([code])=>code),
-        datasets:[{label:'Óbitos',data:rows.slice(0,10).map(([,total])=>total)}]
+        labels:topRows.map(row=>row.code),
+        datasets:[
+          {label:'Altas médicas',data:topRows.map(row=>row.treated)},
+          {label:'Óbitos',data:topRows.map(row=>row.death)},
+          {label:'Transferências externas',data:topRows.map(row=>row.transferred)}
+        ]
       },
       options:{
         indexAxis:'y',
         responsive:true,
         maintainAspectRatio:false,
-        plugins:{legend:{display:false}},
+        plugins:{legend:{labels:{color:'#dbeafe'}}},
         scales:{
-          x:{beginAtZero:true,ticks:{color:'#dbeafe',precision:0}},
-          y:{ticks:{color:'#dbeafe'}}
+          x:{beginAtZero:true,stacked:true,ticks:{color:'#dbeafe',precision:0}},
+          y:{stacked:true,ticks:{color:'#dbeafe'}}
         }
       }
     },
     rows.length>0,
-    'Nenhum CID principal em formato esperado disponível nos óbitos filtrados.'
+    'Nenhum CID principal em formato esperado disponível nos desfechos filtrados.'
   );
 }
 
@@ -1846,6 +2001,415 @@ function renderOutcomeLosByTypeV70(events){
   }).join('');
 }
 
+function ownSectorFieldV80(value,field){
+  return Object.prototype.hasOwnProperty.call(value||{},field);
+}
+
+function validSectorTrackingOriginV80(value){
+  return value==='initial_entry'||value==='baseline_observation';
+}
+
+const CANONICAL_SECTOR_NAMES_V80=Object.freeze({
+  emergencia:'Emergência',
+  observacao_sus:'Observação SUS',
+  convenio:'Convênio',
+  enfermaria:'Enfermaria',
+  uti:'UTI',
+  uti_1:'UTI 1',
+  uti_2:'UTI 2'
+});
+
+function validSectorLocationV80(location){
+  const canonicalName=CANONICAL_SECTOR_NAMES_V80[location?.sectorUnit];
+  return !!(
+    location &&
+    typeof location==='object' &&
+    location.catalogVersion===1 &&
+    typeof location.canonicalSectorId==='string' &&
+    location.canonicalSectorId.trim() &&
+    typeof location.sectorUnit==='string' &&
+    location.sectorUnit.trim() &&
+    location.canonicalSectorId===location.sectorUnit &&
+    typeof location.sectorName==='string' &&
+    location.sectorName.trim() &&
+    canonicalName &&
+    location.sectorName===canonicalName &&
+    typeof location.unit==='string' &&
+    typeof location.bed==='string'
+  );
+}
+
+function validSectorMigrationPairV80(sourceSector,targetSector){
+  return (
+    sourceSector==='observacao_sus'&&['emergencia','enfermaria'].includes(targetSector)
+  )||(
+    sourceSector==='emergencia'&&['uti_1','uti_2','observacao_sus','enfermaria'].includes(targetSector)
+  )||(
+    sourceSector==='enfermaria'&&['uti_1','uti_2','emergencia','convenio'].includes(targetSector)
+  )||(
+    sourceSector==='convenio'&&['emergencia','enfermaria','uti_1','uti_2'].includes(targetSector)
+  )||(
+    ['uti','uti_1','uti_2'].includes(sourceSector)&&targetSector==='enfermaria'
+  );
+}
+
+function sectorMovementClassificationMatchesV80(classification,sourceSector,targetSector){
+  const counterflow=['enfermaria','convenio'].includes(sourceSector)&&targetSector==='emergencia';
+  return classification===(counterflow?'counterflow_transfer':'sector_transfer');
+}
+
+function sameSectorLocationV80(left,right){
+  return validSectorLocationV80(left)&&validSectorLocationV80(right)&&[
+    'catalogVersion','canonicalSectorId','sectorUnit'
+  ].every(field=>left[field]===right[field]);
+}
+
+function outcomeMatchesSectorLocationV80(outcome,location){
+  return !!(
+    validSectorLocationV80(location) &&
+    typeof outcome?.sectorUnit==='string' &&
+    outcome.sectorUnit===location.sectorUnit
+  );
+}
+
+function validSectorTransitionFactV80(fact){
+  return !!(
+    fact &&
+    fact.schemaVersion===1 &&
+    fact.sourceVersion===SECTOR_TRANSITION_SOURCE_VERSION_V80 &&
+    fact.type==='patient_sector_transition_admin' &&
+    typeof fact.id==='string' &&
+    typeof fact.factId==='string' &&
+    fact.factId.trim() &&
+    fact.id===fact.factId &&
+    typeof fact.episodeId==='string' &&
+    fact.episodeId.trim() &&
+    typeof fact.patientId==='string' &&
+    fact.patientId.trim() &&
+    firestoreTimestampDateV46(fact.occurredAt) &&
+    typeof fact.actorUid==='string' &&
+    fact.actorUid.trim() &&
+    typeof fact.predecessorFactId==='string' &&
+    (
+      fact.movementClassification==='sector_transfer' ||
+      fact.movementClassification==='counterflow_transfer'
+    ) &&
+    validSectorTrackingOriginV80(fact.trackingOrigin) &&
+    ownSectorFieldV80(fact,'originEnteredAt') &&
+    (fact.originEnteredAt===null||firestoreTimestampDateV46(fact.originEnteredAt)) &&
+    !(
+      fact.trackingOrigin==='baseline_observation' &&
+      fact.predecessorFactId==='' &&
+      fact.originEnteredAt!==null
+    ) &&
+    validSectorLocationV80(fact.origin) &&
+    validSectorLocationV80(fact.destination) &&
+    fact.origin.sectorUnit!==fact.destination.sectorUnit &&
+    validSectorMigrationPairV80(
+      fact.origin.sectorUnit,
+      fact.destination.sectorUnit
+    ) &&
+    sectorMovementClassificationMatchesV80(
+      fact.movementClassification,
+      fact.origin.sectorUnit,
+      fact.destination.sectorUnit
+    )
+  );
+}
+
+function outcomeSectorLocationV80(outcome){
+  if(!outcome||!['sectorUnit','sectorName','unit','bed'].every(field=>typeof outcome[field]==='string')){
+    return null;
+  }
+  const sectorUnit=outcome.sectorUnit.trim();
+  const sectorName=outcome.sectorName.trim();
+  if(!sectorUnit||!sectorName)return null;
+  return {
+    catalogVersion:1,
+    canonicalSectorId:sectorUnit,
+    sectorUnit,
+    sectorName,
+    unit:outcome.unit,
+    bed:outcome.bed
+  };
+}
+
+function sectorFactIndexV80(facts){
+  const index=new Map();
+  const duplicates=new Set();
+  facts.forEach(fact=>{
+    if(typeof fact?.factId!=='string'||!fact.factId)return;
+    if(index.has(fact.factId))duplicates.add(fact.factId);
+    else index.set(fact.factId,fact);
+  });
+  duplicates.forEach(factId=>index.set(factId,null));
+  return index;
+}
+
+function unavailableSectorEpisodeV80(outcome){
+  return {
+    status:'unavailable',
+    patientId:typeof outcome?.patientId==='string'?outcome.patientId:'',
+    episodeId:typeof outcome?.episodeId==='string'?outcome.episodeId:'',
+    segments:[]
+  };
+}
+
+function reconstructSectorEpisodeV80(outcome,factsById){
+  const unavailable=()=>unavailableSectorEpisodeV80(outcome);
+  if(
+    outcome?.schemaVersion!==3 ||
+    outcome?.sectorTrackingVersion!==1 ||
+    typeof outcome?.episodeId!=='string' ||
+    !outcome.episodeId.trim() ||
+    typeof outcome?.patientId!=='string' ||
+    !outcome.patientId.trim() ||
+    !validSectorTrackingOriginV80(outcome?.sectorTrackingOrigin) ||
+    typeof outcome?.lastSectorTransitionFactId!=='string'
+  )return unavailable();
+  const outcomeAt=firestoreTimestampDateV46(outcome.createdAt);
+  const sectorEnteredAt=firestoreTimestampDateV46(outcome.sectorEnteredAt);
+  const outcomeLocation=outcomeSectorLocationV80(outcome);
+  if(!outcomeAt||!sectorEnteredAt||!outcomeLocation||sectorEnteredAt.getTime()>outcomeAt.getTime()){
+    return unavailable();
+  }
+
+  const segments=[];
+  const lastFactId=outcome.lastSectorTransitionFactId;
+  if(!lastFactId){
+    segments.push({
+      episodeId:outcome.episodeId,
+      location:outcomeLocation,
+      start:sectorEnteredAt,
+      end:outcomeAt
+    });
+    return {
+      status:outcome.sectorTrackingOrigin==='initial_entry'?'complete':'partial',
+      patientId:outcome.patientId,
+      episodeId:outcome.episodeId,
+      segments
+    };
+  }
+
+  const chain=[];
+  const visited=new Set();
+  let currentId=lastFactId;
+  while(currentId){
+    if(visited.has(currentId))return unavailable();
+    visited.add(currentId);
+    const fact=factsById.get(currentId);
+    if(!validSectorTransitionFactV80(fact))return unavailable();
+    chain.unshift(fact);
+    currentId=fact.predecessorFactId;
+  }
+  if(!chain.length||chain[chain.length-1].factId!==lastFactId)return unavailable();
+
+  for(let index=0;index<chain.length;index+=1){
+    const fact=chain[index];
+    const occurredAt=firestoreTimestampDateV46(fact.occurredAt);
+    const originEnteredAt=firestoreTimestampDateV46(fact.originEnteredAt);
+    if(
+      fact.episodeId!==outcome.episodeId ||
+      fact.patientId!==outcome.patientId ||
+      fact.trackingOrigin!==outcome.sectorTrackingOrigin ||
+      !occurredAt
+    )return unavailable();
+    if(index===0){
+      if(fact.predecessorFactId!=='')return unavailable();
+      if(outcome.sectorTrackingOrigin==='baseline_observation'){
+        if(fact.originEnteredAt!==null)return unavailable();
+      }else if(!originEnteredAt)return unavailable();
+    }else{
+      const predecessor=chain[index-1];
+      const predecessorAt=firestoreTimestampDateV46(predecessor.occurredAt);
+      if(
+        fact.predecessorFactId!==predecessor.factId ||
+        !sameSectorLocationV80(predecessor.destination,fact.origin) ||
+        !originEnteredAt ||
+        !predecessorAt ||
+        originEnteredAt.getTime()!==predecessorAt.getTime()
+      )return unavailable();
+    }
+    if(originEnteredAt){
+      if(originEnteredAt.getTime()>occurredAt.getTime())return unavailable();
+      segments.push({
+        episodeId:outcome.episodeId,
+        location:fact.origin,
+        start:originEnteredAt,
+        end:occurredAt
+      });
+    }
+  }
+
+  const lastFact=chain[chain.length-1];
+  const lastFactAt=firestoreTimestampDateV46(lastFact.occurredAt);
+  if(
+    !lastFactAt ||
+    lastFactAt.getTime()!==sectorEnteredAt.getTime() ||
+    !outcomeMatchesSectorLocationV80(outcome,lastFact.destination)
+  )return unavailable();
+  segments.push({
+    episodeId:outcome.episodeId,
+    location:lastFact.destination,
+    start:sectorEnteredAt,
+    end:outcomeAt
+  });
+  return {
+    status:outcome.sectorTrackingOrigin==='initial_entry'?'complete':'partial',
+    patientId:outcome.patientId,
+    episodeId:outcome.episodeId,
+    segments
+  };
+}
+
+function sectorEpisodeRowsV80(reconstructions){
+  const episodes=new Map();
+  reconstructions.forEach(item=>{
+      const episodeKey=`${item.patientId}\u0000${item.episodeId}`;
+      if(item.status==='unavailable'||episodes.has(episodeKey))return;
+      const sectorTotals=new Map();
+      item.segments.forEach(segment=>{
+        const milliseconds=segment.end.getTime()-segment.start.getTime();
+        if(!Number.isFinite(milliseconds)||milliseconds<0)return;
+        const hours=milliseconds/3_600_000;
+        const key=segment.location.sectorUnit;
+        if(!sectorTotals.has(key)){
+          const known=SECTORS.find(sector=>sector.unit===key);
+          sectorTotals.set(key,{
+            key,
+            label:String(known?.name||segment.location.sectorName||key).trim(),
+            hours:0
+          });
+        }
+        sectorTotals.get(key).hours+=hours;
+      });
+      episodes.set(episodeKey,sectorTotals);
+    });
+
+  const sectors=new Map();
+  episodes.forEach((sectorTotals,episodeKey)=>{
+    sectorTotals.forEach(sector=>{
+      if(!sectors.has(sector.key)){
+        sectors.set(sector.key,{key:sector.key,label:sector.label,episodeHours:new Map()});
+      }
+      sectors.get(sector.key).episodeHours.set(episodeKey,sector.hours);
+    });
+  });
+  return [...sectors.values()].map(sector=>{
+    const values=[...sector.episodeHours.values()].sort((left,right)=>left-right);
+    const total=values.reduce((sum,value)=>sum+value,0);
+    const middle=Math.floor(values.length/2);
+    const median=values.length%2
+      ?values[middle]
+      :(values[middle-1]+values[middle])/2;
+    return {
+      key:sector.key,
+      label:sector.label,
+      episodes:values.length,
+      average:total/values.length,
+      median,
+      total
+    };
+  }).sort((left,right)=>right.average-left.average||left.label.localeCompare(right.label,'pt-BR',{sensitivity:'base'}));
+}
+
+function roundedSectorHoursV80(value){
+  return Math.round((Number(value)||0)*100)/100;
+}
+
+function formatSectorHoursV80(value){
+  const hours=roundedSectorHoursV80(value);
+  const exact=`${new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(hours)} h`;
+  if(hours<24)return exact;
+  const days=Math.floor(hours/24);
+  const remainder=roundedSectorHoursV80(hours-(days*24));
+  const human=`${days} d${remainder?` ${new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(remainder)} h`:''}`;
+  return `${human} (${exact})`;
+}
+
+function setOutcomeSectorStayStateV80(state,message){
+  const element=document.getElementById('outcomeSectorStayStateV80');
+  if(!element)return;
+  element.dataset.state=state;
+  element.textContent=message;
+}
+
+function clearOutcomeSectorStayV80(){
+  if(typeof destroyChartV40==='function')destroyChartV40('outcomeSectorStay');
+  document.getElementById('outcomeSectorStayResultsV80')?.classList.add('hidden');
+  document.getElementById('outcomeSectorStayRowsV80')?.replaceChildren();
+}
+
+function renderOutcomeSectorStayV80(events){
+  clearOutcomeSectorStayV80();
+  const quality=document.getElementById('outcomeSectorStayQualityV80');
+  if(sectorTransitionLoadStateV80===HISTORY_LOAD_STATES.LOADING||sectorTransitionLoadStateV80===HISTORY_LOAD_STATES.IDLE){
+    setOutcomeSectorStayStateV80('loading','Carregando fatos de transição setorial...');
+    if(quality)quality.textContent='Cobertura em carregamento';
+    return;
+  }
+  if(sectorTransitionLoadStateV80===HISTORY_LOAD_STATES.ERROR){
+    setOutcomeSectorStayStateV80('error','Não foi possível carregar os fatos setoriais. Somente a permanência por setor foi bloqueada; os demais indicadores permanecem disponíveis.');
+    if(quality)quality.textContent='Indisponível: falha na leitura dos fatos';
+    return;
+  }
+  if(sectorTransitionLoadStateV80===HISTORY_LOAD_STATES.TRUNCATED){
+    setOutcomeSectorStayStateV80('truncated','Os fatos setoriais excedem 5.000 registros. Somente a permanência por setor foi bloqueada para evitar resultados incompletos.');
+    if(quality)quality.textContent='Indisponível: limite seguro excedido';
+    return;
+  }
+
+  const factsById=sectorFactIndexV80(allSectorTransitionFactsV80);
+  const reconstructions=events.map(event=>reconstructSectorEpisodeV80(event,factsById));
+  const complete=reconstructions.filter(item=>item.status==='complete').length;
+  const partial=reconstructions.filter(item=>item.status==='partial').length;
+  const unavailable=reconstructions.length-complete-partial;
+  const coverage=`Completa: ${complete} • Parcial: ${partial} • Indisponível: ${unavailable}`;
+  if(quality)quality.textContent=coverage;
+  setOutcomeSectorStayStateV80(
+    'ready',
+    `${coverage}. A cobertura é classificada por Desfecho elegível antes do recorte do setor percorrido.`
+  );
+
+  const selectedSector=document.getElementById('outcomeSectorV43')?.value||'all';
+  const rows=sectorEpisodeRowsV80(reconstructions)
+    .filter(row=>selectedSector==='all'||row.key===selectedSector);
+  const target=document.getElementById('outcomeSectorStayRowsV80');
+  if(target){
+    target.innerHTML=rows.length
+      ?rows.map(row=>`<tr><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.episodes)}</td><td>${escapeHtml(formatSectorHoursV80(row.average))}</td><td>${escapeHtml(formatSectorHoursV80(row.median))}</td><td>${escapeHtml(formatSectorHoursV80(row.total))}</td></tr>`).join('')
+      :'<tr><td class="outcomes-empty-row-v43" colspan="5">Nenhum segmento setorial íntegro disponível nos filtros selecionados.</td></tr>';
+  }
+  document.getElementById('outcomeSectorStayResultsV80')?.classList.remove('hidden');
+  renderOutcomeChartV70(
+    'outcomeSectorStay',
+    'outcomeSectorStayChartV80',
+    'outcomeSectorStayChartFallbackV80',
+    {
+      type:'bar',
+      data:{
+        labels:rows.map(row=>row.label),
+        datasets:[
+          {label:'Média (horas)',data:rows.map(row=>roundedSectorHoursV80(row.average))},
+          {label:'Mediana (horas)',data:rows.map(row=>roundedSectorHoursV80(row.median))}
+        ]
+      },
+      options:{
+        indexAxis:'y',
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#dbeafe'}}},
+        scales:{
+          x:{beginAtZero:true,ticks:{color:'#dbeafe'}},
+          y:{ticks:{color:'#dbeafe'}}
+        }
+      }
+    },
+    rows.length>0,
+    'Nenhuma permanência setorial íntegra nos filtros selecionados.'
+  );
+}
+
 function renderOutcomeAuditRowsV43(events){
   outcomeAuditEventsV70=[...events].sort((left,right)=>{
     const leftDate=firestoreTimestampDateV46(left.createdAt)?.getTime()||0;
@@ -1875,9 +2439,7 @@ function renderOutcomeAuditPageV70(){
         :outcomePalliativeClassificationV70(event)==='not-registered'
           ?'Sem alerta registrado'
           :'Registro indisponível';
-      const primaryIcdCode=event.outcomeType==='death'
-        ?normalizedOutcomeIcdCodeV70(event.primaryIcdCode)||'—'
-        :'—';
+      const primaryIcdCode=normalizedOutcomeIcdCodeV70(event.primaryIcdCode)||'—';
       return `<tr><td>${escapeHtml(formatOutcomeDateTimeV43(event))}</td><td>${escapeHtml(event.outcomeId||event.id||'—')}</td><th scope="row">${escapeHtml(event.patientName||'Paciente sem nome')}</th><td>${escapeHtml(OUTCOME_LABELS_V43[event.outcomeType])}</td><td>${escapeHtml(outcomeSectorLabelV43(event))}</td><td>${escapeHtml(outcomeSpecialtyV43(event)||'—')}</td><td>${escapeHtml(formatOutcomeAdmissionV43(event.admissionDate))}</td><td>${escapeHtml(stay===null?'—':`${stay} dia${stay===1?'':'s'}`)}</td><td>${escapeHtml(palliativeLabel)}</td><td>${escapeHtml(event.responsibleDoctor||'—')}</td><td>${escapeHtml(primaryIcdCode)}</td></tr>`;
     }).join('')
     :'<tr><td class="outcomes-empty-row-v43" colspan="11">Nenhum Desfecho para auditar.</td></tr>';
@@ -1907,11 +2469,9 @@ function renderOutcomeMetricsV43(events){
   const palliativeCoveragePercent=counts.death
     ?Math.round((classifiedDeaths/counts.death)*100)
     :null;
-  const deathsWithCid=events.filter(event=>(
-    event.outcomeType==='death'&&normalizedOutcomeIcdCodeV70(event.primaryIcdCode)
-  )).length;
-  const cidCoveragePercent=counts.death
-    ?Math.round((deathsWithCid/counts.death)*100)
+  const outcomesWithCid=events.filter(event=>normalizedOutcomeIcdCodeV70(event.primaryIcdCode)).length;
+  const cidCoveragePercent=counts.total
+    ?Math.round((outcomesWithCid/counts.total)*100)
     :null;
   const stayCoverage=counts.total
     ?`Cobertura: ${stayStats.valid}/${counts.total} desfechos (${stayStats.coveragePercent}%)`
@@ -1937,9 +2497,9 @@ function renderOutcomeMetricsV43(events){
   document.getElementById('outcomePalliativeQualityV70').textContent=counts.death
     ?`Cobertura: ${classifiedDeaths}/${counts.death} óbitos (${palliativeCoveragePercent}%)`
     :'Cobertura: 0/0 óbitos (—)';
-  document.getElementById('outcomeCidQualityV70').textContent=counts.death
-    ?`Cobertura: ${deathsWithCid}/${counts.death} óbitos (${cidCoveragePercent}%)`
-    :'Cobertura: 0/0 óbitos (—)';
+  document.getElementById('outcomeCidQualityV70').textContent=counts.total
+    ?`Cobertura: ${outcomesWithCid}/${counts.total} desfechos (${cidCoveragePercent}%)`
+    :'Cobertura: 0/0 desfechos (—)';
 }
 
 function renderOutcomesV43(){
@@ -1972,12 +2532,15 @@ function renderOutcomesV43(){
     return;
   }
   const filtered=filteredOutcomeEventsV43(allOutcomes);
-  if(!filtered.valid){
+  const sectorMetricFiltered=filteredOutcomeEventsV43(allOutcomes,{ignoreSector:true});
+  if(!filtered.valid||!sectorMetricFiltered.valid){
     clearOutcomeResultsV43(false);
     setOutcomeViewStateV43(OUTCOME_VIEW_STATES_V43.ERROR,'A data inicial não pode ser posterior à data final.');
     return;
   }
-  if(!filtered.events.length){
+  const selectedSector=document.getElementById('outcomeSectorV43')?.value||'all';
+  const canShowSectorJourney=selectedSector!=='all'&&sectorMetricFiltered.events.length>0;
+  if(!filtered.events.length&&!canShowSectorJourney){
     clearOutcomeResultsV43(false);
     setOutcomeViewStateV43(OUTCOME_VIEW_STATES_V43.FILTER_EMPTY,'Nenhum Desfecho corresponde aos filtros selecionados.');
     return;
@@ -1986,6 +2549,7 @@ function renderOutcomesV43(){
   renderOutcomePalliativeV70(filtered.events);
   renderOutcomeLosV70(filtered.events);
   renderOutcomeLosByTypeV70(filtered.events);
+  renderOutcomeSectorStayV80(sectorMetricFiltered.events);
   renderOutcomeBreakdownRowsV43(
     'outcomeSectorRowsV43',
     groupedOutcomeRowsV43(filtered.events,outcomeSectorKeyV43,outcomeSectorLabelV43)
@@ -1997,12 +2561,17 @@ function renderOutcomesV43(){
   renderOutcomeCidRowsV43(filtered.events);
   renderOutcomeAuditRowsV43(filtered.events);
   document.getElementById('outcomesResultsV43')?.classList.remove('hidden');
-  setOutcomeViewStateV43(OUTCOME_VIEW_STATES_V43.READY,`${filtered.events.length} Desfecho${filtered.events.length===1?'':'s'} encontrado${filtered.events.length===1?'':'s'} nos filtros selecionados.`);
+  setOutcomeViewStateV43(
+    OUTCOME_VIEW_STATES_V43.READY,
+    filtered.events.length
+      ?`${filtered.events.length} Desfecho${filtered.events.length===1?'':'s'} encontrado${filtered.events.length===1?'':'s'} nos filtros selecionados.`
+      :'Nenhum Desfecho encerrou no setor selecionado; a permanência setorial considera o mesmo setor ao longo das trajetórias elegíveis pelos demais filtros.'
+  );
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
   initializeOutcomeDatesV43();
-  ['outcomeStartV43','outcomeEndV43','outcomeSectorV43','outcomeSpecialtyV43','outcomeTypeV43','outcomePalliativeV70'].forEach(id=>{
+  ['outcomeStartV43','outcomeEndV43','outcomeSectorV43','outcomeSpecialtyV43','outcomeTypeV43','outcomePalliativeV70','outcomeCidV80'].forEach(id=>{
     document.getElementById(id)?.addEventListener('change',()=>{
       outcomeAuditPageV70=1;
       renderOutcomesV43();

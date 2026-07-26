@@ -31,6 +31,64 @@ service cloud.firestore {
       ];
     }
 
+    function expectedEpisodeId(patientId) {
+      return 'patient_episode_' + patientId;
+    }
+
+    function patientNameValue(data) {
+      return (
+          data.keys().hasAll(['name'])
+          && data.name is string
+        )
+        ? data.name
+        : '';
+    }
+
+    function patientSpecialtyValue(data) {
+      return (
+          data.keys().hasAll(['specialty'])
+          && data.specialty is string
+        )
+        ? data.specialty
+        : '';
+    }
+
+    function patientAdmissionDateValue(data) {
+      return (
+          data.keys().hasAll(['admissionDate'])
+          && data.admissionDate is string
+        )
+        ? data.admissionDate
+        : '';
+    }
+
+    function patientStatusValue(data) {
+      return (
+          data.keys().hasAll(['status'])
+          && data.status is string
+        )
+        ? data.status
+        : '';
+    }
+
+    function patientSeverityValue(data) {
+      return (
+          data.keys().hasAll(['severity'])
+          && data.severity is string
+        )
+        ? data.severity
+        : '';
+    }
+
+    function patientAlertsValue(data) {
+      return (
+          data.keys().hasAll(['alerts'])
+          && data.alerts is list
+        )
+        ? data.alerts
+        : [];
+    }
+
     function isOutcomeType(outcomeType) {
       return outcomeType in ['treated', 'death', 'transferred'];
     }
@@ -38,7 +96,7 @@ service cloud.firestore {
     function outcomeLabelMatches(outcomeType, outcomeLabel) {
       return (
           outcomeType == 'treated'
-          && outcomeLabel == 'Tratado'
+          && outcomeLabel == 'Alta médica'
         )
         || (
           outcomeType == 'death'
@@ -46,23 +104,14 @@ service cloud.firestore {
         )
         || (
           outcomeType == 'transferred'
-          && outcomeLabel == 'Transferido'
+          && outcomeLabel == 'Transferência externa'
         );
     }
 
-    function validPrimaryIcdCode(outcomeType, code) {
+    function validPrimaryIcdCode(code) {
       return code is string
-        && (
-          (
-            outcomeType == 'death'
-            && code.size() <= 8
-            && code.matches('^[A-Z][0-9]{2}(\\.[A-Z0-9]{1,4})?$')
-          )
-          || (
-            outcomeType != 'death'
-            && code == ''
-          )
-        );
+        && code.size() <= 8
+        && code.matches('^[A-Z][0-9]{2}(\\.[A-Z0-9]{1,4})?$');
     }
 
     function validOutcomeAdmissionDate(value) {
@@ -91,41 +140,178 @@ service cloud.firestore {
       return /databases/$(database)/documents/admin_outcomes/$(outcomeId);
     }
 
-    function validClosedPatient(data, sectorUnit, patientId) {
+    function sectorTransitionPath(factId) {
+      return /databases/$(database)/documents/admin_sector_transitions/$(factId);
+    }
+
+    function hasAnyPatientTrackingFields(data) {
+      return data.keys().hasAny([
+        'sectorTrackingVersion',
+        'episodeId',
+        'sectorTrackingOrigin',
+        'lastSectorTransitionFactId',
+        'sectorEnteredAt'
+      ]);
+    }
+
+    function hasAllPatientTrackingFields(data) {
       return data.keys().hasAll([
-          'schemaVersion',
-          'type',
-          'patientId',
-          'sectorUnit',
-          'outcomeId',
-          'outcomeType',
-          'closedAt',
-          'closedByUid'
-        ])
-        && data.keys().hasOnly([
-          'schemaVersion',
-          'type',
-          'patientId',
-          'sectorUnit',
-          'outcomeId',
-          'outcomeType',
-          'closedAt',
-          'closedByUid'
-        ])
-        && data.schemaVersion == 1
-        && data.type == 'patient_closed'
-        && data.patientId == patientId
-        && data.sectorUnit == sectorUnit
-        && data.outcomeId is string
+        'sectorTrackingVersion',
+        'episodeId',
+        'sectorTrackingOrigin',
+        'lastSectorTransitionFactId',
+        'sectorEnteredAt'
+      ]);
+    }
+
+    function hasNoPatientTrackingFields(data) {
+      return !hasAnyPatientTrackingFields(data);
+    }
+
+    function isTrackingOrigin(value) {
+      return value in ['initial_entry', 'baseline_observation'];
+    }
+
+    function validTrackedPatient(data) {
+      return hasAllPatientTrackingFields(data)
+        && data.sectorTrackingVersion == 1
+        && data.episodeId is string
+        && data.episodeId.size() > 0
+        && data.episodeId.size() <= 512
+        && isTrackingOrigin(data.sectorTrackingOrigin)
+        && data.lastSectorTransitionFactId is string
+        && data.lastSectorTransitionFactId.size() <= 512
+        && data.sectorEnteredAt is timestamp;
+    }
+
+    function validInitialPatientCreate(data, patientId) {
+      return validTrackedPatient(data)
+        && data.keys().hasAll(['id'])
+        && data.id == patientId
+        && data.episodeId == expectedEpisodeId(patientId)
+        && data.sectorTrackingOrigin == 'initial_entry'
+        && data.lastSectorTransitionFactId == ''
+        && data.sectorEnteredAt == request.time;
+    }
+
+    function validRegularPatientUpdate(before, after, patientId) {
+      return before.keys().hasAll(['id'])
+        && after.keys().hasAll(['id'])
+        && before.id == patientId
+        && after.id == patientId
+        && (
+          (
+            validTrackedPatient(before)
+            && validTrackedPatient(after)
+            && after.sectorTrackingVersion == before.sectorTrackingVersion
+            && after.episodeId == before.episodeId
+            && after.sectorTrackingOrigin == before.sectorTrackingOrigin
+            && after.lastSectorTransitionFactId
+              == before.lastSectorTransitionFactId
+            && after.sectorEnteredAt == before.sectorEnteredAt
+          )
+          || (
+            hasNoPatientTrackingFields(before)
+            && hasNoPatientTrackingFields(after)
+          )
+        );
+    }
+
+    function outcomeTrackingMatchesActivePatient(outcome, activePath) {
+      let patient = get(activePath).data;
+      return (
+          validTrackedPatient(patient)
+          && {
+            'sectorTrackingVersion': outcome.sectorTrackingVersion,
+            'episodeId': outcome.episodeId,
+            'sectorTrackingOrigin': outcome.sectorTrackingOrigin,
+            'lastSectorTransitionFactId':
+              outcome.lastSectorTransitionFactId,
+            'sectorEnteredAt': outcome.sectorEnteredAt
+          } == {
+            'sectorTrackingVersion': patient.sectorTrackingVersion,
+            'episodeId': patient.episodeId,
+            'sectorTrackingOrigin': patient.sectorTrackingOrigin,
+            'lastSectorTransitionFactId':
+              patient.lastSectorTransitionFactId,
+            'sectorEnteredAt': patient.sectorEnteredAt
+          }
+        )
+        || (
+          hasNoPatientTrackingFields(patient)
+          && {
+            'sectorTrackingVersion': outcome.sectorTrackingVersion,
+            'episodeId': outcome.episodeId,
+            'sectorTrackingOrigin': outcome.sectorTrackingOrigin,
+            'lastSectorTransitionFactId':
+              outcome.lastSectorTransitionFactId,
+            'sectorEnteredAt': outcome.sectorEnteredAt
+          } == {
+            'sectorTrackingVersion': 0,
+            'episodeId': '',
+            'sectorTrackingOrigin': '',
+            'lastSectorTransitionFactId': '',
+            'sectorEnteredAt': null
+          }
+        );
+    }
+
+    function patientOutcomeDimensions(data) {
+      return {
+        'patientId': data.id,
+        'patientName': patientNameValue(data),
+        'specialty': patientSpecialtyValue(data),
+        'admissionDate': patientAdmissionDateValue(data),
+        'unit': patientLocationUnit(data),
+        'bed': patientLocationBed(data),
+        'status': patientStatusValue(data),
+        'severity': patientSeverityValue(data),
+        'alerts': patientAlertsValue(data)
+      };
+    }
+
+    function outcomeDimensions(outcome) {
+      return {
+        'patientId': outcome.patientId,
+        'patientName': outcome.patientName,
+        'specialty': outcome.specialty,
+        'admissionDate': outcome.admissionDate,
+        'unit': outcome.unit,
+        'bed': outcome.bed,
+        'status': outcome.status,
+        'severity': outcome.severity,
+        'alerts': outcome.alerts
+      };
+    }
+
+    function outcomeEssentialFieldsMatchActivePatient(outcome, activePath) {
+      let patient = get(activePath).data;
+      let patientDimensions = patientOutcomeDimensions(patient);
+      return patient.keys().hasAll(['id'])
+        && patient.id == outcome.patientId
+        && outcome.patientSnapshot == patient
+        && outcomeDimensions(outcome) == patientDimensions;
+    }
+
+    function validClosedPatient(data, sectorUnit, patientId) {
+      return data.outcomeId is string
         && data.outcomeId.size() > 0
         && data.outcomeId.size() <= 512
         && isOutcomeType(data.outcomeType)
-        && data.closedAt == request.time
-        && data.closedByUid == request.auth.uid;
+        && data == {
+          'schemaVersion': 1,
+          'type': 'patient_closed',
+          'patientId': patientId,
+          'sectorUnit': sectorUnit,
+          'outcomeId': data.outcomeId,
+          'outcomeType': data.outcomeType,
+          'closedAt': request.time,
+          'closedByUid': request.auth.uid
+        };
     }
 
     function validOutcome(data, outcomeId) {
-      return data.keys().hasAll([
+      return data.keys().hasOnly([
           'schemaVersion',
           'sourceVersion',
           'outcomeId',
@@ -149,12 +335,17 @@ service cloud.firestore {
           'actor',
           'actorUid',
           'primaryIcdCode',
+          'sectorTrackingVersion',
+          'episodeId',
+          'sectorTrackingOrigin',
+          'lastSectorTransitionFactId',
+          'sectorEnteredAt',
           'status',
           'severity',
           'alerts',
           'patientSnapshot'
         ])
-        && data.schemaVersion == 1
+        && data.schemaVersion == 2
         && data.sourceVersion is string
         && data.sourceVersion.size() > 0
         && data.outcomeId == outcomeId
@@ -167,18 +358,12 @@ service cloud.firestore {
         && data.createdAt == request.time
         && data.createdAtLocal is string
         && data.createdAtLocal.size() > 0
-        && data.dateLocal is string
         && data.dateLocal.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && data.patientId is string
         && data.patientId.size() > 0
-        && data.patientName is string
         && data.patientName.size() > 0
         && isKnownSector(data.sectorUnit)
-        && data.sectorName is string
-        && data.sectorName.size() > 0
-        && data.unit is string
-        && data.bed is string
-        && data.specialty is string
+        && sectorNameMatches(data.sectorUnit, data.sectorName)
         && validOutcomeAdmissionDate(data.admissionDate)
         && (
           data.lengthOfStayDays == null
@@ -188,111 +373,11 @@ service cloud.firestore {
           )
         )
         && data.lengthOfStayMethod == 'inclusive_calendar_days'
-        && data.responsibleDoctor is string
         && data.responsibleDoctor.matches('.*\\S.*')
         && data.actor == data.responsibleDoctor
         && data.actorUid == request.auth.uid
-        && validPrimaryIcdCode(data.outcomeType, data.primaryIcdCode)
-        && data.status is string
-        && data.severity is string
-        && data.alerts is list
-        && data.patientSnapshot is map
-        && data.patientSnapshot.id == data.patientId;
-    }
-
-    function validAdminOutcome(data, outcomeId) {
-      return data.keys().hasAll([
-          'schemaVersion',
-          'sourceVersion',
-          'type',
-          'outcomeId',
-          'outcomeType',
-          'outcomeLabel',
-          'createdAt',
-          'patientId',
-          'patientName',
-          'sectorUnit',
-          'sectorName',
-          'unit',
-          'bed',
-          'specialty',
-          'admissionDate',
-          'lengthOfStayDays',
-          'lengthOfStayMethod',
-          'responsibleDoctor',
-          'primaryIcdCode',
-          'actorUid'
-        ])
-        && data.keys().hasOnly([
-          'schemaVersion',
-          'sourceVersion',
-          'type',
-          'outcomeId',
-          'outcomeType',
-          'outcomeLabel',
-          'createdAt',
-          'patientId',
-          'patientName',
-          'sectorUnit',
-          'sectorName',
-          'unit',
-          'bed',
-          'specialty',
-          'admissionDate',
-          'lengthOfStayDays',
-          'lengthOfStayMethod',
-          'responsibleDoctor',
-          'primaryIcdCode',
-          'palliativeAlertPresentAtOutcome',
-          'actorUid'
-        ])
-        && data.schemaVersion == 2
-        && data.keys().hasAll(['palliativeAlertPresentAtOutcome'])
-        && data.palliativeAlertPresentAtOutcome is bool
-        && data.sourceVersion is string
-        && data.sourceVersion.size() > 0
-        && data.type == 'patient_outcome_admin'
-        && data.outcomeId == outcomeId
-        && outcomeId.matches(
-          '^patient_outcome_' + data.sectorUnit + '_.*'
-        )
-        && isOutcomeType(data.outcomeType)
-        && outcomeLabelMatches(data.outcomeType, data.outcomeLabel)
-        && data.createdAt == request.time
-        && data.patientId is string
-        && data.patientId.size() > 0
-        && data.patientName is string
-        && data.patientName.size() > 0
-        && isKnownSector(data.sectorUnit)
-        && data.sectorName is string
-        && data.sectorName.size() > 0
-        && data.unit is string
-        && data.bed is string
-        && data.specialty is string
-        && validOutcomeAdmissionDate(data.admissionDate)
-        && (
-          data.lengthOfStayDays == null
-          || (
-            data.lengthOfStayDays is int
-            && data.lengthOfStayDays >= 1
-          )
-        )
-        && data.lengthOfStayMethod == 'inclusive_calendar_days'
-        && data.responsibleDoctor is string
-        && data.responsibleDoctor.matches('.*\\S.*')
-        && validPrimaryIcdCode(data.outcomeType, data.primaryIcdCode)
-        && data.actorUid == request.auth.uid;
-    }
-
-    function hasPalliativeAlert(data) {
-      return data.keys().hasAll(['alerts'])
-        && data.alerts is list
-        && data.alerts.hasAny(['Paliativo']);
-    }
-
-    function outcomePalliativeMatchesActivePatient(outcome, activePath) {
-      return outcome.alerts.hasAny(['Paliativo'])
-        == hasPalliativeAlert(get(activePath).data);
+        && validPrimaryIcdCode(data.primaryIcdCode)
+        && data.patientSnapshot is map;
     }
 
     function markerMatchesOutcome(marker, outcome) {
@@ -304,28 +389,37 @@ service cloud.firestore {
     }
 
     function adminProjectionMatchesOutcome(projection, outcome) {
-      return projection.schemaVersion == 2
-        && outcome.schemaVersion == 1
-        && projection.palliativeAlertPresentAtOutcome
-          == outcome.alerts.hasAny(['Paliativo'])
-        && projection.sourceVersion == outcome.sourceVersion
-        && projection.outcomeId == outcome.outcomeId
-        && projection.outcomeType == outcome.outcomeType
-        && projection.outcomeLabel == outcome.outcomeLabel
-        && projection.createdAt == outcome.createdAt
-        && projection.patientId == outcome.patientId
-        && projection.patientName == outcome.patientName
-        && projection.sectorUnit == outcome.sectorUnit
-        && projection.sectorName == outcome.sectorName
-        && projection.unit == outcome.unit
-        && projection.bed == outcome.bed
-        && projection.specialty == outcome.specialty
-        && projection.admissionDate == outcome.admissionDate
-        && projection.lengthOfStayDays == outcome.lengthOfStayDays
-        && projection.lengthOfStayMethod == outcome.lengthOfStayMethod
-        && projection.responsibleDoctor == outcome.responsibleDoctor
-        && projection.primaryIcdCode == outcome.primaryIcdCode
-        && projection.actorUid == outcome.actorUid;
+      return outcome.schemaVersion == 2
+        && projection == {
+          'schemaVersion': 3,
+          'sourceVersion': outcome.sourceVersion,
+          'type': 'patient_outcome_admin',
+          'outcomeId': outcome.outcomeId,
+          'outcomeType': outcome.outcomeType,
+          'outcomeLabel': outcome.outcomeLabel,
+          'createdAt': outcome.createdAt,
+          'patientId': outcome.patientId,
+          'patientName': outcome.patientName,
+          'sectorUnit': outcome.sectorUnit,
+          'sectorName': outcome.sectorName,
+          'unit': outcome.unit,
+          'bed': outcome.bed,
+          'specialty': outcome.specialty,
+          'admissionDate': outcome.admissionDate,
+          'lengthOfStayDays': outcome.lengthOfStayDays,
+          'lengthOfStayMethod': outcome.lengthOfStayMethod,
+          'responsibleDoctor': outcome.responsibleDoctor,
+          'primaryIcdCode': outcome.primaryIcdCode,
+          'palliativeAlertPresentAtOutcome':
+            outcome.alerts.hasAny(['Paliativo']),
+          'sectorTrackingVersion': outcome.sectorTrackingVersion,
+          'episodeId': outcome.episodeId,
+          'sectorTrackingOrigin': outcome.sectorTrackingOrigin,
+          'lastSectorTransitionFactId':
+            outcome.lastSectorTransitionFactId,
+          'sectorEnteredAt': outcome.sectorEnteredAt,
+          'actorUid': outcome.actorUid
+        };
     }
 
     function isAtomicOutcomeCreate(outcomeId) {
@@ -336,63 +430,35 @@ service cloud.firestore {
       return isSignedIn()
         && validOutcome(outcome, outcomeId)
         && exists(activePath)
-        && outcomePalliativeMatchesActivePatient(outcome, activePath)
+        && outcomeEssentialFieldsMatchActivePatient(
+          outcome,
+          activePath
+        )
+        && outcomeTrackingMatchesActivePatient(outcome, activePath)
         && !existsAfter(activePath)
         && !exists(markerPath)
         && existsAfter(markerPath)
-        && markerMatchesOutcome(getAfter(markerPath).data, outcome)
         && !exists(projectionPath)
-        && existsAfter(projectionPath)
-        && adminProjectionMatchesOutcome(
-          getAfter(projectionPath).data,
-          outcome
-        );
+        && existsAfter(projectionPath);
     }
 
     function isAtomicClosedPatientCreate(sectorUnit, patientId) {
       let marker = request.resource.data;
-      let activePath = patientPath(sectorUnit, patientId);
       let historyPath = outcomePath(marker.outcomeId);
-      let projectionPath = adminOutcomePath(marker.outcomeId);
       return isSignedIn()
         && isKnownSector(sectorUnit)
         && validClosedPatient(marker, sectorUnit, patientId)
-        && exists(activePath)
-        && !existsAfter(activePath)
         && !exists(historyPath)
         && existsAfter(historyPath)
-        && markerMatchesOutcome(marker, getAfter(historyPath).data)
-        && !exists(projectionPath)
-        && existsAfter(projectionPath)
-        && adminProjectionMatchesOutcome(
-          getAfter(projectionPath).data,
-          getAfter(historyPath).data
-        );
+        && markerMatchesOutcome(marker, getAfter(historyPath).data);
     }
 
     function isAtomicAdminOutcomeCreate(outcomeId) {
       let projection = request.resource.data;
-      let activePath = patientPath(
-        projection.sectorUnit,
-        projection.patientId
-      );
-      let markerPath = closedPatientPath(
-        projection.sectorUnit,
-        projection.patientId
-      );
       let historyPath = outcomePath(outcomeId);
       return isSignedIn()
-        && validAdminOutcome(projection, outcomeId)
-        && exists(activePath)
-        && !existsAfter(activePath)
-        && !exists(markerPath)
-        && existsAfter(markerPath)
         && !exists(historyPath)
         && existsAfter(historyPath)
-        && markerMatchesOutcome(
-          getAfter(markerPath).data,
-          getAfter(historyPath).data
-        )
         && adminProjectionMatchesOutcome(
           projection,
           getAfter(historyPath).data
@@ -405,23 +471,7 @@ service cloud.firestore {
         && existsAfter(markerPath)
         && getAfter(markerPath).data.type == 'patient_closed'
         && getAfter(markerPath).data.patientId == patientId
-        && getAfter(markerPath).data.sectorUnit == sectorUnit
-        && !exists(outcomePath(getAfter(markerPath).data.outcomeId))
-        && existsAfter(outcomePath(getAfter(markerPath).data.outcomeId))
-        && markerMatchesOutcome(
-          getAfter(markerPath).data,
-          getAfter(outcomePath(getAfter(markerPath).data.outcomeId)).data
-        )
-        && !exists(adminOutcomePath(getAfter(markerPath).data.outcomeId))
-        && existsAfter(
-          adminOutcomePath(getAfter(markerPath).data.outcomeId)
-        )
-        && adminProjectionMatchesOutcome(
-          getAfter(
-            adminOutcomePath(getAfter(markerPath).data.outcomeId)
-          ).data,
-          getAfter(outcomePath(getAfter(markerPath).data.outcomeId)).data
-        );
+        && getAfter(markerPath).data.sectorUnit == sectorUnit;
     }
 
     function validConfirmation(data, sectorUnit) {
@@ -660,23 +710,355 @@ service cloud.firestore {
         );
     }
 
-    function isMigrationDestinationAfter(sourceSector, targetSector, patientId) {
-      let targetPath = patientPath(targetSector, patientId);
-      return isValidMigrationPair(sourceSector, targetSector)
+    function sectorNameMatches(sectorUnit, sectorName) {
+      return (
+          sectorUnit == 'emergencia'
+          && sectorName == 'Emergência'
+        )
+        || (
+          sectorUnit == 'observacao_sus'
+          && sectorName == 'Observação SUS'
+        )
+        || (
+          sectorUnit == 'convenio'
+          && sectorName == 'Convênio'
+        )
+        || (
+          sectorUnit == 'enfermaria'
+          && sectorName == 'Enfermaria'
+        )
+        || (
+          sectorUnit == 'uti'
+          && sectorName == 'UTI'
+        )
+        || (
+          sectorUnit == 'uti_1'
+          && sectorName == 'UTI 1'
+        )
+        || (
+          sectorUnit == 'uti_2'
+          && sectorName == 'UTI 2'
+        );
+    }
+
+    function patientLocationUnit(data) {
+      return (
+          data.keys().hasAll(['inpatientUnit'])
+          && data.inpatientUnit is string
+          && data.inpatientUnit.size() > 0
+        )
+        ? data.inpatientUnit
+        : (
+            data.keys().hasAll(['wardUnit'])
+            && data.wardUnit is string
+            && data.wardUnit.size() > 0
+          )
+          ? data.wardUnit
+          : (
+              data.keys().hasAll(['unit'])
+              && data.unit is string
+              && data.unit.size() > 0
+            )
+            ? data.unit
+            : (
+                data.keys().hasAll(['obsLocation'])
+                && data.obsLocation is string
+              )
+              ? data.obsLocation
+              : '';
+    }
+
+    function patientLocationBed(data) {
+      return (
+          data.keys().hasAll(['bed'])
+          && data.bed is string
+        )
+        ? data.bed
+        : '';
+    }
+
+    function validTransitionLocation(location) {
+      return location is map
+        && location.keys().hasOnly([
+          'catalogVersion',
+          'canonicalSectorId',
+          'sectorUnit',
+          'sectorName',
+          'unit',
+          'bed'
+        ])
+        && location.catalogVersion == 1
+        && location.canonicalSectorId is string
+        && location.canonicalSectorId == location.sectorUnit
+        && isKnownSector(location.sectorUnit)
+        && sectorNameMatches(location.sectorUnit, location.sectorName)
+        && location.unit is string
+        && location.bed is string;
+    }
+
+    function transitionLocationMatchesPatient(location, sectorUnit, patient) {
+      return validTransitionLocation(location)
+        && location.sectorUnit == sectorUnit
+        && location.unit == patientLocationUnit(patient)
+        && location.bed == patientLocationBed(patient);
+    }
+
+    function movementClassificationMatches(
+      movementClassification,
+      sourceSector,
+      targetSector
+    ) {
+      return (
+          sourceSector in ['enfermaria', 'convenio']
+          && targetSector == 'emergencia'
+          && movementClassification == 'counterflow_transfer'
+        )
+        || (
+          !(
+            sourceSector in ['enfermaria', 'convenio']
+            && targetSector == 'emergencia'
+          )
+          && movementClassification == 'sector_transfer'
+        );
+    }
+
+    function validSectorTransitionFact(data, factId) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'sourceVersion',
+          'type',
+          'factId',
+          'episodeId',
+          'patientId',
+          'occurredAt',
+          'actorUid',
+          'predecessorFactId',
+          'movementClassification',
+          'trackingOrigin',
+          'originEnteredAt',
+          'origin',
+          'destination'
+        ])
+        && data.schemaVersion == 1
+        && data.sourceVersion
+          == 'FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS'
+        && data.type == 'patient_sector_transition_admin'
+        && data.factId == factId
+        && data.factId.size() > 0
+        && data.factId.size() <= 512
+        && data.patientId.size() > 0
+        && data.occurredAt == request.time
+        && data.actorUid == request.auth.uid
+        && isValidMigrationPair(
+          data.origin.sectorUnit,
+          data.destination.sectorUnit
+        )
+        && movementClassificationMatches(
+          data.movementClassification,
+          data.origin.sectorUnit,
+          data.destination.sectorUnit
+        );
+    }
+
+    function transitionTrackingMatchesSource(fact, source) {
+      return (
+          validTrackedPatient(source)
+          && {
+            'episodeId': fact.episodeId,
+            'predecessorFactId': fact.predecessorFactId,
+            'trackingOrigin': fact.trackingOrigin,
+            'originEnteredAt': fact.originEnteredAt
+          } == {
+            'episodeId': source.episodeId,
+            'predecessorFactId': source.lastSectorTransitionFactId,
+            'trackingOrigin': source.sectorTrackingOrigin,
+            'originEnteredAt': source.sectorEnteredAt
+          }
+        )
+        || (
+          hasNoPatientTrackingFields(source)
+          && {
+            'episodeId': fact.episodeId,
+            'predecessorFactId': fact.predecessorFactId,
+            'trackingOrigin': fact.trackingOrigin,
+            'originEnteredAt': fact.originEnteredAt
+          } == {
+            'episodeId': expectedEpisodeId(fact.patientId),
+            'predecessorFactId': '',
+            'trackingOrigin': 'baseline_observation',
+            'originEnteredAt': null
+          }
+        );
+    }
+
+    function transitionTargetMatchesFact(fact, factId, target) {
+      return target.keys().hasAll(['id', 'migratedFrom', 'migratedTo'])
+        && target.id == fact.patientId
+        && target.migratedFrom == fact.origin.sectorUnit
+        && target.migratedTo == fact.destination.sectorUnit
+        && validTrackedPatient(target)
+        && {
+          'episodeId': target.episodeId,
+          'sectorTrackingOrigin': target.sectorTrackingOrigin,
+          'lastSectorTransitionFactId':
+            target.lastSectorTransitionFactId,
+          'sectorEnteredAt': target.sectorEnteredAt
+        } == {
+          'episodeId': fact.episodeId,
+          'sectorTrackingOrigin': fact.trackingOrigin,
+          'lastSectorTransitionFactId': factId,
+          'sectorEnteredAt': request.time
+        }
+        && transitionLocationMatchesPatient(
+          fact.destination,
+          fact.destination.sectorUnit,
+          target
+        );
+    }
+
+    function isAtomicSectorTransition(fact, factId) {
+      let sourcePath = patientPath(
+        fact.origin.sectorUnit,
+        fact.patientId
+      );
+      let targetPath = patientPath(
+        fact.destination.sectorUnit,
+        fact.patientId
+      );
+      return isSignedIn()
+        && validSectorTransitionFact(fact, factId)
+        && exists(sourcePath)
+        && get(sourcePath).data.id == fact.patientId
+        && !existsAfter(sourcePath)
         && !exists(targetPath)
         && existsAfter(targetPath)
-        && getAfter(targetPath).data.migratedFrom == sourceSector
-        && getAfter(targetPath).data.migratedTo == targetSector;
+        && transitionLocationMatchesPatient(
+          fact.origin,
+          fact.origin.sectorUnit,
+          get(sourcePath).data
+        )
+        && transitionTrackingMatchesSource(
+          fact,
+          get(sourcePath).data
+        )
+        && transitionTargetMatchesFact(
+          fact,
+          factId,
+          getAfter(targetPath).data
+        );
+    }
+
+    function migrationFactBindsDocument(
+      fact,
+      factId,
+      patientId,
+      sourceSector,
+      targetSector
+    ) {
+      return fact.factId == factId
+        && fact.patientId == patientId
+        && fact.origin.sectorUnit == sourceSector
+        && fact.destination.sectorUnit == targetSector;
+    }
+
+    function migrationDestinationMatchesSource(
+      sourceSector,
+      targetSector,
+      patientId,
+      target
+    ) {
+      return target.id == patientId
+        && target.migratedFrom == sourceSector
+        && target.migratedTo == targetSector;
+    }
+
+    function isMigrationDestinationAfter(sourceSector, targetSector, patientId) {
+      let targetPath = patientPath(targetSector, patientId);
+      return !exists(targetPath)
+        && existsAfter(targetPath)
+        && migrationDestinationMatchesSource(
+          sourceSector,
+          targetSector,
+          patientId,
+          getAfter(targetPath).data
+        );
     }
 
     function isValidMigrationDelete(sourceSector, patientId) {
-      return isMigrationDestinationAfter(sourceSector, 'emergencia', patientId)
-        || isMigrationDestinationAfter(sourceSector, 'observacao_sus', patientId)
-        || isMigrationDestinationAfter(sourceSector, 'convenio', patientId)
-        || isMigrationDestinationAfter(sourceSector, 'enfermaria', patientId)
-        || isMigrationDestinationAfter(sourceSector, 'uti', patientId)
-        || isMigrationDestinationAfter(sourceSector, 'uti_1', patientId)
-        || isMigrationDestinationAfter(sourceSector, 'uti_2', patientId);
+      return (
+          sourceSector == 'observacao_sus'
+          && (
+            isMigrationDestinationAfter(
+              sourceSector,
+              'emergencia',
+              patientId
+            )
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'enfermaria',
+              patientId
+            )
+          )
+        )
+        || (
+          sourceSector == 'emergencia'
+          && (
+            isMigrationDestinationAfter(sourceSector, 'uti_1', patientId)
+            || isMigrationDestinationAfter(sourceSector, 'uti_2', patientId)
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'observacao_sus',
+              patientId
+            )
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'enfermaria',
+              patientId
+            )
+          )
+        )
+        || (
+          sourceSector == 'enfermaria'
+          && (
+            isMigrationDestinationAfter(sourceSector, 'uti_1', patientId)
+            || isMigrationDestinationAfter(sourceSector, 'uti_2', patientId)
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'emergencia',
+              patientId
+            )
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'convenio',
+              patientId
+            )
+          )
+        )
+        || (
+          sourceSector == 'convenio'
+          && (
+            isMigrationDestinationAfter(
+              sourceSector,
+              'emergencia',
+              patientId
+            )
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'enfermaria',
+              patientId
+            )
+            || isMigrationDestinationAfter(sourceSector, 'uti_1', patientId)
+            || isMigrationDestinationAfter(sourceSector, 'uti_2', patientId)
+          )
+        )
+        || (
+          sourceSector in ['uti', 'uti_1', 'uti_2']
+          && isMigrationDestinationAfter(
+            sourceSector,
+            'enfermaria',
+            patientId
+          )
+        );
     }
 
     function hasMigrationFields(data) {
@@ -685,13 +1067,22 @@ service cloud.firestore {
 
     function isValidMigrationCreate(targetSector, patientId) {
       let sourceSector = request.resource.data.migratedFrom;
-      let sourcePath = patientPath(sourceSector, patientId);
-      return request.resource.data.migratedFrom is string
+      let factId = request.resource.data.lastSectorTransitionFactId;
+      let factPath = sectorTransitionPath(factId);
+      return request.resource.data.id == patientId
         && request.resource.data.migratedTo == targetSector
-        && isKnownSector(sourceSector)
-        && isValidMigrationPair(sourceSector, targetSector)
-        && exists(sourcePath)
-        && !existsAfter(sourcePath);
+        && !existsAfter(closedPatientPath(sourceSector, patientId))
+        && !existsAfter(closedPatientPath(targetSector, patientId))
+        && factId.size() > 0
+        && !exists(factPath)
+        && existsAfter(factPath)
+        && migrationFactBindsDocument(
+          getAfter(factPath).data,
+          factId,
+          patientId,
+          sourceSector,
+          targetSector
+        );
     }
 
     function hasNoClosedMarkerAfter(patientId) {
@@ -749,6 +1140,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /admin_sector_transitions/{factId} {
+      allow get, list: if isHistoryAdmin();
+      allow create: if isAtomicSectorTransition(
+        request.resource.data,
+        factId
+      );
+      allow update, delete: if false;
+    }
+
     match /connect_hub_v55/{sectorUnit}/closed_patients/{patientId} {
       allow get: if isSignedIn();
       allow list: if isHistoryAdmin();
@@ -761,14 +1161,28 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isKnownSector(sectorUnit)
-        && hasNoClosedMarkerAfter(patientId)
         && (
-          !hasMigrationFields(request.resource.data)
-          || isValidMigrationCreate(sectorUnit, patientId)
+          (
+            !hasMigrationFields(request.resource.data)
+            && hasNoClosedMarkerAfter(patientId)
+            && validInitialPatientCreate(
+              request.resource.data,
+              patientId
+            )
+          )
+          || (
+            hasMigrationFields(request.resource.data)
+            && isValidMigrationCreate(sectorUnit, patientId)
+          )
         );
 
       allow update: if isSignedIn()
-        && isKnownSector(sectorUnit);
+        && isKnownSector(sectorUnit)
+        && validRegularPatientUpdate(
+          resource.data,
+          request.resource.data,
+          patientId
+        );
 
       allow delete: if isSignedIn()
         && isKnownSector(sectorUnit)

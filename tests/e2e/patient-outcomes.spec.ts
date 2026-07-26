@@ -10,6 +10,8 @@ const patientPath = (patientId: string) =>
 const tombstonePath = (patientId: string) =>
   `connect_hub_v55/emergencia/closed_patients/${patientId}`;
 const FIREBASE_TEST_UID = 'fixture-anonymous-user';
+const SOURCE_VERSION = 'FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS';
+const firebaseTimestamp = (iso: string) => ({ __testTimestamp: true, iso });
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-07-24T15:00:00.000Z'));
@@ -32,9 +34,9 @@ test('substitui Excluir por Desfecho e cancelar não produz escrita', async ({ a
   await expect(app.outcomeDialog).toHaveAttribute('aria-modal', 'true');
   await expect(app.page.locator('input[name="patientOutcomeType"]')).toHaveCount(3);
   await expect(app.page.locator('.patient-outcome-options strong')).toHaveText([
-    'Tratado',
+    'Alta médica',
     'Óbito',
-    'Transferido'
+    'Transferência externa'
   ]);
 
   await app.selectOutcome('transferred');
@@ -48,7 +50,7 @@ test('substitui Excluir por Desfecho e cancelar não produz escrita', async ({ a
   await expect(app.drawer.getByRole('button', { name: 'Excluir' })).toHaveCount(0);
 });
 
-test('registra Tratado antes de retirar o paciente e preserva o snapshot clínico', async ({ app }) => {
+test('registra Alta médica antes de retirar o paciente e preserva o snapshot clínico', async ({ app }) => {
   const patient = outcomePatient('fixture-outcome-treated');
   await app.goto({
     patients: [patient],
@@ -59,6 +61,7 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
 
   await app.openOutcomeFromCard(patient.id);
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('Z00.0');
   await expect(app.page.locator('#patientOutcomeResponsibleDoctor')).toHaveValue(OUTCOME_TEST_DOCTOR);
   const pendingHistoryWrite = await app.delayNextFirebaseWrite('set', historyPath(patient.id), 350);
 
@@ -82,10 +85,10 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
 
   const record = await app.firebaseDocument(historyPath(patient.id));
   expect(record).toMatchObject({
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: 'patient_outcome',
     outcomeType: 'treated',
-    outcomeLabel: 'Tratado',
+    outcomeLabel: 'Alta médica',
     patientId: patient.id,
     patientName: patient.name,
     sectorUnit: 'emergencia',
@@ -97,7 +100,12 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
     responsibleDoctor: OUTCOME_TEST_DOCTOR,
     actor: OUTCOME_TEST_DOCTOR,
     actorUid: FIREBASE_TEST_UID,
-    primaryIcdCode: '',
+    primaryIcdCode: 'Z00.0',
+    sectorTrackingVersion: 0,
+    episodeId: '',
+    sectorTrackingOrigin: '',
+    lastSectorTransitionFactId: '',
+    sectorEnteredAt: null,
     patientSnapshot: {
       id: patient.id,
       diagnosis: patient.diagnosis,
@@ -138,15 +146,20 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
     'responsibleDoctor',
     'primaryIcdCode',
     'palliativeAlertPresentAtOutcome',
-    'actorUid'
+    'actorUid',
+    'sectorTrackingVersion',
+    'episodeId',
+    'sectorTrackingOrigin',
+    'lastSectorTransitionFactId',
+    'sectorEnteredAt'
   ].sort());
   expect(adminRecord).toEqual({
-    schemaVersion: 2,
-    sourceVersion: 'FOUNDATION-1.0-RC1.3.2-ADMIN-INTELLIGENCE',
+    schemaVersion: 3,
+    sourceVersion: 'FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS',
     type: 'patient_outcome_admin',
     outcomeId: `patient_outcome_emergencia_${encodeURIComponent(patient.id)}`,
     outcomeType: 'treated',
-    outcomeLabel: 'Tratado',
+    outcomeLabel: 'Alta médica',
     createdAt: { $timestamp: expect.any(String) },
     patientId: patient.id,
     patientName: patient.name,
@@ -159,9 +172,14 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
     lengthOfStayDays: 15,
     lengthOfStayMethod: 'inclusive_calendar_days',
     responsibleDoctor: OUTCOME_TEST_DOCTOR,
-    primaryIcdCode: '',
+    primaryIcdCode: 'Z00.0',
     palliativeAlertPresentAtOutcome: false,
-    actorUid: FIREBASE_TEST_UID
+    actorUid: FIREBASE_TEST_UID,
+    sectorTrackingVersion: 0,
+    episodeId: '',
+    sectorTrackingOrigin: '',
+    lastSectorTransitionFactId: '',
+    sectorEnteredAt: null
   });
   expect((await app.firebaseReads()).map(read => read.path)).toEqual([
     tombstonePath(patient.id),
@@ -179,6 +197,7 @@ test('deriva os campos administrativos do paciente mais recente lido na transaç
     inpatientUnit: 'Ala Fictícia B',
     specialty: 'Cardiologia',
     admissionDate: '2026-07-20',
+    diagnosis: 'HIPÓTESE FICTÍCIA ATUALIZADA POR OUTRO CLIENTE',
     status: 'Aguardando UTI',
     severity: 'critico',
     alerts: ['DVA', 'Paliativo']
@@ -187,13 +206,18 @@ test('deriva os campos administrativos do paciente mais recente lido na transaç
     patients: [patient],
     meta: { currentDoctor: OUTCOME_TEST_DOCTOR }
   });
-  await app.openOutcomeFromCard(patient.id);
+  await app.openPatientById(patient.id);
+  await app.waitForAutosaveHydration();
+  await app.page.locator('#outcomePatientBtn').click();
+  await expect(app.outcomeDialog).toHaveClass(/is-open/);
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('I10');
   await app.replaceFirebaseDocumentSilently(patientPath(patient.id), concurrentPatient);
   await app.outcomeConfirmButton.click();
   await expect(app.cards).toHaveCount(0);
 
   const record = await app.firebaseDocument(historyPath(patient.id));
+  expect(record.patientSnapshot).toEqual(concurrentPatient);
   expect(record).toMatchObject({
     patientName: concurrentPatient.name,
     unit: concurrentPatient.inpatientUnit,
@@ -248,6 +272,7 @@ test('confirma o alerta Paliativo pendente antes de abrir o Desfecho', async ({ 
   expect(await app.outcomeDialog.evaluate(dialog => dialog.classList.contains('is-open'))).toBe(false);
   await expect(app.outcomeDialog).toHaveClass(/is-open/);
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('Z51.5');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
   await app.outcomeConfirmButton.click();
   await expect(app.cards).toHaveCount(0);
@@ -296,7 +321,11 @@ test('hidrata paciente Paliativo sem criar ciclo de autosave', async ({ app }) =
   await expect(app.catalog).toHaveClass(/rc122-catalog-open/);
   await app.page.locator('#devicesAlert').check();
   await app.page.locator('.deviceCheck[value="IOT"]').check();
-  await app.page.locator('#deviceIotFiO2').fill('50');
+  const fio2 = app.page.locator('#deviceIotFiO2');
+  await fio2.click();
+  await expect(fio2).toBeFocused();
+  await app.page.keyboard.type('50');
+  await expect(fio2).toHaveValue('50');
   await app.page.locator('#deviceIotPao2').fill('100');
   await expect(app.page.locator('#deviceIotPafiResult')).toContainText('P/F: 200');
   await app.page.locator('#devicesDetailWrap .detail-finish-btn').click();
@@ -321,7 +350,7 @@ test('não ignora rascunho Paliativo depois de falha do autosave', async ({ app 
   await app.waitForAutosaveHydration();
   await app.clearFirebaseWrites();
   app.expectConsoleError(/^Erro ao salvar paciente:/);
-  await app.failNextFirebaseWrite(
+  const failedAutosave = await app.failNextFirebaseWrite(
     'set',
     `connect_hub_v55/emergencia/pacientes/${patient.id}`,
     'Falha fictícia do primeiro autosave.'
@@ -332,19 +361,34 @@ test('não ignora rascunho Paliativo depois de falha do autosave', async ({ app 
   await app.page.locator('#ppsScore').selectOption({ index: 2 });
   await app.page.locator('#karnofskyScore').selectOption({ index: 2 });
   await app.page.locator('#palliativeWrap .detail-finish-btn').click();
-  await expect(app.page.locator('#autosaveStatus')).toContainText('Erro no salvamento automático');
 
   const pendingRecovery = await app.delayNextFirebaseWrite(
     'set',
     `connect_hub_v55/emergencia/pacientes/${patient.id}`,
-    1_500
+    250
   );
+  const autosaveFailure = app.page.waitForEvent('console', message => (
+    message.type() === 'error'
+    && /^Erro ao salvar paciente:/.test(message.text())
+  ));
   await app.page.locator('#outcomePatientBtn').click();
+  await autosaveFailure;
   await app.waitForFirebaseControl(pendingRecovery, 'pending');
+  expect(await app.page.evaluate(
+    controlId => window.__firebaseTestHarness.pendingControls()
+      .some(control => control.id === controlId),
+    failedAutosave
+  )).toBe(false);
   expect(await app.outcomeDialog.evaluate(dialog => dialog.classList.contains('is-open'))).toBe(false);
+  await expect(app.page.locator('#toast')).toHaveText(
+    'Aguarde a confirmação das alterações do paciente antes de registrar o Desfecho.'
+  );
+  await expect(app.page.locator('#toast')).toBeHidden();
+  await app.page.locator('#outcomePatientBtn').click();
   await expect(app.outcomeDialog).toHaveClass(/is-open/);
 
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('Z51.5');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
   await app.outcomeConfirmButton.click();
   await expect(app.cards).toHaveCount(0);
@@ -359,12 +403,23 @@ test('não ignora rascunho Paliativo depois de falha do autosave', async ({ app 
   });
 });
 
-test('exige médico responsável e CID principal somente para Óbito', async ({ app }) => {
+test('exige médico responsável e CID principal válido nos três desfechos', async ({ app }) => {
   const patient = outcomePatient('fixture-outcome-death');
   await app.goto({ patients: [patient] });
   await app.clearFirebaseWrites();
 
   await app.openOutcomeFromCard(patient.id);
+  await app.selectOutcome('treated');
+  await expect(app.page.locator('#patientOutcomeCidWrap')).not.toHaveClass(/is-hidden/);
+  await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
+  await expect(app.outcomeConfirmButton).toBeDisabled();
+  await app.fillOutcomeCid('i10');
+  await expect(app.page.locator('#patientOutcomePrimaryCid')).toHaveValue('I10');
+  await expect(app.outcomeConfirmButton).toBeEnabled();
+  await app.selectOutcome('transferred');
+  await expect(app.page.locator('#patientOutcomeCidWrap')).not.toHaveClass(/is-hidden/);
+  await app.page.locator('#patientOutcomePrimaryCid').fill('');
+  await expect(app.outcomeConfirmButton).toBeDisabled();
   await app.selectOutcome('death');
   await expect(app.page.locator('#patientOutcomeCidWrap')).not.toHaveClass(/is-hidden/);
   await expect(app.outcomeConfirmButton).toBeDisabled();
@@ -391,7 +446,7 @@ test('exige médico responsável e CID principal somente para Óbito', async ({ 
   });
 });
 
-test('permite registrar Transferido pelo drawer sem persistir CID', async ({ app }) => {
+test('registra Transferência externa pelo drawer com CID obrigatório', async ({ app }) => {
   const patient = outcomePatient('fixture-outcome-transferred');
   await app.goto({
     patients: [patient],
@@ -404,7 +459,9 @@ test('permite registrar Transferido pelo drawer sem persistir CID', async ({ app
   await expect(app.outcomeDialog).toHaveClass(/is-open/);
   await app.selectOutcome('transferred');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
-  await expect(app.page.locator('#patientOutcomeCidWrap')).toHaveClass(/is-hidden/);
+  await expect(app.page.locator('#patientOutcomeCidWrap')).not.toHaveClass(/is-hidden/);
+  await expect(app.outcomeConfirmButton).toBeDisabled();
+  await app.fillOutcomeCid('Z75.1');
   await app.outcomeConfirmButton.click();
   await expect(app.drawer).not.toHaveClass(/open/);
   await expect(app.cards).toHaveCount(0);
@@ -412,8 +469,509 @@ test('permite registrar Transferido pelo drawer sem persistir CID', async ({ app
   const record = await app.firebaseDocument(historyPath(patient.id));
   expect(record).toMatchObject({
     outcomeType: 'transferred',
-    outcomeLabel: 'Transferido',
-    primaryIcdCode: ''
+    outcomeLabel: 'Transferência externa',
+    primaryIcdCode: 'Z75.1'
+  });
+});
+
+test('builder normaliza o CID e rejeita CID ausente ou inválido em qualquer tipo', async ({ app }) => {
+  const patient = outcomePatient('fixture-outcome-builder');
+  await app.goto({ patients: [patient] });
+
+  const result = await app.page.evaluate(activePatient => {
+    const framework = (window as unknown as {
+      PatientOutcomeFramework: {
+        buildRecord(
+          patient: Record<string, unknown>,
+          form: Record<string, string>
+        ): Record<string, unknown>;
+      };
+    }).PatientOutcomeFramework;
+    const valid = framework.buildRecord(activePatient, {
+      outcomeType: 'treated',
+      responsibleDoctor: 'MÉDICA FICTÍCIA',
+      primaryIcdCode: '  i10  '
+    });
+    const invalidCodes = ['', 'A419'].map(primaryIcdCode => {
+      try {
+        framework.buildRecord(activePatient, {
+          outcomeType: 'transferred',
+          responsibleDoctor: 'MÉDICA FICTÍCIA',
+          primaryIcdCode
+        });
+        return '';
+      } catch(error) {
+        return (error as { code?: string }).code || String(error);
+      }
+    });
+    return {
+      schemaVersion: valid.schemaVersion,
+      sourceVersion: valid.sourceVersion,
+      outcomeType: valid.outcomeType,
+      outcomeLabel: valid.outcomeLabel,
+      primaryIcdCode: valid.primaryIcdCode,
+      invalidCodes
+    };
+  }, patient);
+
+  expect(result).toEqual({
+    schemaVersion: 2,
+    sourceVersion: SOURCE_VERSION,
+    outcomeType: 'treated',
+    outcomeLabel: 'Alta médica',
+    primaryIcdCode: 'I10',
+    invalidCodes: [
+      'connect-hub/outcome-invalid-primary-icd',
+      'connect-hub/outcome-invalid-primary-icd'
+    ]
+  });
+});
+
+test('copia rastreamento setorial autoritativo para evento privado e projeção administrativa', async ({ app }) => {
+  const enteredAt = '2026-07-22T10:15:00.000Z';
+  const authoritativeEnteredAt = '2026-07-23T11:45:00.000Z';
+  const patient = {
+    ...outcomePatient('fixture-outcome-tracked'),
+    sectorTrackingVersion: 1,
+    episodeId: 'patient_episode_fixture-outcome-tracked',
+    sectorTrackingOrigin: 'initial_entry',
+    lastSectorTransitionFactId: 'patient_sector_transition_previous',
+    sectorEnteredAt: firebaseTimestamp(enteredAt)
+  };
+  await app.goto({
+    patients: [patient],
+    meta: { currentDoctor: OUTCOME_TEST_DOCTOR }
+  });
+
+  await app.openPatientById(patient.id);
+  await app.waitForAutosaveHydration();
+  await app.page.locator('#outcomePatientBtn').click();
+  await app.selectOutcome('treated');
+  await app.fillOutcomeCid('I10');
+  await app.replaceFirebaseDocumentSilently(patientPath(patient.id), {
+    ...patient,
+    episodeId: 'patient_episode_authoritative',
+    sectorTrackingOrigin: 'baseline_observation',
+    lastSectorTransitionFactId: 'patient_sector_transition_authoritative',
+    sectorEnteredAt: firebaseTimestamp(authoritativeEnteredAt)
+  });
+  await app.outcomeConfirmButton.click();
+  await expect(app.cards).toHaveCount(0);
+
+  const expectedTracking = {
+    sectorTrackingVersion: 1,
+    episodeId: 'patient_episode_authoritative',
+    sectorTrackingOrigin: 'baseline_observation',
+    lastSectorTransitionFactId: 'patient_sector_transition_authoritative',
+    sectorEnteredAt: { $timestamp: authoritativeEnteredAt }
+  };
+  expect(await app.firebaseDocument(historyPath(patient.id))).toMatchObject({
+    schemaVersion: 2,
+    sourceVersion: SOURCE_VERSION,
+    primaryIcdCode: 'I10',
+    ...expectedTracking
+  });
+  expect(await app.firebaseDocument(adminOutcomePath(patient.id))).toMatchObject({
+    schemaVersion: 3,
+    sourceVersion: SOURCE_VERSION,
+    ...expectedTracking
+  });
+});
+
+test('novo cadastro inicia episódio e edições preservam tracking sem criar baseline', async ({ app }) => {
+  const trackedEnteredAt = '2026-07-23T08:00:00.000Z';
+  const trackedPatient = {
+    ...outcomePatient('fixture-save-tracked', 1),
+    alerts: [],
+    sectorTrackingVersion: 1,
+    episodeId: 'patient_episode_fixture-save-tracked',
+    sectorTrackingOrigin: 'initial_entry',
+    lastSectorTransitionFactId: '',
+    sectorEnteredAt: firebaseTimestamp(trackedEnteredAt)
+  };
+  const legacyPatient = {
+    ...outcomePatient('fixture-save-legacy', 2),
+    alerts: []
+  };
+  await app.goto({ patients: [trackedPatient, legacyPatient] });
+
+  await app.openPatientById(trackedPatient.id);
+  await app.waitForAutosaveHydration();
+  await app.page.locator('#diagnosis').fill('HIPÓTESE FICTÍCIA EDITADA COM TRACKING');
+  await app.page.locator('#savePatientBtn').click();
+  await expect(app.drawer).not.toHaveClass(/open/);
+  expect(await app.persistedPatient(trackedPatient.id)).toMatchObject({
+    sectorTrackingVersion: 1,
+    episodeId: trackedPatient.episodeId,
+    sectorTrackingOrigin: 'initial_entry',
+    lastSectorTransitionFactId: '',
+    sectorEnteredAt: { $timestamp: trackedEnteredAt }
+  });
+
+  await app.openPatientById(legacyPatient.id);
+  await app.waitForAutosaveHydration();
+  await app.page.locator('#diagnosis').fill('HIPÓTESE FICTÍCIA EDITADA SEM TRACKING');
+  await app.page.locator('#savePatientBtn').click();
+  await expect(app.drawer).not.toHaveClass(/open/);
+  const editedLegacy = await app.persistedPatient(legacyPatient.id);
+  expect(editedLegacy).not.toHaveProperty('sectorTrackingVersion');
+  expect(editedLegacy).not.toHaveProperty('episodeId');
+  expect(editedLegacy).not.toHaveProperty('sectorTrackingOrigin');
+  expect(editedLegacy).not.toHaveProperty('lastSectorTransitionFactId');
+  expect(editedLegacy).not.toHaveProperty('sectorEnteredAt');
+
+  await app.openNewPatient();
+  await app.fillRequiredPatientFields('TRACKING');
+  await app.page.evaluate(() => window.eval(`
+    if(patientAutosaveTimer){
+      clearTimeout(patientAutosaveTimer);
+      patientAutosaveTimer=null;
+      patientAutosaveScheduledOptions=null;
+    }
+  `));
+  await app.page.locator('#savePatientBtn').click();
+  await expect(app.drawer).not.toHaveClass(/open/);
+  const createdCard = app.cards.filter({ hasText: 'PACIENTE FICTÍCIO TRACKING' });
+  await expect(createdCard).toHaveCount(1);
+  const newPatientId = await createdCard.getAttribute('data-id');
+  expect(newPatientId).toBeTruthy();
+  const createdPatient = await app.persistedPatient(newPatientId!);
+  expect(createdPatient).toMatchObject({
+    sectorTrackingVersion: 1,
+    episodeId: `patient_episode_${newPatientId}`,
+    sectorTrackingOrigin: 'initial_entry',
+    lastSectorTransitionFactId: '',
+    sectorEnteredAt: { $timestamp: expect.any(String) }
+  });
+});
+
+test('drawer existente não recria a origem após remoção ou migração remota', async ({ app }) => {
+  const removedPatient = {
+    ...outcomePatient('fixture-remote-removal', 1),
+    alerts: []
+  };
+  const migratedPatient = {
+    ...outcomePatient('fixture-remote-migration', 2),
+    alerts: []
+  };
+  await app.goto({ patients: [removedPatient, migratedPatient] });
+
+  await app.openPatientById(removedPatient.id);
+  await app.waitForAutosaveHydration();
+  await app.page.evaluate(async patientId => {
+    const browserWindow = window as unknown as {
+      firebase: {
+        firestore(): {
+          collection(name: string): {
+            doc(id: string): {
+              collection(name: string): {
+                doc(id: string): { delete(): Promise<void> };
+              };
+            };
+          };
+        };
+      };
+    };
+    await browserWindow.firebase.firestore()
+      .collection('connect_hub_v55')
+      .doc('emergencia')
+      .collection('pacientes')
+      .doc(patientId)
+      .delete();
+  }, removedPatient.id);
+  await expect.poll(() => app.persistedPatient(removedPatient.id)).toBeUndefined();
+  await app.clearFirebaseWrites();
+  app.expectConsoleError(/^Erro ao salvar paciente:/);
+  await app.page.locator('#diagnosis').evaluate((element, diagnosis) => {
+    (element as HTMLTextAreaElement).value = diagnosis;
+  }, 'HIPÓTESE FICTÍCIA APÓS REMOÇÃO REMOTA');
+  await app.page.locator('#savePatientBtn').click();
+  await expect(app.page.locator('#toast')).toContainText('Erro ao salvar no Firebase');
+  expect(await app.persistedPatient(removedPatient.id)).toBeUndefined();
+  expect(await app.firebaseWrites()).toEqual([]);
+
+  await app.page.evaluate(() => {
+    (window as unknown as { closeDrawer(): void }).closeDrawer();
+  });
+  await app.openPatientById(migratedPatient.id);
+  await app.waitForAutosaveHydration();
+  await app.page.evaluate(async activePatient => {
+    type DocumentRef = {
+      set(data: Record<string, unknown>, options?: { merge?: boolean }): Promise<void>;
+      delete(): Promise<void>;
+    };
+    const browserWindow = window as unknown as {
+      firebase: {
+        firestore(): {
+          collection(name: string): {
+            doc(id: string): {
+              collection(name: string): { doc(id: string): DocumentRef };
+            };
+          };
+        };
+      };
+    };
+    const database = browserWindow.firebase.firestore();
+    const source = database.collection('connect_hub_v55')
+      .doc('emergencia')
+      .collection('pacientes')
+      .doc(activePatient.id);
+    const destination = database.collection('connect_hub_v55')
+      .doc('observacao_sus')
+      .collection('pacientes')
+      .doc(activePatient.id);
+    await destination.set({
+      ...activePatient,
+      migratedFrom: 'emergencia',
+      migratedTo: 'observacao_sus'
+    }, { merge: false });
+    await source.delete();
+  }, migratedPatient);
+  await expect.poll(() => app.persistedPatient(migratedPatient.id)).toBeUndefined();
+  expect(await app.persistedPatientInUnit('observacao_sus', migratedPatient.id)).toBeDefined();
+  await app.clearFirebaseWrites();
+  app.expectConsoleError(/^Erro ao salvar paciente:/);
+  await app.page.locator('#diagnosis').evaluate((element, diagnosis) => {
+    (element as HTMLTextAreaElement).value = diagnosis;
+  }, 'HIPÓTESE FICTÍCIA APÓS MIGRAÇÃO REMOTA');
+  await app.page.locator('#savePatientBtn').click();
+  await expect(app.page.locator('#toast')).toContainText('Erro ao salvar no Firebase');
+  expect(await app.persistedPatient(migratedPatient.id)).toBeUndefined();
+  expect(await app.persistedPatientInUnit('observacao_sus', migratedPatient.id)).toMatchObject({
+    id: migratedPatient.id,
+    diagnosis: migratedPatient.diagnosis
+  });
+  expect(await app.firebaseWrites()).toEqual([]);
+});
+
+test('migração de legado cria fato setorial atômico e inicia baseline no destino', async ({ app }) => {
+  const patient = outcomePatient('fixture-sector-transition-legacy-%');
+  await app.goto({ patients: [patient] });
+  await app.clearFirebaseWrites();
+  app.page.once('dialog', dialog => dialog.dismiss());
+
+  await app.page.evaluate(async patientId => {
+    const browserWindow = window as unknown as {
+      setMigrationTarget(unit: string): Promise<void>;
+      selectMigrationObsV37(unit: string): void;
+      migratePatientToSector(id: string, unit: string): Promise<void>;
+    };
+    await browserWindow.setMigrationTarget('observacao_sus');
+    browserWindow.selectMigrationObsV37('Observação SUS 01');
+    await browserWindow.migratePatientToSector(patientId, 'observacao_sus');
+  }, patient.id);
+
+  let snapshotAfterAbort = await app.firebaseSnapshot();
+  expect(Object.keys(snapshotAfterAbort)
+    .filter(path => path.startsWith('historico_eventos/'))).toEqual([]);
+  expect(Object.keys(snapshotAfterAbort)
+    .filter(path => path.startsWith('admin_sector_transitions/'))).toEqual([]);
+  expect(await app.persistedPatient(patient.id)).toBeDefined();
+  expect(await app.persistedPatientInUnit('observacao_sus', patient.id)).toBeUndefined();
+
+  app.expectConsoleError(/^Erro ao migrar paciente:/);
+  await app.failNextFirebaseWrite(
+    'set',
+    'admin_sector_transitions/',
+    'Falha fictícia no fato setorial.'
+  );
+  app.page.once('dialog', dialog => dialog.accept());
+  await app.page.evaluate(async patientId => {
+    const browserWindow = window as unknown as {
+      migratePatientToSector(id: string, unit: string): Promise<void>;
+    };
+    await browserWindow.migratePatientToSector(patientId, 'observacao_sus');
+  }, patient.id);
+
+  expect(await app.persistedPatient(patient.id)).toBeDefined();
+  expect(await app.persistedPatientInUnit('observacao_sus', patient.id)).toBeUndefined();
+  snapshotAfterAbort = await app.firebaseSnapshot();
+  expect(Object.keys(snapshotAfterAbort)
+    .filter(path => path.startsWith('historico_eventos/'))).toEqual([]);
+  expect(Object.keys(snapshotAfterAbort)
+    .filter(path => path.startsWith('admin_sector_transitions/'))).toEqual([]);
+
+  app.page.once('dialog', dialog => dialog.accept());
+  await app.page.evaluate(async patientId => {
+    const browserWindow = window as unknown as {
+      migratePatientToSector(id: string, unit: string): Promise<void>;
+    };
+    await browserWindow.migratePatientToSector(patientId, 'observacao_sus');
+  }, patient.id);
+
+  await expect(app.cards).toHaveCount(0);
+  expect(await app.persistedPatient(patient.id)).toBeUndefined();
+  const destination = await app.persistedPatientInUnit('observacao_sus', patient.id);
+  const snapshot = await app.firebaseSnapshot();
+  const transitionPaths = Object.keys(snapshot)
+    .filter(path => path.startsWith('admin_sector_transitions/'));
+  expect(transitionPaths).toHaveLength(1);
+  const factId = transitionPaths[0].slice('admin_sector_transitions/'.length);
+  const episodeId = `patient_episode_${patient.id}`;
+  expect(destination).toMatchObject({
+    sectorTrackingVersion: 1,
+    episodeId,
+    sectorTrackingOrigin: 'baseline_observation',
+    lastSectorTransitionFactId: factId,
+    sectorEnteredAt: { $timestamp: expect.any(String) }
+  });
+  expect(await app.firebaseDocument(transitionPaths[0])).toEqual({
+    schemaVersion: 1,
+    sourceVersion: SOURCE_VERSION,
+    type: 'patient_sector_transition_admin',
+    factId,
+    episodeId,
+    patientId: patient.id,
+    occurredAt: { $timestamp: expect.any(String) },
+    actorUid: FIREBASE_TEST_UID,
+    predecessorFactId: '',
+    movementClassification: 'sector_transfer',
+    trackingOrigin: 'baseline_observation',
+    originEnteredAt: null,
+    origin: {
+      catalogVersion: 1,
+      canonicalSectorId: 'emergencia',
+      sectorUnit: 'emergencia',
+      sectorName: 'Emergência',
+      unit: '',
+      bed: patient.bed
+    },
+    destination: {
+      catalogVersion: 1,
+      canonicalSectorId: 'observacao_sus',
+      sectorUnit: 'observacao_sus',
+      sectorName: 'Observação SUS',
+      unit: 'Observação SUS 01',
+      bed: 'Maca'
+    }
+  });
+});
+
+test('migração encadeia predecessor e remanejamento interno preserva a entrada setorial', async ({ app }) => {
+  const enteredAt = '2026-07-21T09:30:00.000Z';
+  const patient = {
+    ...outcomePatient('fixture-sector-transition-chain'),
+    sectorTrackingVersion: 1,
+    episodeId: 'patient_episode_existing_chain',
+    sectorTrackingOrigin: 'initial_entry',
+    lastSectorTransitionFactId: 'patient_sector_transition_previous',
+    sectorEnteredAt: firebaseTimestamp(enteredAt)
+  };
+  await app.goto({ patients: [patient] });
+
+  await app.page.evaluate(async patientId => {
+    const browserWindow = window as unknown as {
+      setMigrationTarget(unit: string): Promise<void>;
+      selectMigrationBedV37(bed: string): void;
+      migratePatientToSector(id: string, unit: string): Promise<void>;
+    };
+    await browserWindow.setMigrationTarget('emergencia');
+    browserWindow.selectMigrationBedV37('Leito 02');
+    await browserWindow.migratePatientToSector(patientId, 'emergencia');
+  }, patient.id);
+
+  const afterReassignment = await app.persistedPatient(patient.id);
+  expect(afterReassignment).toMatchObject({
+    bed: 'Leito 02',
+    sectorTrackingVersion: 1,
+    episodeId: patient.episodeId,
+    sectorTrackingOrigin: 'initial_entry',
+    lastSectorTransitionFactId: patient.lastSectorTransitionFactId,
+    sectorEnteredAt: { $timestamp: enteredAt }
+  });
+  const snapshotAfterReassignment = await app.firebaseSnapshot();
+  expect(Object.keys(snapshotAfterReassignment)
+    .filter(path => path.startsWith('admin_sector_transitions/'))).toEqual([]);
+  const reassignmentHistoryPaths = Object.keys(snapshotAfterReassignment)
+    .filter(path => path.startsWith('historico_eventos/'));
+  expect(reassignmentHistoryPaths).toHaveLength(1);
+  expect(await app.firebaseDocument(reassignmentHistoryPaths[0])).toMatchObject({
+    type: 'bed_reassignment',
+    patientId: patient.id,
+    fromSectorUnit: 'emergencia',
+    toSectorUnit: 'emergencia',
+    fromBed: patient.bed,
+    toBed: 'Leito 02'
+  });
+
+  app.page.once('dialog', dialog => dialog.accept());
+  await app.page.evaluate(async patientId => {
+    const browserWindow = window as unknown as {
+      setMigrationTarget(unit: string): Promise<void>;
+      selectMigrationObsV37(unit: string): void;
+      migratePatientToSector(id: string, unit: string): Promise<void>;
+    };
+    await browserWindow.setMigrationTarget('observacao_sus');
+    browserWindow.selectMigrationObsV37('Observação SUS 02');
+    await browserWindow.migratePatientToSector(patientId, 'observacao_sus');
+  }, patient.id);
+
+  const snapshot = await app.firebaseSnapshot();
+  const transitionPath = Object.keys(snapshot)
+    .find(path => path.startsWith('admin_sector_transitions/'));
+  expect(transitionPath).toBeDefined();
+  const factId = transitionPath!.slice('admin_sector_transitions/'.length);
+  expect(await app.firebaseDocument(transitionPath!)).toMatchObject({
+    factId,
+    episodeId: patient.episodeId,
+    predecessorFactId: patient.lastSectorTransitionFactId,
+    trackingOrigin: 'initial_entry',
+    originEnteredAt: { $timestamp: enteredAt },
+    origin: { bed: 'Leito 02' },
+    destination: {
+      canonicalSectorId: 'observacao_sus',
+      unit: 'Observação SUS 02',
+      bed: 'Maca'
+    }
+  });
+  expect(await app.persistedPatientInUnit('observacao_sus', patient.id)).toMatchObject({
+    episodeId: patient.episodeId,
+    sectorTrackingOrigin: 'initial_entry',
+    lastSectorTransitionFactId: factId,
+    sectorEnteredAt: { $timestamp: expect.any(String) }
+  });
+});
+
+test('classifica Convênio para Emergência como contra-fluxo no fato setorial', async ({ app }) => {
+  const patient = outcomePatient('fixture-sector-transition-counterflow');
+  await app.goto({ unit: 'convenio', patients: [patient] });
+  app.page.once('dialog', dialog => dialog.accept());
+
+  await app.page.evaluate(async patientId => {
+    const browserWindow = window as unknown as {
+      setMigrationTarget(unit: string): Promise<void>;
+      migratePatientToSector(id: string, unit: string): Promise<void>;
+    };
+    await browserWindow.setMigrationTarget('emergencia');
+    await browserWindow.migratePatientToSector(patientId, 'emergencia');
+  }, patient.id);
+
+  const snapshot = await app.firebaseSnapshot();
+  const transitionPath = Object.keys(snapshot)
+    .find(path => path.startsWith('admin_sector_transitions/'));
+  expect(transitionPath).toBeDefined();
+  expect(await app.firebaseDocument(transitionPath!)).toMatchObject({
+    movementClassification: 'counterflow_transfer',
+    trackingOrigin: 'baseline_observation',
+    origin: {
+      canonicalSectorId: 'convenio',
+      sectorUnit: 'convenio',
+      sectorName: 'Convênio',
+      bed: patient.bed
+    },
+    destination: {
+      canonicalSectorId: 'emergencia',
+      sectorUnit: 'emergencia',
+      sectorName: 'Emergência',
+      unit: 'Emergência',
+      bed: 'Maca'
+    }
+  });
+  expect(await app.persistedPatientInUnit('emergencia', patient.id)).toMatchObject({
+    bed: 'Maca',
+    counterflowDate: '2026-07-24',
+    sectorTrackingVersion: 1,
+    sectorTrackingOrigin: 'baseline_observation'
   });
 });
 
@@ -426,6 +984,7 @@ test('falha atômica mantém o paciente e permite tentar novamente', async ({ ap
   await app.clearFirebaseWrites();
   await app.openOutcomeFromCard(patient.id);
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('Z00.0');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
   await app.failNextFirebaseWrite(
     'delete',
@@ -478,6 +1037,7 @@ test('aguarda autosave em voo, preserva a última edição e não recria o pacie
 
   await app.page.locator('#outcomePatientBtn').click();
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('I10');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
   await app.outcomeConfirmButton.click();
   await expect(app.cards).toHaveCount(0, { timeout: 5_000 });
@@ -519,6 +1079,7 @@ test('aguarda salvamento manual em voo antes de registrar o desfecho', async ({ 
   await app.waitForFirebaseControl(pendingManualSave, 'pending');
   await app.page.locator('#outcomePatientBtn').click();
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('I10');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
   await app.outcomeConfirmButton.click();
 
@@ -562,6 +1123,7 @@ test('aguarda reordenação em voo e não recria documento parcial do paciente',
   await app.waitForFirebaseControl(pendingReorder, 'pending');
   await app.openOutcomeFromCard(patient.id);
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('Z00.0');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
   await app.outcomeConfirmButton.click();
 
@@ -592,6 +1154,17 @@ test('retry após perda do ACK reutiliza o registro imutável sem reescrever aud
   await app.outcomeConfirmButton.click();
   await expect(app.page.locator('#patientOutcomeStatus')).toContainText('paciente permanece no HUB');
   await expect(app.cards).toHaveCount(1);
+  for(const outcomeType of ['treated', 'death', 'transferred']){
+    await expect(
+      app.page.locator(`input[name="patientOutcomeType"][value="${outcomeType}"]`)
+    ).toBeDisabled();
+  }
+  await expect(app.page.locator('input[name="patientOutcomeType"][value="death"]')).toBeChecked();
+  await expect(app.page.locator('#patientOutcomeResponsibleDoctor')).toBeDisabled();
+  await expect(app.page.locator('#patientOutcomeResponsibleDoctor')).toHaveValue(OUTCOME_TEST_DOCTOR);
+  await expect(app.page.locator('#patientOutcomePrimaryCid')).toBeDisabled();
+  await expect(app.page.locator('#patientOutcomePrimaryCid')).toHaveValue('J18.9');
+  await expect(app.outcomeConfirmButton).toBeEnabled();
   const firstRecord = await app.firebaseDocument(historyPath(patient.id));
   const firstAdminRecord = await app.firebaseDocument(adminOutcomePath(patient.id));
   expect(firstRecord).toMatchObject({
@@ -618,6 +1191,9 @@ test('retry após perda do ACK reutiliza o registro imutável sem reescrever aud
 
   await app.outcomeConfirmButton.click();
   await expect(app.cards).toHaveCount(0);
+  await expect(app.page.locator('#toast')).toContainText(
+    'Os dados da primeira confirmação foram preservados'
+  );
   expect(await app.firebaseDocument(historyPath(patient.id))).toEqual(firstRecord);
   expect(await app.firebaseDocument(adminOutcomePath(patient.id))).toEqual(firstAdminRecord);
   expect(await app.firebaseDocument(tombstonePath(patient.id))).toEqual(firstTombstone);
@@ -848,6 +1424,7 @@ test('snapshot do drawer remove dados TEV ao desmarcar o protocolo', async ({ ap
   await expect(tevCheckbox).not.toBeChecked();
   await app.page.locator('#outcomePatientBtn').click();
   await app.selectOutcome('treated');
+  await app.fillOutcomeCid('Z00.0');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
   await app.outcomeConfirmButton.click();
   await expect(app.cards).toHaveCount(0);

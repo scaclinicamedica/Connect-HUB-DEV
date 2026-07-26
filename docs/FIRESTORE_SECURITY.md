@@ -1,6 +1,6 @@
 # Segurança do Firestore e acesso administrativo — V1
 
-Atualizado em: 24/07/2026
+Atualizado em: 25/07/2026
 
 ## Estado
 
@@ -16,7 +16,8 @@ outras credenciais.
 
 ## Modelo de dados protegido
 
-O encerramento de um paciente envolve quatro documentos:
+O modelo protegido envolve os documentos abaixo. O Desfecho usa quatro
+mutações atômicas; migrações entre setores usam o fato de transição:
 
 | Documento | Finalidade | Conteúdo sensível |
 |---|---|---|
@@ -24,11 +25,13 @@ O encerramento de um paciente envolve quatro documentos:
 | `connect_hub_v55/<setor>/closed_patients/<patientId>` | Lápide mínima contra ressurreição | Não deve conter dados clínicos ou nominais |
 | `historico_eventos/<outcomeId>` | Histórico privado e imutável do Desfecho | Sim, inclusive `patientSnapshot` |
 | `admin_outcomes/<outcomeId>` | Projeção administrativa mínima e imutável | Apenas campos administrativos explícitos |
+| `admin_sector_transitions/<factId>` | Fato imutável de mudança entre setores | Identificadores técnicos, locais e timestamps |
 
 A lápide possui somente versão do esquema, tipo, identificadores técnicos,
-tipo do Desfecho, timestamp e UID da sessão que confirmou o encerramento. Nome,
-CID, diagnóstico, alertas e snapshot pertencem exclusivamente ao evento
-privado.
+tipo do Desfecho, timestamp e UID da sessão que confirmou o encerramento. Ela
+não contém nome, CID, diagnóstico, alertas nem snapshot. Nome e CID estruturado
+também compõem a projeção administrativa mínima; diagnóstico, alertas brutos e
+`patientSnapshot` permanecem exclusivos do evento privado.
 
 ## Operação atômica obrigatória
 
@@ -39,15 +42,25 @@ As Rules aceitam um Desfecho somente quando o mesmo commit:
 3. cria a lápide `patient_closed` correspondente;
 4. exclui o paciente ativo do mesmo setor.
 
-Evento, lápide ou exclusão isolados são negados. A correspondência inclui
-`patientId`, `sectorUnit`, `outcomeId`, `outcomeType` e o UID autenticado em
-`actorUid`/`closedByUid`. Evento, projeção e lápide não podem ser atualizados
-nem excluídos depois do commit.
+Evento, projeção, lápide ou exclusão isolados são negados. A correspondência
+inclui `patientId`, `sectorUnit`, `outcomeId`, `outcomeType` e o UID autenticado
+em `actorUid`/`closedByUid`. O `patientSnapshot` privado precisa ser idêntico ao
+paciente autoritativo lido no commit. Evento, projeção e lápide não podem ser
+atualizados nem excluídos depois do commit.
 
 Uma nova criação de paciente consulta as lápides dos setores conhecidos. Se o
 identificador já foi encerrado em qualquer um deles, a criação é negada. As
 migrações válidas entre setores continuam sendo operações atômicas próprias e
-não podem ser combinadas com um Desfecho.
+não podem ser combinadas com um Desfecho. Cada migração entre setores também
+precisa criar exatamente um fato `patient_sector_transition_admin` compatível
+com a origem e o destino do paciente no mesmo commit. O fato isolado, a
+migração sem fato e a alteração posterior do fato são negados.
+
+Novos pacientes recebem tracking setorial v1 com origem `initial_entry` e
+timestamp do servidor. Updates comuns podem preservar, mas não alterar, os
+campos técnicos do episódio. A primeira migração de um ativo legado pode
+iniciar `baseline_observation`; nenhuma outra operação pode promover um
+paciente legado ou fabricar o tempo anterior.
 
 ## Perfis e permissões
 
@@ -61,6 +74,7 @@ não podem ser combinadas com um Desfecho.
 | Listar lápides | Não | Sim |
 | Ler/listar `historico_eventos` | Não | Sim |
 | Ler/listar `admin_outcomes` | Não | Sim |
+| Ler/listar `admin_sector_transitions` | Não | Sim |
 | Alterar ou excluir histórico/lápide | Não | Não |
 | Criar/alterar `admin_users` pelo cliente | Não | Não |
 | Criar e ler confirmação de transição | Sim | Sim |
@@ -106,8 +120,10 @@ campos, tipos e timestamp do servidor; não permite campos arbitrários. Ela dev
 ser removida em uma release futura depois de expirar o cache da versão antiga.
 
 O painel administrativo permanece somente leitura no cliente. A aba
-`Desfechos` consulta exclusivamente `admin_outcomes`, uma projeção
-materializada sem `patientSnapshot`, diagnóstico, alertas ou estado clínico.
+`Desfechos` consulta `admin_outcomes`, uma projeção materializada sem
+`patientSnapshot`, diagnóstico, alertas ou estado clínico, e
+`admin_sector_transitions`, contendo apenas os fatos administrativos mínimos
+necessários para reconstruir intervalos setoriais.
 O histórico geral exclui `patient_outcome` na consulta do servidor. Período,
 ordenação, auditoria e permanência usam o timestamp de servidor convertido
 para `America/Sao_Paulo`; dados locais do navegador não participam das
@@ -152,8 +168,9 @@ credenciais para o repositório, PR, terminal compartilhado ou documentação.
    O Emulator desta branch exige Java 21 ou superior.
 
 8. Bloqueie o uso clínico durante uma janela controlada. O cliente anterior
-   cria projeção administrativa versão 1, negada pelas Rules finais, enquanto
-   as Rules anteriores rejeitam a versão 2 do novo cliente.
+   cria projeções antigas, negadas pelas Rules finais, enquanto as Rules
+   anteriores rejeitam o evento v2, a projeção v3 e os fatos setoriais do novo
+   cliente.
 9. Publique as Rules, apontando explicitamente para o projeto:
 
    ```bash
@@ -166,10 +183,10 @@ credenciais para o repositório, PR, terminal compartilhado ou documentação.
 11. Execute o smoke test abaixo antes de reabrir o uso.
 
 Não existe ordem de publicação compatível com uso simultâneo: o cliente antigo
-e as Rules finais discordam sobre o esquema 1, e o cliente novo e as Rules
-anteriores discordam sobre o esquema 2. A janela deve impedir novos Desfechos
-até Rules e HTML coincidirem. Em rollback, reverta os dois artefatos antes de
-reabrir o uso.
+e as Rules finais discordam sobre os esquemas aceitos, e o cliente novo e as
+Rules anteriores discordam sobre evento v2, projeção v3 e fatos setoriais. A
+janela deve impedir novas criações, migrações e Desfechos até Rules e HTML
+coincidirem. Em rollback, reverta os dois artefatos antes de reabrir o uso.
 
 ## Smoke test após o deploy
 
@@ -182,16 +199,19 @@ Use somente registros fictícios em ambiente controlado:
 - [ ] cliente clínico anônimo não consegue ler nem listar
       `historico_eventos`;
 - [ ] cliente clínico consegue consultar por `get` a lápide conhecida;
-- [ ] Tratado cria histórico + projeção mínima + lápide e retira o ativo em um
+- [ ] Alta médica cria histórico + projeção mínima + lápide e retira o ativo em um
       único commit;
-- [ ] a projeção criada usa esquema 2 e registra o booleano Paliativo igual ao
-      paciente autoritativo; tentativa de criar esquema 1 é negada;
-- [ ] Óbito sem CID é negado;
+- [ ] o evento criado usa esquema 2, a projeção usa esquema 3 e o booleano
+      Paliativo é igual ao paciente autoritativo;
+- [ ] Alta médica, Óbito ou Transferência externa sem CID são negados;
 - [ ] update/delete de histórico ou lápide é negado;
 - [ ] exclusão avulsa de paciente é negada;
 - [ ] recriação do mesmo `patientId` após Desfecho é negada, inclusive em
       outro setor;
 - [ ] migração válida e atualizações em lote continuam funcionando;
+- [ ] migração entre setores sem fato, fato sem migração e fato divergente são
+      negados; a migração válida cria ambos atomicamente;
+- [ ] remanejamento interno não cria fato nem altera o início do setor;
 - [ ] confirmação de transição pode ser criada e lida, mas não alterada nem
       apagada;
 - [ ] logout administrativo não encerra a sessão clínica da aplicação.
@@ -208,12 +228,12 @@ O comando oficial é:
 npm run test:rules
 ```
 
-Ele inicia o Firestore Emulator e executa 22 cenários em
+Ele inicia o Firestore Emulator e executa os cenários descobertos em
 `tests/firestore/firestore.rules.test.mjs`. A cobertura inclui:
 
 - operação de Desfecho com quatro mutações e negação de combinações parciais;
 - vínculo de `actorUid` e `closedByUid` ao usuário autenticado;
-- obrigatoriedade de médico e CID no Óbito;
+- obrigatoriedade de médico e CID nos três Desfechos;
 - imutabilidade de histórico, projeção administrativa e lápides;
 - bloqueio de ressurreição no mesmo setor e entre setores;
 - separação entre leitura clínica e administrativa;
@@ -224,8 +244,14 @@ Ele inicia o Firestore Emulator e executa 22 cenários em
 - reserva do identificador determinístico de Desfecho;
 - imutabilidade das confirmações de transição de cuidados.
 - compatibilidade estrita da confirmação legada durante a janela Rules-first.
-- leitura administrativa de projeções v1 históricas, negação de novas
-  projeções v1 e consistência do booleano Paliativo na v2.
+- leitura administrativa de projeções v1/v2 históricas, negação de novas
+  projeções antigas e consistência do booleano Paliativo na v3;
+- tracking v1 na criação, preservação em updates comuns, bootstrap legado
+  restrito à migração e envelope zero no Desfecho sem rastreamento;
+- fato setorial obrigatório e atômico na migração, cadeia consistente,
+  imutabilidade, versão exata e separação da leitura clínica/administrativa;
+- snapshot clínico integral vinculado ao paciente autoritativo e rejeição de
+  alteração isolada em campo não administrativo.
 
 ## Limitação residual
 

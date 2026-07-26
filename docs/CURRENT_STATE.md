@@ -9,16 +9,16 @@ Atualizado em: 25/07/2026
   Firestore.
 - Base: FOUNDATION 1.0.
 - Release funcional em preparação:
-  `FOUNDATION-1.0-RC1.3.2-ADMIN-INTELLIGENCE`.
+  `FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS`.
 - Baseline publicado imediatamente anterior: RC1.2.10 — correção da fronteira
   responsiva.
-- Arquivo publicado: `passagem.html`.
+- Arquivo da versão publicada anterior: `passagem.html`.
 - Commit de referência na `main`:
   `73dea7425f4a06bfb9afcc6222d1b57c113d0cd2`.
-- Candidato de Desfecho validado no PR: commit
-  `9248e42096a9e6a2fa8cd92deeabdd63eaba5b8e`.
+- Base local validada da inteligência administrativa: commit `d17ebdb`.
 - A camada adicional de segurança do Firestore e autenticação administrativa
-  está em preparação e ainda não foi publicada.
+  está implementada no candidato local, mas ainda não foi publicada nem
+  provisionada no ambiente Firebase real.
 
 Antes de uma mudança funcional, confirme que a `main` ainda corresponde a
 esse baseline ou atualize este documento.
@@ -48,13 +48,14 @@ O fluxo validado contempla:
 O Assistente de Profilaxia de TEV é considerado homologado na V1. O Clinical
 Copilot também consolida Antimicrobianos quando selecionado.
 
-### Desfecho — RC1.3.0
+### Desfecho — RC1.3.3
 
 - A ação destrutiva `Excluir` foi substituída por `Desfecho` no card e no
   drawer.
-- As opções fechadas são Tratado, Óbito e Transferido.
-- Óbito exige CID principal; todos os Desfechos exigem médico responsável
-  explicitamente confirmado.
+- As opções fechadas são Alta médica, Óbito e Transferência externa; os
+  códigos persistidos `treated`, `death` e `transferred` permanecem estáveis.
+- Todos os Desfechos exigem CID principal em formato estruturado e médico
+  responsável explicitamente confirmado.
 - Abertura, navegação e cancelamento não criam evento de Desfecho.
 - A confirmação preserva o objeto clínico integral no evento privado
   `historico_eventos/<outcomeId>` com `type: patient_outcome`.
@@ -82,10 +83,19 @@ Copilot também consolida Antimicrobianos quando selecionado.
 - `firestore.rules` exige as quatro partes no mesmo commit, torna histórico,
   projeção e lápide imutáveis, nega delete avulso e bloqueia recriação do
   mesmo ID em qualquer setor conhecido.
-- As Rules possuem 22 cenários automatizados no Firestore Emulator, mas ainda
-  precisam ser publicadas no projeto Firebase antes do merge da aplicação.
-- A Área Administrativa apresenta uma aba própria de Desfechos baseada somente
-  na projeção materializada `admin_outcomes`.
+- As Rules da RC1.3.3 passaram em 33/33 cenários no Firestore Emulator; elas
+  ainda precisam ser publicadas no projeto Firebase antes do merge da
+  aplicação.
+- A Área Administrativa apresenta uma aba própria de Desfechos baseada na
+  projeção materializada `admin_outcomes` e, exclusivamente para permanência
+  setorial, em `admin_sector_transitions`; não consulta eventos privados.
+- Novos pacientes iniciam rastreamento setorial com timestamp do servidor.
+  Migrações entre setores criam um fato imutável e atômico em
+  `admin_sector_transitions`; remanejamentos internos preservam o início do
+  setor.
+- Ativos legados sem rastreamento não recebem permanência inventada: o
+  Desfecho os marca como cobertura setorial indisponível. A primeira migração
+  posterior inicia observação parcial.
 
 Consulte `docs/OUTCOMES_SPEC.md`.
 
@@ -111,36 +121,39 @@ Consulte `docs/OUTCOMES_SPEC.md`.
 - A leitura histórica indisponível ou truncada bloqueia relatórios e
   exportações para evitar resultado incompleto.
 - A aba Desfechos oferece período inicial de 30 dias, filtros por período,
-  setor, especialidade, tipo e registro paliativo.
-- A projeção administrativa versão 2 acrescenta somente
-  `palliativeAlertPresentAtOutcome`, derivado do alerta estruturado do paciente
-  autoritativo; documentos versão 1 continuam legíveis como registro
-  indisponível.
+  setor, especialidade, tipo, CID e registro paliativo.
+- A projeção administrativa versão 3 preserva
+  `palliativeAlertPresentAtOutcome` e acrescenta somente o envelope técnico de
+  rastreamento setorial; documentos versão 1 e 2 continuam legíveis.
 - A visão apresenta Óbitos gerais registrados, Óbitos com alerta Paliativo,
   cobertura do registro, permanência média/mediana e sua distribuição,
-  permanência por tipo, perfil nosológico dos Óbitos por CID, consolidações e
-  auditoria.
+  permanência por tipo, perfil nosológico de todos os Desfechos por CID,
+  permanência observada por setor, consolidações e auditoria.
 - Gráficos permanecem complementares a tabelas exatas e possuem fallback
   textual; os KPIs do censo atual ficam ocultos na aba histórica.
 - A proporção de Óbitos é identificada explicitamente como proporção entre os
   Desfechos registrados, não como mortalidade institucional.
-- “Sem alerta Paliativo registrado” não significa “não paliativo”, e o recorte
-  nosológico desta versão não extrapola além dos CIDs dos Óbitos em formato
-  esperado; o painel não valida a terminologia oficial.
+- “Sem alerta Paliativo registrado” não significa “não paliativo”. O perfil
+  nosológico usa CIDs estruturados dos três Desfechos, mas não valida a
+  terminologia oficial.
 - Cada consolidação por setor/especialidade mostra a cobertura local do
   registro do alerta, evitando comparação enganosa entre grupos com proporções
   diferentes de documentos legados.
 - O contrato das Rules vincula a presença do alerta no evento ao paciente
   ativo lido pela transação e valida o formato dos novos CIDs e da DIH.
 - A aba Desfechos não baixa o evento privado: consulta somente a projeção
-  mínima sem `patientSnapshot` e usa o timestamp do servidor para período,
-  auditoria e permanência.
+  mínima sem `patientSnapshot` e os fatos administrativos de transição. Usa
+  timestamps do servidor para período, auditoria e permanência.
+- O tempo por setor usa intervalos decorridos em horas, soma retornos ao mesmo
+  setor e mostra cobertura completa, parcial ou indisponível. A DIH inclusiva
+  continua sendo uma métrica hospitalar separada.
 - A auditoria renderiza no máximo 50 registros por página; filtros podem ser
   limpos em uma única ação e tabelas roláveis são navegáveis por teclado.
 - O setor legado `uti` participa das consultas e dos totais.
-- A validação administrativa isolada passou em 30/30 cenários funcionais
-  (15 de autenticação/segurança e 15 de Desfechos) e 16/16 cenários da matriz
-  responsiva (8 por superfície).
+- A validação administrativa isolada passou em 37/37 cenários funcionais
+  (15 de autenticação/segurança e 22 de Desfechos) e 16/16 cenários da matriz
+  responsiva (8 por superfície). O recorte de Desfechos soma 30 casos:
+  22 funcionais e 8 responsivos.
 - Antes da publicação é obrigatório habilitar Email/Password, criar a conta
   institucional, cadastrar `admin_users/<uid>` e publicar as Rules.
 
@@ -275,8 +288,8 @@ informado` em vez de assumir estabilidade.
 ## Limitações técnicas atuais
 
 - `passagem.html` é monolítico e concentra interface, estilos e scripts.
-- O artefato RC1.3.0 possui 26.336 linhas, 105 blocos `<style>` e 61 blocos
-  `<script>`.
+- O artefato clínico permanece monolítico; as contagens exatas devem ser
+  atualizadas depois do congelamento deste candidato.
 - O estado é majoritariamente global; a persistência combina Firebase
   Auth/Firestore e fallback por `localStorage`.
 - O repositório possui uma suíte portátil de caracterização com Playwright,
@@ -290,9 +303,18 @@ informado` em vez de assumir estabilidade.
   ambiente e de um Chromium localizado em caminho temporário absoluto.
 - A estabilidade desktop em 1440 px permanece protegida por 50 repetições,
   um worker e nenhum retry.
-- O candidato de inteligência administrativa passou em 131/131 testes da
-  suíte principal, 22/22 cenários de Rules, impressão A4 e 50/50 repetições
-  de estabilidade, sem retries.
+- O baseline local anterior `d17ebdb` passou em 131/131 testes da suíte
+  principal, 22/22 cenários de Rules, impressão A4 e estabilidade 50/50.
+- O candidato RC1.3.3 passou em 145/145 testes da suíte principal, 33/33
+  cenários de Rules, impressão A4 e 50/50 repetições de estabilidade, com um
+  worker e zero retries. A configuração global descobre 146 testes em 20
+  arquivos, incluindo uma execução do cenário de estabilidade repetido
+  separadamente.
+- `npm audit --omit=dev` não encontrou vulnerabilidades de produção. A
+  auditoria completa registra 21 ocorrências transitivas no `firebase-tools`
+  de desenvolvimento/CI (16 altas e 5 moderadas), sem correção não destrutiva
+  disponível na versão estável atual; o CLI permanece restrito a runner
+  controlado.
 - As Rules locais não protegem produção até serem efetivamente publicadas no
   projeto Firebase.
 - Esta branch pode ser usada somente em teste controlado com pacientes

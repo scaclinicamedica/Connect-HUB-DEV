@@ -1,6 +1,63 @@
 # Changelog
 
-## [Não publicado — inteligência administrativa de Desfechos] — 2026-07-25
+## [Não publicado — RC1.3.3: CID universal e permanência setorial] — 2026-07-25
+
+### Desfecho
+
+- Os rótulos visíveis passam a ser Alta médica, Óbito e Transferência externa,
+  preservando os códigos persistidos `treated`, `death` e `transferred`.
+- CID principal em formato estruturado passa a ser obrigatório nos três
+  Desfechos, antes da confirmação.
+- Novos eventos privados usam esquema 2 e novas projeções administrativas usam
+  esquema 3; as versões anteriores permanecem somente para leitura histórica.
+
+### Permanência por setor
+
+- Novos pacientes iniciam um episódio setorial com timestamp do servidor.
+- Cada migração entre setores cria um fato administrativo imutável na mesma
+  transação que move o paciente; remanejamento interno não reinicia o relógio.
+- O painel calcula intervalos decorridos em horas, soma retornos ao mesmo setor
+  e separa cobertura completa, parcial e indisponível.
+- Pacientes legados não recebem tempo retroativo inventado: uma primeira
+  migração inicia observação parcial e um Desfecho sem rastreamento permanece
+  indisponível para a métrica setorial.
+
+### Área Administrativa
+
+- O filtro e o perfil nosológico passam a usar CID nos três tipos de Desfecho.
+- A composição por CID discrimina Altas médicas, Óbitos e Transferências
+  externas em gráfico e tabela exata.
+- A permanência observada por setor ganha média, mediana, total de horas,
+  episódios e cobertura, com gráfico complementar e fallback textual.
+- Falha ou truncamento dos fatos setoriais bloqueia somente essa análise; os
+  demais indicadores de Desfecho permanecem disponíveis quando íntegros.
+- Fatos de versão desconhecida, baseline retroativo e cadeias contraditórias são
+  recusados; intervalos válidos de duração zero permanecem representados como
+  `0 h`.
+
+### Segurança e compatibilidade
+
+- O snapshot clínico privado é derivado integralmente do paciente autoritativo
+  lido na transação e precisa ser idêntico a ele nas Rules.
+- O identificador determinístico de episódio mantém IDs legados literalmente,
+  inclusive `%`, alinhado ao contrato do Firestore.
+
+### Validação
+
+- Gate local concluído: 145/145 testes principais, 25/25 cenários funcionais de
+  Desfecho, 37/37 administrativos funcionais, 16/16 administrativos
+  responsivos, impressão A4, 33/33 Rules e estabilidade 50/50, com um worker e
+  zero retries.
+- A descoberta contém 145 testes na suíte principal e 146 no conjunto global,
+  que inclui uma execução do cenário repetido separadamente no gate 50/50.
+- `npm audit --omit=dev` não encontrou vulnerabilidades no artefato de
+  produção. A auditoria completa encontrou 21 ocorrências transitivas
+  (16 altas e 5 moderadas) no `firebase-tools` usado somente em
+  desenvolvimento/CI. A versão 15.24.0 já é a estável mais recente e não há
+  correção não destrutiva disponível; o CLI deve permanecer restrito a runner
+  controlado até a atualização upstream.
+
+## [Candidato local RC1.3.2 — inteligência administrativa de Desfechos] — 2026-07-25
 
 ### Indicadores
 
@@ -59,7 +116,7 @@
 - O login clínico nominal pode permanecer adiado somente em teste controlado
   com pacientes fictícios; continua bloqueando merge/deploy de produção.
 
-## [Não publicado — segurança de Desfecho e acesso administrativo] — 2026-07-24
+## [Candidato local anterior — segurança de Desfecho e acesso administrativo] — 2026-07-24
 
 ### Segurança do Desfecho
 

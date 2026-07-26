@@ -64,7 +64,10 @@ export class PassagemPage {
       window.print = () => { window.__printInvocations += 1; };
     }, seed);
 
-    await this.page.goto('/passagem.html?setor=emergencia', { waitUntil: 'domcontentloaded' });
+    const requestedSector = String(seed.unit || 'emergencia').replace(/_/g, '-');
+    await this.page.goto(`/passagem.html?setor=${encodeURIComponent(requestedSector)}`, {
+      waitUntil: 'domcontentloaded'
+    });
     await expect.poll(() => this.page.evaluate(() => Boolean(window.__firebaseTestHarness))).toBe(true);
     await expect.poll(() => this.page.evaluate(() => document.documentElement.dataset.rc127HostedDesktopBridge)).toBe('ready');
     await expect(this.page.locator('#cards')).toBeVisible();
@@ -138,6 +141,10 @@ export class PassagemPage {
     await this.page.locator('#patientOutcomeResponsibleDoctor').fill(name);
   }
 
+  async fillOutcomeCid(code = 'Z00.0'){
+    await this.page.locator('#patientOutcomePrimaryCid').fill(code);
+  }
+
   async waitForAutosaveHydration(){
     await expect.poll(() => this.page.evaluate(() => {
       try {
@@ -170,6 +177,14 @@ export class PassagemPage {
 
   async persistedPatient(id: string){
     return this.page.evaluate(patientId => window.__firebaseTestHarness.document(`connect_hub_v55/emergencia/pacientes/${patientId}`), id);
+  }
+
+  async persistedPatientInUnit(unit: string, id: string){
+    return this.page.evaluate(
+      ({ sectorUnit, patientId }) =>
+        window.__firebaseTestHarness.document(`connect_hub_v55/${sectorUnit}/pacientes/${patientId}`),
+      { sectorUnit: unit, patientId: id }
+    );
   }
 
   async firebaseDocument(path: string){
