@@ -6,15 +6,18 @@ ou navegador instalado manualmente.
 
 Todos os pacientes usados nos testes são explicitamente fictícios. Não copie
 informações de prontuário para fixtures, traces, screenshots ou PDFs.
+Datas de previsão usadas para exercitar pacientes não atrasados devem ser
+determinísticas e permanecer no futuro, sem depender da data de execução.
 
 A identificação funcional atualmente caracterizada é
-`FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX`.
+`FOUNDATION-1.0-RC1.3.1-NOMINAL-AUTH`.
 
 ## Pré-requisitos
 
 - Node.js 22, 24 ou 26.
 - npm.
 - Git disponível no `PATH` para a verificação de integridade.
+- Java 21 ou superior para o Firestore Emulator usado pelas Rules.
 
 ## Instalação
 
@@ -55,6 +58,68 @@ Integridade do artefato clínico:
 npm run verify:integrity
 ```
 
+Firestore Rules no Emulator:
+
+```bash
+npm run test:rules
+```
+
+Login clínico nominal em 1180 px:
+
+```bash
+npm run test:clinical-auth
+```
+
+Matriz responsiva do login no HUB e na Passagem:
+
+```bash
+npm run test:clinical-auth:matrix
+```
+
+Auditoria do artefato entregue, excluindo ferramentas de desenvolvimento:
+
+```bash
+npm audit --omit=dev
+```
+
+O `firebase-tools` é dependência exclusiva de CI/emulador. Na versão atual
+15.24.0, a auditoria completa ainda reporta alertas transitivos do CLI sem
+release posterior disponível; eles não integram os HTMLs carregados pelo
+navegador.
+
+Autenticação e autorização da Área Administrativa em 1180 px:
+
+```bash
+npx playwright test tests/e2e/admin-auth.spec.ts \
+  --project=functional-1180
+```
+
+Matriz responsiva do acesso administrativo:
+
+```bash
+npx playwright test tests/e2e/admin-auth.matrix.spec.ts
+```
+
+Gestão de usuários e ativação por convite:
+
+```bash
+npx playwright test tests/e2e/user-management.spec.ts \
+  tests/e2e/enrollment.spec.ts --project=functional-1180
+```
+
+Indicadores administrativos de Desfecho em 1180 px:
+
+```bash
+npx playwright test tests/e2e/admin-outcomes.spec.ts \
+  --project=functional-1180
+```
+
+Matriz responsiva da aba Desfechos:
+
+```bash
+npx playwright test tests/e2e/admin-outcomes.matrix.spec.ts
+```
+
 ## Cobertura fortalecida na RC1.2.9
 
 - persistência intermediária das decisões e dos precipitantes de Arritmias;
@@ -69,11 +134,174 @@ npm run verify:integrity
 A configuração global e os cenários de estabilidade permanecem com
 `retries: 0`.
 
+## Cobertura de Desfecho na RC1.3.0
+
+- substituição da ação Excluir por Desfecho no card e no drawer;
+- ausência de escrita ao abrir ou cancelar;
+- enumeração fechada Tratado, Óbito e Transferido;
+- CID principal obrigatório somente no Óbito;
+- persistência do médico responsável, setor, especialidade, DIH e permanência;
+- preservação integral do snapshot clínico;
+- transação condicional, atômica e idempotente entre evento privado, lápide
+  mínima e retirada do paciente ativo;
+- estado `Encerrando atendimento...` enquanto o commit está pendente;
+- falha atômica mantendo o paciente e permitindo retry;
+- retry após perda de confirmação sem sobrescrever o registro imutável;
+- atualização concorrente mantendo campos administrativos e snapshot
+  consistentes entre si;
+- coordenação com autosave, salvamento manual e reordenação em voo sem
+  recriação tardia;
+- preservação visual durante o eco local otimista do Firestore;
+- datas de permanência inválidas, futuras e no mesmo dia;
+- falha fechada quando o histórico local está corrompido;
+- limpeza de dados TEV desmarcados no snapshot do drawer;
+- modal sem overflow na matriz responsiva.
+
+## Cobertura de segurança do Desfecho
+
+`npm run test:rules` executa 46 cenários contra o Firestore Emulator:
+
+- criação conjunta de evento privado, projeção mínima, lápide e exclusão do
+  ativo;
+- negação de cada parte isolada e de combinações incompletas;
+- vínculo de `actorUid` e `closedByUid` ao UID autenticado;
+- obrigatoriedade do médico e do CID no Óbito;
+- imutabilidade do `patient_outcome`, `patient_outcome_admin` e
+  `patient_closed`;
+- bloqueio de recriação no mesmo setor e nos demais setores conhecidos;
+- separação entre `get` clínico da lápide e leitura administrativa do
+  histórico;
+- autorização de clínico, `admin` e `coordinator` Email/Password com perfis
+  ativos;
+- negação de usuário anônimo, provedor diferente, perfil ausente/inativo,
+  divergente ou malformado;
+- preservação de create/update/get/list de pacientes ativos;
+- preservação de migração válida e atualização atômica em lote;
+- negação de delete avulso do paciente;
+- autoria nominal e imutabilidade de eventos comuns reconhecidos;
+- reserva do ID determinístico `patient_outcome_*`;
+- criação/leitura e imutabilidade das confirmações de transição de cuidados.
+- compatibilidade transitória do contrato legado de confirmação, sem campos
+  extras nem timestamp fornecido pelo cliente.
+- e-mail verificado e schema administrativo exato;
+- Gestor separado do Coordenador nas coleções de gestão;
+- convite, revogação, claim e alteração de perfil com auditoria atômica;
+- expiração, e-mail divergente, concorrência e imutabilidade de acesso.
+
+Os testes usam exclusivamente o projeto de demonstração
+`demo-connect-hub-rules`. Nenhuma credencial ou dado do Firebase real deve ser
+fornecido ao Emulator.
+
+## Cobertura do acesso administrativo
+
+Os testes Playwright da Área Administrativa verificam:
+
+- remoção do código compartilhado e do login anônimo;
+- card administrativo condicional no HUB e ausência de atalho na Passagem;
+- login Password verificado e consulta de `admin_users/<uid>` exato;
+- autorização somente para perfil ativo `admin` ou `coordinator`;
+- instância nomeada `connect-hub-admin` e preservação da sessão clínica;
+- zero leitura de pacientes ou histórico antes da autorização;
+- painéis assistenciais somente leitura;
+- limpeza de dados, gráficos e relatórios no logout;
+- escape de conteúdo persistido no contexto privilegiado;
+- bloqueio de relatório/exportação quando o histórico falha ou ultrapassa
+  5.000 eventos;
+- invalidação de relatório anterior após falha de atualização;
+- ausência de repovoamento tardio após logout;
+- degradação segura quando a biblioteca de gráficos falha;
+- foco previsível e contenção responsiva do login e do dashboard.
+
+Os testes de gestão e cadastro verificam:
+
+- aba Usuários exclusiva do Gestor e zero consulta pelo Coordenador;
+- criação e revogação de convite com IDs de 128 bits e auditoria;
+- envio e reenvio do Firebase Email Link diretamente pela Área Administrativa
+  para a caixa postal cadastrada, sem renderizar a URL de ação;
+- falha fechada sem Firebase Email Link válido e o fragmento canônico
+  `#invite=invite_<32hex>`;
+- redigitação do mesmo e-mail sem registrá-lo na URL ou `localStorage`;
+- `signInWithEmailLink` antes da etapa de senha e exigência de
+  `additionalUserInfo.isNewUser === true`;
+- conta Firebase preexistente desconectada, sem claim, login ou reset pelo
+  cadastro;
+- conta comprovadamente nova definindo a própria senha;
+- retomada de falha parcial somente na mesma navegação e orientação para o
+  Gestor revisar/remover a conta órfã no Firebase Console após recarga;
+- envio inicial e reenvio exclusivo do Gestor consumindo a cota atual de cinco
+  Email Links por dia do Spark;
+- zero Firestore antes da reautenticação Password com token novo;
+- claim e retry idempotente limitado à mesma navegação autorizada;
+- convite expirado, revogado, divergente ou reutilizado;
+- perfil v2 exato, renomeação, ativação/desativação e revisão;
+- perfil v1 somente leitura, reset genérico e revogação do Gestor;
+- médicos com acesso a todos os setores clínicos e sem Área Administrativa;
+- ausência de senha, URL de ação e e-mail real do Gestor nos documentos e
+  logs de escrita.
+
+As contas, senhas, pacientes e históricos da suíte são totalmente fictícios e
+existem somente no test double em memória.
+
+## Cobertura do login clínico nominal
+
+Os testes dedicados verificam:
+
+- ausência de autenticação anônima no HUB e na Passagem;
+- zero leitura, listener ou escrita antes de Password e e-mail verificado;
+- leitura autoritativa `source: server` do próprio perfil antes dos dados;
+- shell oculto enquanto o perfil está pendente;
+- perfil exato, ativo, papel, e-mail e sessão restaurada;
+- credencial inválida, sessão anônima legada e configuração ausente;
+- persistência obrigatória `SESSION`, sem fallback de cache local;
+- observação em tempo real e revogação imediata do perfil;
+- remoção de listeners, cards, formulário, metadados e impressão no logout;
+- falha de logout sem anunciar encerramento falso;
+- bloqueio de logout durante escrita e conclusão segura depois do ACK;
+- isolamento bidirecional entre os apps clínico e administrativo;
+- proteção contra callback tardio, deep link pós-login e XSS no nome;
+- `permission-denied` no HUB e na Passagem;
+- teclado, foco, regiões vivas e contenção nas oito larguras obrigatórias.
+
+## Cobertura da aba Desfechos
+
+Os testes dedicados verificam:
+
+- período inicial inclusivo de 30 dias, bordas D-29/D-30, período
+  personalizado e intervalo invertido;
+- uso exclusivo do timestamp de servidor convertido para a data civil de
+  `America/Sao_Paulo`;
+- inclusão somente de `patient_outcome_admin` versão 1 e tipos homologados;
+- exclusão de `patient_deleted`, esquemas desconhecidos e eventos fora do
+  período;
+- contagens de Tratados, Óbitos e Transferidos;
+- proporção de Óbitos entre Desfechos, média, mediana par/ímpar e cobertura que
+  exclui permanências inválidas;
+- consolidações por setor e especialidade, agrupamento de CIDs e auditoria;
+- combinação dos filtros por setor, especialidade e tipo;
+- distinção entre histórico vazio e filtro sem resultados;
+- estados negado, carregando, erro e truncado sem números parciais, inclusive
+  quando a leitura de pacientes falha;
+- permanência recalculada por `admissionDate + createdAt`, ignorando campos
+  locais e valor persistido adulteráveis;
+- escape de todos os campos persistidos exibidos, ausência de transferência de
+  `patientSnapshot` e zero escrita;
+- inclusão do setor legado `uti` em consultas e totais;
+- contenção do layout, filtros e tabela de auditoria em todos os oito
+  viewports da matriz.
+
+Validação funcional anterior de Desfecho: 15/15, incluindo o conflito entre
+sessões. O candidato de gestão possui 212 testes descobertos: 131 funcionais,
+80 da matriz responsiva e um cenário de estabilidade executado 50 vezes
+separadamente. Os 211 primeiros compõem a suíte principal. Os resultados
+executados devem ser registrados no PR antes do merge; descoberta de testes
+não substitui execução.
+
 ## Isolamento
 
-Durante cada teste, somente `127.0.0.1` pode acessar a rede. As solicitações
-dos scripts Firebase são atendidas por um test double em memória; qualquer
-outro destino é bloqueado e registrado no artefato de rede do teste.
+Durante cada teste Playwright, somente `127.0.0.1` pode acessar a rede. As
+solicitações dos scripts Firebase são atendidas por um test double em memória;
+Chart.js e XLSX recebem doubles controlados nos cenários administrativos.
+Qualquer outro destino é bloqueado e registrado no artefato de rede do teste.
 
 O vídeo está desativado por instabilidade comprovada no encerramento paralelo
 do Chromium no Windows. Em diagnóstico controlado com quatro workers,

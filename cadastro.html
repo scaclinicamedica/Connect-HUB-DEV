@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="no-referrer" name="referrer"/>
+<meta content="noindex,nofollow,noarchive" name="robots"/>
+<title>Ativar acesso | Connect HUB</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#03101d;
+  --panel:#081b2e;
+  --panel-soft:#0b2339;
+  --line:#24537f;
+  --line-strong:#3b82b8;
+  --text:#f4f9fd;
+  --muted:#aec1d0;
+  --subtle:#7892a8;
+  --blue:#2f9df4;
+  --teal:#19d3c5;
+  --danger:#fecaca;
+  --danger-bg:#3b1118;
+  --danger-line:#ef4444;
+  --success:#bbf7d0;
+  --success-bg:#0d3328;
+  --success-line:#22c55e;
+  --focus:#7dd3fc;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  min-width:280px;
+  color:var(--text);
+  background:
+    radial-gradient(circle at 12% 4%,rgba(41,142,226,.19),transparent 31%),
+    radial-gradient(circle at 88% 10%,rgba(25,211,197,.11),transparent 29%),
+    linear-gradient(180deg,var(--bg),#061726);
+  font-family:Arial,Helvetica,sans-serif;
+  line-height:1.5;
+}
+button,input{font:inherit}
+button{touch-action:manipulation}
+button:focus-visible,input:focus-visible,a:focus-visible{
+  outline:3px solid rgba(125,211,252,.45);
+  outline-offset:3px;
+}
+[hidden]{display:none!important}
+.page{
+  min-height:100vh;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+}
+.topbar{
+  min-height:82px;
+  display:flex;
+  align-items:center;
+  padding:14px clamp(16px,4vw,54px);
+  border-bottom:1px solid rgba(72,137,193,.25);
+  background:rgba(2,11,21,.82);
+  backdrop-filter:blur(12px);
+}
+.brand{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:13px;
+  color:inherit;
+  text-decoration:none;
+}
+.brand-mark{
+  width:48px;
+  height:48px;
+  flex:0 0 48px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(125,211,252,.38);
+  border-radius:15px;
+  background:linear-gradient(145deg,#0b6bcb,#0e9eaa);
+  box-shadow:0 10px 26px rgba(14,165,233,.22);
+  font-size:17px;
+  font-weight:950;
+  letter-spacing:-.04em;
+}
+.brand-copy{min-width:0}
+.brand-copy strong{
+  display:block;
+  overflow:hidden;
+  color:#fff;
+  font-size:20px;
+  letter-spacing:-.025em;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.brand-copy strong span{color:var(--teal)}
+.brand-copy small{
+  display:block;
+  overflow:hidden;
+  margin-top:1px;
+  color:#9fb5ca;
+  font-size:11px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+main{
+  width:min(100% - 28px,540px);
+  min-width:0;
+  margin:0 auto;
+  padding:clamp(24px,6vh,68px) 0 36px;
+}
+.card{
+  min-width:0;
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(10,31,51,.98),rgba(6,23,39,.99));
+  box-shadow:0 28px 70px rgba(0,0,0,.34);
+}
+.card-header{
+  padding:clamp(22px,5vw,32px) clamp(18px,5vw,32px) 18px;
+}
+.eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  margin-bottom:11px;
+  padding:5px 9px;
+  border:1px solid #2f6fa7;
+  border-radius:999px;
+  background:#0f3f61;
+  color:#c7ecff;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.eyebrow:before{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--teal);
+  box-shadow:0 0 9px rgba(25,211,197,.75);
+  content:"";
+}
+h1{
+  margin:0;
+  font-size:clamp(25px,6vw,31px);
+  line-height:1.15;
+  letter-spacing:-.035em;
+}
+.lead{
+  margin:11px 0 0;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.6;
+}
+.card-body{
+  min-width:0;
+  padding:0 clamp(18px,5vw,32px) clamp(23px,5vw,32px);
+}
+.loading{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  min-height:90px;
+  color:var(--muted);
+  font-size:14px;
+}
+.spinner{
+  width:22px;
+  height:22px;
+  flex:0 0 22px;
+  border:3px solid rgba(125,211,252,.18);
+  border-top-color:var(--teal);
+  border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spinner{animation-duration:1.8s}}
+.tabs{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px;
+  margin:2px 0 20px;
+  padding:5px;
+  border:1px solid #234966;
+  border-radius:13px;
+  background:#051321;
+}
+.tabs[data-single="true"]{grid-template-columns:1fr}
+.tab{
+  min-width:0;
+  min-height:42px;
+  padding:8px 10px;
+  border:0;
+  border-radius:9px;
+  color:#9fb5ca;
+  background:transparent;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:850;
+}
+.tab[aria-selected="true"]{
+  color:#fff;
+  background:linear-gradient(135deg,#0b6bcb,#0e7490);
+  box-shadow:0 6px 15px rgba(0,0,0,.2);
+}
+.form{display:grid;gap:14px}
+.field{min-width:0}
+.field label{
+  display:block;
+  margin-bottom:6px;
+  color:#dbeafe;
+  font-size:12px;
+  font-weight:850;
+}
+.field input{
+  width:100%;
+  min-width:0;
+  min-height:47px;
+  padding:10px 12px;
+  border:1px solid #315f89;
+  border-radius:11px;
+  color:#eef6ff;
+  background:#06101d;
+}
+.field input::placeholder{color:#68839a}
+.field input:focus{border-color:var(--focus)}
+.field-note{
+  margin:6px 0 0;
+  color:var(--subtle);
+  font-size:11px;
+  line-height:1.45;
+}
+.password-rules{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px 10px;
+  margin:8px 0 0;
+  padding:0;
+  color:#8ea5b9;
+  font-size:11px;
+  list-style:none;
+}
+.password-rules li{
+  display:flex;
+  min-width:0;
+  align-items:flex-start;
+  gap:6px;
+}
+.password-rules li:before{
+  flex:0 0 auto;
+  color:#66839a;
+  content:"○";
+}
+.password-rules li[data-ok="true"]{color:#b7e8d2}
+.password-rules li[data-ok="true"]:before{
+  color:#42d6a4;
+  content:"✓";
+}
+.actions{
+  display:grid;
+  gap:10px;
+  margin-top:3px;
+}
+.button{
+  width:100%;
+  min-width:0;
+  min-height:47px;
+  padding:10px 15px;
+  border:1px solid #60a5fa;
+  border-radius:11px;
+  color:#fff;
+  background:linear-gradient(135deg,#0b6bcb,#0e7490);
+  cursor:pointer;
+  font-weight:900;
+}
+.button:hover{filter:brightness(1.08)}
+.button.secondary{
+  border-color:#315f89;
+  color:#dff3ff;
+  background:#102b45;
+}
+.button.ghost{
+  min-height:42px;
+  border-color:transparent;
+  color:#8fdcf3;
+  background:transparent;
+  font-size:12px;
+}
+.button:disabled{
+  cursor:wait;
+  filter:none;
+  opacity:.58;
+}
+.inline-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.message{
+  min-height:18px;
+  margin:14px 0 0;
+  color:#9fb5ca;
+  font-size:12px;
+  line-height:1.5;
+}
+.message.error,.message.success{
+  padding:10px 11px;
+  border-radius:10px;
+}
+.message.error{
+  border:1px solid var(--danger-line);
+  color:var(--danger);
+  background:var(--danger-bg);
+}
+.message.success{
+  border:1px solid var(--success-line);
+  color:var(--success);
+  background:var(--success-bg);
+}
+.security-note{
+  display:flex;
+  gap:10px;
+  margin:20px 0 0;
+  padding:12px;
+  border:1px solid rgba(49,95,137,.62);
+  border-radius:11px;
+  color:#91a8bb;
+  background:rgba(5,19,33,.72);
+  font-size:11px;
+  line-height:1.5;
+}
+.security-note svg{
+  width:18px;
+  height:18px;
+  flex:0 0 18px;
+  margin-top:1px;
+  fill:none;
+  stroke:#72d9e7;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  stroke-width:1.8;
+}
+.state{
+  min-width:0;
+  padding-top:3px;
+}
+.state-icon{
+  width:54px;
+  height:54px;
+  display:grid;
+  place-items:center;
+  margin-bottom:17px;
+  border:1px solid #3173a3;
+  border-radius:17px;
+  color:#dff7ff;
+  background:linear-gradient(145deg,#0b5f9f,#0d7b82);
+  font-size:24px;
+  font-weight:900;
+}
+.state h2{
+  margin:0;
+  font-size:23px;
+  line-height:1.2;
+  letter-spacing:-.025em;
+}
+.state p{
+  margin:10px 0 0;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.6;
+}
+.account-address{
+  display:block;
+  max-width:100%;
+  overflow-wrap:anywhere;
+  margin:14px 0 0;
+  padding:10px 12px;
+  border:1px solid #315f89;
+  border-radius:10px;
+  color:#dff7ff;
+  background:#061321;
+  font-size:13px;
+  font-weight:800;
+}
+.state .actions{margin-top:20px}
+.back-link{
+  display:inline-flex;
+  margin-top:15px;
+  color:#8fdcf3;
+  font-size:12px;
+  font-weight:800;
+  text-decoration:none;
+}
+.back-link:hover{text-decoration:underline}
+footer{
+  padding:0 18px 24px;
+  color:#718a9f;
+  font-size:10px;
+  text-align:center;
+}
+noscript{
+  display:block;
+  margin:20px;
+  padding:14px;
+  border:1px solid var(--danger-line);
+  border-radius:10px;
+  color:var(--danger);
+  background:var(--danger-bg);
+}
+@media(max-width:520px){
+  .topbar{min-height:74px;padding:12px 14px}
+  .brand-mark{width:44px;height:44px;flex-basis:44px}
+  main{width:min(100% - 20px,540px);padding:20px 0 28px}
+  .card{border-radius:17px}
+  .password-rules{grid-template-columns:1fr}
+  .inline-actions{grid-template-columns:1fr}
+  .button,.tab{min-height:46px}
+}
+@media(max-width:330px){
+  .brand-copy small{display:none}
+  .tabs{grid-template-columns:1fr}
+  .tab{min-height:42px}
+}
+</style>
+</head>
+<body>
+<noscript>Ative o JavaScript para validar seu convite e criar o acesso protegido.</noscript>
+<div class="page">
+<header class="topbar">
+<a class="brand" href="./index.html" aria-label="Connect HUB — voltar ao início">
+<span aria-hidden="true" class="brand-mark">CH</span>
+<span class="brand-copy">
+<strong>Connect <span>HUB</span></strong>
+<small>Integrando equipes. Conectando cuidados.</small>
+</span>
+</a>
+</header>
+<main>
+<section aria-labelledby="pageTitle" class="card">
+<header class="card-header">
+<span class="eyebrow">Convite protegido</span>
+<h1 id="pageTitle">Ativar acesso clínico</h1>
+<p class="lead" id="pageLead">Confirme o e-mail que recebeu o convite antes de criar ou acessar sua conta individual.</p>
+</header>
+<div class="card-body">
+<section aria-live="polite" class="loading" id="loadingView">
+<span aria-hidden="true" class="spinner"></span>
+<span>Preparando ambiente seguro...</span>
+</section>
+
+<section id="authView" hidden>
+<div aria-label="Etapa de acesso" class="tabs" data-single="true" role="tablist">
+<button aria-controls="loginPanel" aria-selected="true" class="tab" data-busy-control id="loginTab" role="tab" type="button">Conta existente</button>
+</div>
+
+<section aria-labelledby="loginTab" id="loginPanel" role="tabpanel">
+<form class="form" id="loginForm" novalidate>
+<div class="field">
+<label for="loginEmail">Seu e-mail</label>
+<input autocomplete="username" id="loginEmail" inputmode="email" maxlength="254" required type="email"/>
+</div>
+<div class="field">
+<label for="loginPassword">Senha</label>
+<input autocomplete="current-password" id="loginPassword" required type="password"/>
+</div>
+<div class="actions">
+<button class="button" data-busy-control id="loginButton" type="submit">Entrar e ativar acesso</button>
+<button class="button ghost" data-busy-control id="resetPasswordButton" type="button">Esqueci minha senha</button>
+</div>
+</form>
+</section>
+<p aria-live="assertive" class="message" id="authMessage" role="alert"></p>
+<div class="security-note">
+<svg aria-hidden="true" viewBox="0 0 24 24"><rect height="11" rx="2" width="16" x="4" y="10"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+<span>O acesso é pessoal e intransferível. Nunca compartilhe sua senha ou o link deste convite.</span>
+</div>
+</section>
+
+<section class="state" id="emailLinkView" hidden>
+<div aria-hidden="true" class="state-icon">@</div>
+<h2>Confirme seu e-mail</h2>
+<p>Digite novamente o endereço que recebeu o link. Esta confirmação prova que o convite chegou à conta correta.</p>
+<form class="form" id="emailLinkForm" novalidate>
+<div class="field">
+<label for="emailLinkEmail">Seu e-mail</label>
+<input autocomplete="email" id="emailLinkEmail" inputmode="email" maxlength="254" required type="email"/>
+</div>
+<div class="actions">
+<button class="button" data-busy-control id="completeEmailLinkButton" type="submit">Confirmar e continuar</button>
+</div>
+</form>
+<p aria-live="assertive" class="message" id="emailLinkMessage" role="alert"></p>
+</section>
+
+<section class="state" id="passwordView" hidden>
+<div aria-hidden="true" class="state-icon">✓</div>
+<h2>Crie uma senha forte</h2>
+<p>O e-mail foi confirmado. Agora defina uma senha exclusiva para seus próximos acessos.</p>
+<form class="form" id="passwordForm" novalidate>
+<div class="field">
+<label for="createPassword">Nova senha</label>
+<input aria-describedby="passwordGuidance passwordRules" autocomplete="new-password" id="createPassword" maxlength="128" required type="password"/>
+<p class="field-note" id="passwordGuidance">A senha é enviada somente ao Firebase Authentication e não é salva nesta página.</p>
+<ul aria-label="Requisitos da senha" class="password-rules" id="passwordRules">
+<li data-password-rule="length">12 a 128 caracteres</li>
+<li data-password-rule="lower">Uma letra minúscula</li>
+<li data-password-rule="upper">Uma letra maiúscula</li>
+<li data-password-rule="number">Um número</li>
+<li data-password-rule="symbol">Um símbolo</li>
+</ul>
+</div>
+<div class="field">
+<label for="confirmPassword">Confirme a senha</label>
+<input autocomplete="new-password" id="confirmPassword" maxlength="128" required type="password"/>
+</div>
+<div class="actions">
+<button class="button" data-busy-control id="setPasswordButton" type="submit">Definir senha e ativar acesso</button>
+</div>
+</form>
+<p aria-live="assertive" class="message" id="passwordMessage" role="alert"></p>
+</section>
+
+<section class="state" id="claimView" hidden>
+<div aria-hidden="true" class="state-icon"><span class="spinner"></span></div>
+<h2>Validando seu convite</h2>
+<p>Estamos confirmando a conta verificada e registrando o acesso de forma segura.</p>
+<p aria-live="polite" class="message" role="status">Não feche esta página durante a validação.</p>
+</section>
+
+<section class="state" id="unavailableView" hidden>
+<div aria-hidden="true" class="state-icon">!</div>
+<h2>Não foi possível concluir o acesso</h2>
+<p id="unavailableDescription">Este convite não está disponível ou não pode ser utilizado com esta conta. Solicite um novo convite ao gestor.</p>
+<div class="actions">
+<button class="button" data-busy-control id="retryClaimButton" type="button">Tentar novamente</button>
+<button class="button secondary" data-busy-control id="changeAccountButton" type="button">Usar outra conta</button>
+</div>
+<p aria-live="assertive" class="message" id="unavailableMessage" role="alert"></p>
+<a class="back-link" href="./index.html">Voltar ao Connect HUB</a>
+</section>
+
+<section class="state" id="invalidView" hidden>
+<div aria-hidden="true" class="state-icon">!</div>
+<h2>Convite indisponível</h2>
+<p>O link não é válido ou não está mais disponível. Solicite um novo convite ao gestor.</p>
+<a class="back-link" href="./index.html">Voltar ao Connect HUB</a>
+</section>
+
+<section class="state" id="successView" hidden>
+<div aria-hidden="true" class="state-icon">✓</div>
+<h2>Acesso ativado</h2>
+<p>Seu perfil clínico foi criado com segurança. Você será direcionado ao Connect HUB.</p>
+<p aria-live="polite" class="message success" role="status">Redirecionando...</p>
+</section>
+</div>
+</section>
+</main>
+<footer>Connect HUB • Acesso nominal e auditável</footer>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+'use strict';
+
+const firebaseConfig={
+  apiKey:"AIzaSyDkkz0icUp8sbF7nWkE626fOgJvGL8lRc4",
+  authDomain:"passagem-de-plantao-1746c.firebaseapp.com",
+  projectId:"passagem-de-plantao-1746c",
+  storageBucket:"passagem-de-plantao-1746c.firebasestorage.app",
+  messagingSenderId:"1021826325362",
+  appId:"1:1021826325362:web:60bdd58d26b61f2ed45beb",
+  measurementId:"G-JRZYZQ2TYL"
+};
+
+const PROFILE_SCHEMA_VERSION=2;
+const INVITE_SCHEMA_VERSION=1;
+const AUDIT_SCHEMA_VERSION=1;
+const CLINICAL_ROLE='clinician';
+const CLINICAL_USERS_COLLECTION='clinical_users';
+const CLINICAL_INVITES_COLLECTION='clinical_invites';
+const ACCESS_AUDIT_COLLECTION='access_audit';
+const INVITE_ID_PATTERN=/^invite_[0-9a-f]{32}$/;
+const ACCESS_EVENT_ID_PATTERN=/^access_[0-9a-f]{32}$/;
+const PROFILE_KEYS=[
+  'schemaVersion','active','role','displayName','email','createdAt',
+  'createdByUid','updatedAt','updatedByUid','revision','inviteId',
+  'lastAccessEventId'
+];
+const INVITE_KEYS=[
+  'schemaVersion','status','role','displayName','email','createdAt',
+  'createdByUid','expiresAt','updatedAt','updatedByUid','claimedAt',
+  'claimedByUid','revokedAt','revokedByUid','revision','lastAccessEventId'
+];
+
+const views=[
+  'loadingView','authView','emailLinkView','passwordView',
+  'claimView','unavailableView','invalidView','successView'
+];
+const state={
+  app:null,
+  auth:null,
+  db:null,
+  inviteId:null,
+  emailLinkHref:null,
+  emailLinkProof:null,
+  passwordLoginProof:null,
+  busy:true,
+  authSequence:0,
+  claimPromise:null,
+  redirectTimer:null
+};
+
+const byId=id=>document.getElementById(id);
+
+class EnrollmentError extends Error{
+  constructor(kind){
+    super(kind);
+    this.name='EnrollmentError';
+    this.kind=kind;
+  }
+}
+
+function validEmailValue(value){
+  return typeof value==='string'
+    &&value.length>3
+    &&value.length<=254
+    &&value===normalizeEmail(value)
+    &&/^[^@ ]+@[^@ ]+\.[^@ ]+$/.test(value);
+}
+
+function parseInvitationUrl(href){
+  try{
+    const url=new URL(href);
+    const raw=url.hash.startsWith('#')
+      ?url.hash.slice(1)
+      :'';
+    const parameters=new URLSearchParams(raw);
+    const entries=Array.from(parameters.entries());
+    if(
+      entries.length!==1
+      ||entries[0][0]!=='invite'
+      ||parameters.toString()!==raw
+    )return null;
+    const inviteId=entries[0][1];
+    if(!INVITE_ID_PATTERN.test(inviteId))return null;
+    return {inviteId,url};
+  }catch(_error){
+    return null;
+  }
+}
+
+function scrubSensitiveLocation(){
+  try{
+    window.history.replaceState(
+      window.history.state,
+      document.title,
+      window.location.pathname
+    );
+  }catch(_error){}
+}
+
+function showView(viewId){
+  views.forEach(id=>{
+    const element=byId(id);
+    if(element)element.hidden=id!==viewId;
+  });
+  window.requestAnimationFrame(()=>{
+    const view=byId(viewId);
+    if(!view)return;
+    const focusTarget=view.querySelector(
+      'input:not([disabled]),button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])'
+    )||view.querySelector('h2');
+    if(focusTarget&&typeof focusTarget.focus==='function')focusTarget.focus({preventScroll:true});
+  });
+}
+
+function setMessage(elementId,text,type){
+  const element=byId(elementId);
+  if(!element)return;
+  element.textContent=text||'';
+  element.className='message'+(type?' '+type:'');
+}
+
+function setBusy(busy){
+  state.busy=Boolean(busy);
+  document.querySelectorAll('[data-busy-control]').forEach(control=>{
+    control.disabled=state.busy;
+  });
+  document.querySelectorAll('form').forEach(form=>{
+    form.setAttribute('aria-busy',state.busy?'true':'false');
+  });
+}
+
+function clearPasswordFields(){
+  ['createPassword','confirmPassword','loginPassword'].forEach(id=>{
+    const input=byId(id);
+    if(input)input.value='';
+  });
+  updatePasswordRules();
+}
+
+function normalizeEmail(value){
+  return String(value||'').trim().toLowerCase();
+}
+
+function passwordChecks(password){
+  return {
+    length:password.length>=12&&password.length<=128,
+    lower:/[a-z]/.test(password),
+    upper:/[A-Z]/.test(password),
+    number:/[0-9]/.test(password),
+    symbol:/[^A-Za-z0-9]/.test(password)
+  };
+}
+
+function isStrongPassword(password){
+  return Object.values(passwordChecks(password)).every(Boolean);
+}
+
+function updatePasswordRules(){
+  const password=byId('createPassword').value;
+  const checks=passwordChecks(password);
+  document.querySelectorAll('[data-password-rule]').forEach(item=>{
+    item.dataset.ok=checks[item.dataset.passwordRule]?'true':'false';
+  });
+}
+
+function providerIsPassword(user){
+  if(!user||user.isAnonymous)return false;
+  return Array.isArray(user.providerData)
+    &&user.providerData.some(provider=>provider&&provider.providerId==='password');
+}
+
+function authTokenIsVerifiedPassword(tokenResult,user){
+  const claims=tokenResult&&tokenResult.claims;
+  return Boolean(
+    claims
+    &&claims.email_verified===true
+    &&claims.email===user.email
+    &&claims.firebase
+    &&claims.firebase.sign_in_provider==='password'
+  );
+}
+
+function timestampMillis(value){
+  if(!value)return NaN;
+  const milliseconds=typeof value.toMillis==='function'
+    ?value.toMillis()
+    :typeof value.toDate==='function'
+      ?value.toDate().getTime()
+      :NaN;
+  return Number.isFinite(milliseconds)?milliseconds:NaN;
+}
+
+function isNonEmptyString(value,maxLength){
+  return typeof value==='string'
+    &&value.length>0
+    &&value.length<=maxLength
+    &&value===value.trim();
+}
+
+function hasExactKeys(value,expected){
+  if(!value||typeof value!=='object'||Array.isArray(value))return false;
+  const actual=Object.keys(value).sort();
+  const wanted=expected.slice().sort();
+  return actual.length===wanted.length
+    &&actual.every((key,index)=>key===wanted[index]);
+}
+
+function isBaseInvite(invite){
+  return hasExactKeys(invite,INVITE_KEYS)
+    &&invite.schemaVersion===INVITE_SCHEMA_VERSION
+    &&invite.role===CLINICAL_ROLE
+    &&isNonEmptyString(invite.displayName,120)
+    &&typeof invite.email==='string'
+    &&invite.email===normalizeEmail(invite.email)
+    &&invite.email.length<=254
+    &&isNonEmptyString(invite.createdByUid,128)
+    &&Number.isFinite(timestampMillis(invite.createdAt))
+    &&Number.isFinite(timestampMillis(invite.expiresAt))
+    &&timestampMillis(invite.expiresAt)>timestampMillis(invite.createdAt)
+    &&Number.isFinite(timestampMillis(invite.updatedAt))
+    &&isNonEmptyString(invite.updatedByUid,128)
+    &&Number.isInteger(invite.revision)
+    &&invite.revision>=1
+    &&ACCESS_EVENT_ID_PATTERN.test(String(invite.lastAccessEventId||''));
+}
+
+function isPendingInvite(invite){
+  return isBaseInvite(invite)
+    &&invite.status==='pending'
+    &&invite.claimedAt===null
+    &&invite.claimedByUid===null
+    &&invite.revokedAt===null
+    &&invite.revokedByUid===null
+    &&timestampMillis(invite.expiresAt)>Date.now();
+}
+
+function isClaimedInviteForUser(invite,user){
+  return isBaseInvite(invite)
+    &&invite.status==='claimed'
+    &&Number.isFinite(timestampMillis(invite.claimedAt))
+    &&invite.claimedByUid===user.uid
+    &&invite.updatedByUid===user.uid
+    &&invite.revokedAt===null
+    &&invite.revokedByUid===null;
+}
+
+function isIdempotentProfile(profile,invite,user){
+  return hasExactKeys(profile,PROFILE_KEYS)
+    &&profile.schemaVersion===PROFILE_SCHEMA_VERSION
+    &&profile.active===true
+    &&profile.role===CLINICAL_ROLE
+    &&isNonEmptyString(profile.displayName,120)
+    &&profile.email===invite.email
+    &&profile.email===user.email
+    &&profile.inviteId===state.inviteId
+    &&profile.createdByUid===invite.createdByUid
+    &&profile.updatedByUid===user.uid
+    &&Number.isFinite(timestampMillis(profile.createdAt))
+    &&Number.isFinite(timestampMillis(profile.updatedAt))
+    &&profile.revision===1
+    &&profile.lastAccessEventId===invite.lastAccessEventId
+    &&ACCESS_EVENT_ID_PATTERN.test(profile.lastAccessEventId);
+}
+
+function createSecureId(prefix){
+  if(!window.crypto||typeof window.crypto.getRandomValues!=='function'){
+    throw new EnrollmentError('secure-random-unavailable');
+  }
+  const bytes=new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  const hex=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
+  return prefix+hex;
+}
+
+async function getFreshVerifiedPasswordUser(candidate){
+  if(!candidate||candidate!==state.auth.currentUser){
+    throw new EnrollmentError('authentication-required');
+  }
+  await candidate.reload();
+  const user=state.auth.currentUser;
+  if(!providerIsPassword(user)||!user.emailVerified||!user.email){
+    throw new EnrollmentError('verification-required');
+  }
+  const tokenResult=await user.getIdTokenResult(true);
+  await user.getIdToken(true);
+  if(
+    !providerIsPassword(user)
+    ||!user.emailVerified
+    ||!user.email
+    ||!authTokenIsVerifiedPassword(tokenResult,user)
+  ){
+    throw new EnrollmentError('verification-required');
+  }
+  return user;
+}
+
+async function runInviteClaim(user){
+  const eventId=createSecureId('access_');
+  const inviteRef=state.db.collection(CLINICAL_INVITES_COLLECTION).doc(state.inviteId);
+  const profileRef=state.db.collection(CLINICAL_USERS_COLLECTION).doc(user.uid);
+  const auditRef=state.db.collection(ACCESS_AUDIT_COLLECTION).doc(eventId);
+
+  return state.db.runTransaction(async transaction=>{
+    const inviteSnapshot=await transaction.get(inviteRef);
+    if(!inviteSnapshot.exists)throw new EnrollmentError('invite-unavailable');
+    const invite=inviteSnapshot.data();
+    if(!isBaseInvite(invite)||user.email!==invite.email){
+      throw new EnrollmentError('invite-unavailable');
+    }
+
+    const profileSnapshot=await transaction.get(profileRef);
+
+    if(invite.status==='claimed'){
+      if(
+        isClaimedInviteForUser(invite,user)
+        &&profileSnapshot.exists
+        &&isIdempotentProfile(profileSnapshot.data(),invite,user)
+      ){
+        return {alreadyClaimed:true};
+      }
+      throw new EnrollmentError('invite-unavailable');
+    }
+
+    if(!isPendingInvite(invite)||profileSnapshot.exists){
+      throw new EnrollmentError('invite-unavailable');
+    }
+
+    const committedAt=firebase.firestore.FieldValue.serverTimestamp();
+    const profile={
+      schemaVersion:PROFILE_SCHEMA_VERSION,
+      active:true,
+      role:CLINICAL_ROLE,
+      displayName:invite.displayName,
+      email:invite.email,
+      createdAt:committedAt,
+      createdByUid:invite.createdByUid,
+      updatedAt:committedAt,
+      updatedByUid:user.uid,
+      revision:1,
+      inviteId:state.inviteId,
+      lastAccessEventId:eventId
+    };
+    const claimedInvite={
+      schemaVersion:INVITE_SCHEMA_VERSION,
+      status:'claimed',
+      role:CLINICAL_ROLE,
+      displayName:invite.displayName,
+      email:invite.email,
+      createdAt:invite.createdAt,
+      createdByUid:invite.createdByUid,
+      expiresAt:invite.expiresAt,
+      updatedAt:committedAt,
+      updatedByUid:user.uid,
+      claimedAt:committedAt,
+      claimedByUid:user.uid,
+      revokedAt:null,
+      revokedByUid:null,
+      revision:invite.revision+1,
+      lastAccessEventId:eventId
+    };
+    const audit={
+      schemaVersion:AUDIT_SCHEMA_VERSION,
+      type:'access_audit',
+      action:'invite_claimed',
+      actorUid:user.uid,
+      targetUid:user.uid,
+      targetEmail:invite.email,
+      targetDisplayName:invite.displayName,
+      inviteId:state.inviteId,
+      createdAt:committedAt
+    };
+
+    transaction.set(profileRef,profile);
+    transaction.set(inviteRef,claimedInvite);
+    transaction.set(auditRef,audit);
+    return {alreadyClaimed:false};
+  });
+}
+
+function isRetryableError(error){
+  const code=String(error&&error.code||'');
+  return code.includes('unavailable')
+    ||code.includes('deadline-exceeded')
+    ||code.includes('aborted')
+    ||code.includes('network-request-failed')
+    ||code.includes('ack-lost');
+}
+
+function showUnavailable(retryable){
+  byId('retryClaimButton').hidden=!retryable;
+  byId('unavailableDescription').textContent=retryable
+    ?'Não foi possível validar o convite agora. Confira sua conexão e tente novamente.'
+    :'Este convite não está disponível ou não pode ser utilizado com esta conta. Solicite um novo convite ao gestor.';
+  setMessage('unavailableMessage','');
+  showView('unavailableView');
+  setBusy(false);
+}
+
+async function claimInvitation(candidate){
+  if(state.claimPromise)return state.claimPromise;
+  const sequence=++state.authSequence;
+  showView('claimView');
+  setBusy(true);
+  state.claimPromise=(async()=>{
+    try{
+      const user=await getFreshVerifiedPasswordUser(candidate);
+      if(sequence!==state.authSequence||user!==state.auth.currentUser)return;
+      await runInviteClaim(user);
+      if(sequence!==state.authSequence||user!==state.auth.currentUser)return;
+      clearPasswordFields();
+      showView('successView');
+      state.redirectTimer=window.setTimeout(()=>{
+        window.location.replace('./index.html');
+      },800);
+    }catch(error){
+      if(sequence!==state.authSequence)return;
+      if(error instanceof EnrollmentError&&error.kind==='verification-required'){
+        await discardCurrentCredential();
+        if(state.passwordLoginProof){
+          showExistingAccount('Esta conta ainda não está pronta. Redefina a senha e tente novamente.');
+        }else{
+          showUnavailable(false);
+        }
+        return;
+      }
+      const retryable=isRetryableError(error);
+      if(!retryable){
+        try{await discardCurrentCredential();}catch(_discardError){}
+      }
+      showUnavailable(retryable);
+    }finally{
+      state.claimPromise=null;
+      if(sequence===state.authSequence&&!state.redirectTimer)setBusy(false);
+    }
+  })();
+  return state.claimPromise;
+}
+
+function showAuth(message){
+  showView('authView');
+  setMessage('authMessage',message||'',message?'error':'');
+  setBusy(false);
+}
+
+async function discardCurrentCredential(){
+  const auth=state.auth;
+  if(!auth||!auth.currentUser)return;
+  try{
+    await auth.signOut();
+  }catch(signOutError){
+    if(typeof auth.updateCurrentUser!=='function')throw signOutError;
+    await auth.updateCurrentUser(null);
+  }
+  if(auth.currentUser&&typeof auth.updateCurrentUser==='function'){
+    await auth.updateCurrentUser(null);
+  }
+  if(auth.currentUser)throw new EnrollmentError('credential-discard-failed');
+}
+
+async function waitForInitialAuthState(){
+  if(!state.auth||typeof state.auth.onAuthStateChanged!=='function'){
+    throw new EnrollmentError('auth-state-unavailable');
+  }
+  await new Promise((resolve,reject)=>{
+    let settled=false;
+    let unsubscribe=null;
+    const finish=(callback,value)=>{
+      if(settled)return;
+      settled=true;
+      try{if(typeof unsubscribe==='function')unsubscribe();}catch(_error){}
+      callback(value);
+    };
+    unsubscribe=state.auth.onAuthStateChanged(
+      user=>finish(resolve,user),
+      error=>finish(reject,error)
+    );
+  });
+}
+
+function showExistingAccount(message){
+  showAuth(message);
+  byId('loginEmail').focus();
+}
+
+async function completeEmailLink(event){
+  event.preventDefault();
+  if(state.busy)return;
+  const input=byId('emailLinkEmail');
+  const email=normalizeEmail(input.value);
+  const exactHref=state.emailLinkHref;
+  if(!validEmailValue(email)||!exactHref){
+    setMessage('emailLinkMessage','O link ou o e-mail informado não é válido.','error');
+    input.focus();
+    return;
+  }
+
+  setBusy(true);
+  setMessage('emailLinkMessage','Confirmando a posse do e-mail...');
+  try{
+    await discardCurrentCredential();
+    const credential=await state.auth.signInWithEmailLink(email,exactHref);
+    const user=credential&&credential.user?credential.user:state.auth.currentUser;
+    if(!user||!user.emailVerified||normalizeEmail(user.email)!==email){
+      throw new EnrollmentError('email-link-identity-mismatch');
+    }
+    state.emailLinkHref=null;
+    input.value='';
+
+    if(credential.additionalUserInfo?.isNewUser!==true){
+      state.emailLinkProof=null;
+      state.passwordLoginProof=null;
+      await discardCurrentCredential();
+      showUnavailable(false);
+      return;
+    }
+
+    state.emailLinkProof={uid:user.uid,email};
+    state.passwordLoginProof={uid:user.uid,email};
+    clearPasswordFields();
+    setMessage('passwordMessage','');
+    showView('passwordView');
+  }catch(_error){
+    try{await discardCurrentCredential();}catch(_discardError){}
+    setMessage(
+      'emailLinkMessage',
+      'O link expirou, já foi usado ou não corresponde ao e-mail informado.',
+      'error'
+    );
+    showView('emailLinkView');
+  }finally{
+    setBusy(false);
+  }
+}
+
+async function setEnrollmentPassword(event){
+  event.preventDefault();
+  if(state.busy)return;
+  const passwordInput=byId('createPassword');
+  const confirmationInput=byId('confirmPassword');
+  const proof=state.emailLinkProof;
+  let password=passwordInput.value;
+  const confirmation=confirmationInput.value;
+
+  if(!isStrongPassword(password)){
+    setMessage('passwordMessage','A senha ainda não atende a todos os requisitos.','error');
+    passwordInput.focus();
+    password='';
+    return;
+  }
+  if(password!==confirmation){
+    setMessage('passwordMessage','A confirmação da senha não corresponde.','error');
+    confirmationInput.focus();
+    password='';
+    return;
+  }
+
+  setBusy(true);
+  setMessage('passwordMessage','Protegendo a conta e validando o acesso...');
+  passwordInput.value='';
+  confirmationInput.value='';
+  updatePasswordRules();
+  try{
+    const linkUser=state.auth.currentUser;
+    if(
+      !proof
+      ||!linkUser
+      ||linkUser.uid!==proof.uid
+      ||normalizeEmail(linkUser.email)!==proof.email
+      ||linkUser.emailVerified!==true
+      ||typeof linkUser.updatePassword!=='function'
+    ){
+      throw new EnrollmentError('email-link-proof-lost');
+    }
+
+    await linkUser.updatePassword(password);
+    await discardCurrentCredential();
+    const credential=await state.auth.signInWithEmailAndPassword(proof.email,password);
+    password='';
+    const passwordUser=credential&&credential.user
+      ?credential.user
+      :state.auth.currentUser;
+    if(
+      !passwordUser
+      ||passwordUser.uid!==proof.uid
+      ||normalizeEmail(passwordUser.email)!==proof.email
+    ){
+      throw new EnrollmentError('password-reauthentication-mismatch');
+    }
+    state.emailLinkProof=null;
+    state.passwordLoginProof={uid:proof.uid,email:proof.email};
+    await claimInvitation(passwordUser);
+  }catch(_error){
+    password='';
+    if(proof&&proof.uid&&proof.email){
+      state.passwordLoginProof={uid:proof.uid,email:proof.email};
+    }
+    state.emailLinkProof=null;
+    try{await discardCurrentCredential();}catch(_discardError){}
+    if(state.passwordLoginProof){
+      showExistingAccount(
+        'A ativação não foi concluída. Se a senha já foi definida, entre com ela; caso contrário, redefina o acesso.'
+      );
+    }else{
+      showUnavailable(false);
+    }
+  }finally{
+    password='';
+    if(!state.claimPromise&&!state.redirectTimer)setBusy(false);
+  }
+}
+
+async function signIn(event){
+  event.preventDefault();
+  if(state.busy)return;
+  const emailInput=byId('loginEmail');
+  const passwordInput=byId('loginPassword');
+  const email=normalizeEmail(emailInput.value);
+  const proof=state.passwordLoginProof;
+  let password=passwordInput.value;
+  if(
+    !proof
+    ||!validEmailValue(email)
+    ||email!==proof.email
+    ||!password
+  ){
+    setMessage('authMessage','Não foi possível entrar. Confira os dados informados.','error');
+    password='';
+    return;
+  }
+
+  setBusy(true);
+  setMessage('authMessage','Validando sua conta...');
+  passwordInput.value='';
+  try{
+    await discardCurrentCredential();
+    const credential=await state.auth.signInWithEmailAndPassword(email,password);
+    password='';
+    const user=credential&&credential.user?credential.user:state.auth.currentUser;
+    if(
+      !user
+      ||user.uid!==proof.uid
+      ||normalizeEmail(user.email)!==proof.email
+      ||!user.emailVerified
+      ||!providerIsPassword(user)
+    ){
+      throw new EnrollmentError('verified-password-required');
+    }
+    await claimInvitation(user);
+  }catch(_error){
+    password='';
+    try{await discardCurrentCredential();}catch(_discardError){}
+    showExistingAccount(
+      'Não foi possível entrar. Confira os dados informados ou redefina sua senha.'
+    );
+  }finally{
+    password='';
+    if(!state.claimPromise&&!state.redirectTimer)setBusy(false);
+  }
+}
+
+async function sendGenericPasswordReset(){
+  if(state.busy)return;
+  const emailInput=byId('loginEmail');
+  const email=normalizeEmail(emailInput.value);
+  const proof=state.passwordLoginProof;
+  if(!proof||!validEmailValue(email)||email!==proof.email){
+    setMessage('authMessage','Informe um e-mail válido.','error');
+    emailInput.focus();
+    return;
+  }
+  setBusy(true);
+  try{
+    await discardCurrentCredential();
+    await state.auth.sendPasswordResetEmail(email);
+  }catch(_error){
+    /* Resposta deliberadamente idêntica para não revelar a existência da conta. */
+  }finally{
+    emailInput.value='';
+    setMessage(
+      'authMessage',
+      'Se houver uma conta válida para este e-mail, você receberá as instruções de redefinição.',
+      'success'
+    );
+    setBusy(false);
+  }
+}
+
+async function changeAccount(){
+  if(state.busy)return;
+  if(!state.auth){
+    window.location.reload();
+    return;
+  }
+  setBusy(true);
+  state.authSequence+=1;
+  if(state.redirectTimer){
+    window.clearTimeout(state.redirectTimer);
+    state.redirectTimer=null;
+  }
+  try{
+    await discardCurrentCredential();
+    state.emailLinkProof=null;
+    state.passwordLoginProof=null;
+    clearPasswordFields();
+    showView('invalidView');
+    setBusy(false);
+  }catch(_error){
+    showUnavailable(false);
+    setMessage('unavailableMessage','Não foi possível encerrar esta sessão. Tente novamente.','error');
+    setBusy(false);
+  }
+}
+
+async function retryClaim(){
+  if(state.busy)return;
+  if(!state.auth){
+    window.location.reload();
+    return;
+  }
+  const user=state.auth.currentUser;
+  if(!user){
+    if(state.passwordLoginProof)showExistingAccount('');
+    else{
+      showView('invalidView');
+      setBusy(false);
+    }
+    return;
+  }
+  await claimInvitation(user);
+}
+
+function bindEvents(){
+  byId('emailLinkForm').addEventListener('submit',completeEmailLink);
+  byId('passwordForm').addEventListener('submit',setEnrollmentPassword);
+  byId('loginForm').addEventListener('submit',signIn);
+  byId('createPassword').addEventListener('input',updatePasswordRules);
+  byId('resetPasswordButton').addEventListener('click',sendGenericPasswordReset);
+  byId('changeAccountButton').addEventListener('click',changeAccount);
+  byId('retryClaimButton').addEventListener('click',retryClaim);
+}
+
+async function initialize(){
+  bindEvents();
+  updatePasswordRules();
+  const entryHref=window.location.href;
+  const invitation=parseInvitationUrl(entryHref);
+  if(!invitation){
+    scrubSensitiveLocation();
+    showView('invalidView');
+    setBusy(false);
+    return;
+  }
+  state.inviteId=invitation.inviteId;
+  scrubSensitiveLocation();
+  try{
+    state.app=firebase.apps.find(app=>app.name==='[DEFAULT]')
+      ||firebase.initializeApp(firebaseConfig);
+    state.auth=state.app.auth();
+    state.db=state.app.firestore();
+    const sessionPersistence=firebase.auth.Auth.Persistence.SESSION;
+    if(!sessionPersistence||typeof state.auth.setPersistence!=='function'){
+      throw new EnrollmentError('session-persistence-unavailable');
+    }
+    await state.auth.setPersistence(sessionPersistence);
+    await waitForInitialAuthState();
+    await discardCurrentCredential();
+    if(state.auth.currentUser){
+      throw new EnrollmentError('credential-discard-failed');
+    }
+
+    if(typeof state.auth.isSignInWithEmailLink!=='function'){
+      throw new EnrollmentError('email-link-unavailable');
+    }
+    const isEmailLink=state.auth.isSignInWithEmailLink(entryHref);
+    if(!invitation.url.search||!isEmailLink){
+      scrubSensitiveLocation();
+      showView('invalidView');
+      setBusy(false);
+      return;
+    }
+    state.emailLinkHref=entryHref;
+    scrubSensitiveLocation();
+    showView('emailLinkView');
+    setBusy(false);
+    return;
+  }catch(_error){
+    const unsafeAuth=state.auth;
+    state.authSequence+=1;
+    state.emailLinkHref=null;
+    state.emailLinkProof=null;
+    state.passwordLoginProof=null;
+    scrubSensitiveLocation();
+    if(state.redirectTimer){
+      window.clearTimeout(state.redirectTimer);
+      state.redirectTimer=null;
+    }
+    try{
+      if(unsafeAuth){
+        try{await waitForInitialAuthState();}catch(_authStateError){}
+        await discardCurrentCredential();
+      }
+    }catch(_signOutError){
+      try{
+        if(typeof unsafeAuth?.updateCurrentUser==='function'){
+          await unsafeAuth.updateCurrentUser(null);
+        }
+      }catch(_discardError){}
+    }
+    state.auth=null;
+    state.db=null;
+    state.app=null;
+    showUnavailable(true);
+  }
+}
+
+void initialize();
+})();
+</script>
+</body>
+</html>

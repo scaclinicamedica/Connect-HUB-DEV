@@ -1,24 +1,24 @@
 # Estado atual do projeto
 
-Atualizado em: 17/07/2026
+Atualizado em: 25/07/2026
 
 ## Baseline
 
 - Produto: Connect HUB — Passagem de Plantão.
-- Componente em foco: Clinical Copilot — Assistente de Arritmias.
+- Componente em foco: login clínico nominal, Desfecho, segurança do Firestore
+  e acesso administrativo.
 - Base: FOUNDATION 1.0.
 - Release funcional em preparação:
-  `FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX`.
-- Baseline publicado imediatamente anterior: RC1.2.9 — persistência
-  intermediária de Arritmias.
+  `FOUNDATION-1.0-RC1.3.2-ACCESS-MANAGEMENT`.
+- Baseline publicado imediatamente anterior: RC1.2.10 — correção da fronteira
+  responsiva.
 - Arquivo publicado: `passagem.html`.
 - Commit de referência na `main`:
-  `6d20650b675ea77fe249a2acdc69254b0523668e`.
-- Artefato local que originou a publicação:
-  `passagem-Arritmias-FOUNDATION-1.0-RC1.2.8-Completion-State-Semantic-Alignment.html`.
-- Tamanho registrado do artefato: 1.259.660 bytes.
-- SHA-256 registrado:
-  `c6396cb91b387e63696f287caac060bc1b402c47a86551d4dcd9bcb2797902d7`.
+  `73dea7425f4a06bfb9afcc6222d1b57c113d0cd2`.
+- Candidato de Desfecho validado no PR: commit
+  `9248e42096a9e6a2fa8cd92deeabdd63eaba5b8e`.
+- A camada de segurança, autenticação nominal e Área Administrativa está
+  implementada na branch candidata, mas ainda não foi publicada.
 
 Antes de uma mudança funcional, confirme que a `main` ainda corresponde a
 esse baseline ou atualize este documento.
@@ -47,6 +47,137 @@ O fluxo validado contempla:
 
 O Assistente de Profilaxia de TEV é considerado homologado na V1. O Clinical
 Copilot também consolida Antimicrobianos quando selecionado.
+
+### Desfecho — RC1.3.0
+
+- A ação destrutiva `Excluir` foi substituída por `Desfecho` no card e no
+  drawer.
+- As opções fechadas são Tratado, Óbito e Transferido.
+- Óbito exige CID principal; todos os Desfechos exigem médico responsável
+  explicitamente confirmado.
+- Abertura, navegação e cancelamento não criam evento de Desfecho.
+- A confirmação preserva o objeto clínico integral no evento privado
+  `historico_eventos/<outcomeId>` com `type: patient_outcome`.
+- O guard operacional foi separado em uma lápide mínima
+  `connect_hub_v55/<setor>/closed_patients/<patientId>`, sem nome, CID,
+  diagnóstico, alertas ou snapshot clínico.
+- Evento privado, projeção administrativa mínima, lápide e retirada do
+  paciente ativo usam uma única transação atômica, de criação condicional e
+  idempotente.
+- A interface exibe `Encerrando atendimento...` e só retira o paciente depois
+  da confirmação da persistência.
+- Falha mantém o paciente no HUB e permite nova tentativa.
+- As mutações de paciente desta versão consultam a lápide determinística antes
+  de gravar. Autosave, salvamento manual, remanejamento, migração, divisão e
+  reordenação em voo são aguardados e não recriam o paciente depois do
+  encerramento.
+- O eco local otimista do Firestore não retira o card antes da confirmação.
+- `actorUid` e `closedByUid` vinculam evento, projeção e lápide à sessão
+  Firebase que confirmou a operação.
+- `firestore.rules` exige as quatro partes no mesmo commit, torna histórico,
+  projeção e lápide imutáveis, nega delete avulso e bloqueia recriação do
+  mesmo ID em qualquer setor conhecido.
+- As Rules possuem 46 cenários automatizados no Firestore Emulator, mas ainda
+  precisam ser publicadas no projeto Firebase antes do merge da aplicação.
+- A Área Administrativa apresenta uma aba própria de Desfechos baseada somente
+  na projeção materializada `admin_outcomes`.
+
+Consulte `docs/OUTCOMES_SPEC.md`.
+
+### Login clínico nominal
+
+- `index.html` e `passagem.html` não usam mais `signInAnonymously`.
+- O acesso exige Email/Password, e-mail verificado e perfil próprio
+  `clinical_users/<uid>` exato, ativo e com papel `clinician`.
+- Perfis bootstrap v1 permanecem compatíveis e imutáveis. Médicos ativados por
+  convite recebem perfil v2 com timestamps, revisão, `inviteId` e
+  `lastAccessEventId`.
+- O perfil é consultado no servidor antes de qualquer leitura clínica e
+  observado em tempo real; desativação encerra a sessão e limpa a interface.
+- A persistência obrigatória é `SESSION`. Configuração ausente, falha de
+  autenticação ou perda de permissão não abre cache local.
+- Logout aguarda autosave, Desfecho, metadados, confirmação e auditoria em
+  voo; depois remove listeners, pacientes, formulário, metadados e impressão.
+- HUB e Passagem exibem o nome autorizado com inserção textual segura.
+- Eventos comuns, confirmações, Desfecho e lápide vinculam a gravação ao UID
+  nominal.
+- Todos os clínicos ativos ainda acessam todos os setores conhecidos; menor
+  privilégio por setor é uma etapa futura.
+
+### Segurança e acesso administrativo
+
+- O código compartilhado de acesso administrativo foi removido.
+- O painel exige Firebase Authentication por e-mail e senha e valida
+  `admin_users/<uid>` no schema v1 exato, com e-mail verificado,
+  `active: true` e papel `admin` ou `coordinator`.
+- A autenticação usa a instância Firebase nomeada `connect-hub-admin`, com
+  persistência de sessão, sem substituir a sessão clínica nominal.
+- Clínico nominal pode consultar somente uma lápide conhecida por `get`; não
+  pode listar lápides nem ler `historico_eventos`.
+- Somente usuário Email/Password, ativo e com papel administrativo pode ler o
+  histórico integral.
+- Logout, acesso negado e falha de autorização limpam os dados administrativos
+  da interface e da memória.
+- A tela clínica não oferece atalho administrativo aos médicos. O HUB exibe o
+  card administrativo somente para um perfil administrativo próprio válido;
+  a URL continua protegida pelas Rules.
+- O papel `admin` é apresentado como Gestor e recebe a aba Usuários.
+  Coordenadores permanecem somente leitura e não consultam as coleções de
+  gestão de acesso.
+- O Gestor cria convites de 72 horas, envia ou reenvia o Firebase Email Link
+  diretamente para a caixa postal cadastrada, revoga convites pendentes,
+  edita o nome, ativa/desativa perfis v2 e solicita redefinição genérica de
+  senha. Toda mutação persistente é atômica e grava `access_audit`.
+- Não há domínio institucional obrigatório nesta etapa: o Gestor pode
+  convidar qualquer endereço de e-mail sintaticamente válido.
+- A Área Administrativa não disponibiliza a URL de ação. `cadastro.html` só
+  prossegue quando recebe um Firebase Email Link válido junto do fragmento
+  canônico `#invite=invite_<32hex>`; qualquer combinação ausente ou
+  malformada falha fechada.
+- Depois de abrir a mensagem recebida, o médico redigita o e-mail e
+  `signInWithEmailLink` confirma a posse da caixa postal. O cadastro exige
+  `additionalUserInfo.isNewUser === true`; conta Firebase preexistente é
+  desconectada, orientada a procurar o Gestor e não pode reivindicar convite,
+  entrar ou redefinir senha nessa tela.
+- Somente a conta comprovadamente nova define senha, encerra a sessão Email
+  Link e reautentica por Password antes de reivindicar o convite. Recuperação
+  de falha parcial só existe na mesma navegação depois da confirmação de
+  `isNewUser === true`; após recarga, o Gestor revisa e remove a conta órfã no
+  Firebase Console e emite um novo convite.
+- Nenhuma leitura Firestore ocorre antes da reautenticação Password.
+- O fluxo usa o plano Firebase gratuito atual; não depende de Cloud Functions
+  nem de Supabase nesta etapa. O limite atual do Spark é de cinco Email Links
+  ao dia; o envio inicial e cada reenvio feito pelo Gestor consomem essa cota.
+  Os acessos seguintes usam senha.
+- Confirmações de transição de cuidados podem ser criadas e lidas, mas passam
+  a ser imutáveis nas Rules.
+- Um contrato legado fechado preserva a criação por abas antigas durante a
+  janela Rules-first, sem aceitar campos arbitrários.
+- A leitura histórica indisponível ou truncada bloqueia relatórios e
+  exportações para evitar resultado incompleto.
+- A aba Desfechos oferece período inicial de 30 dias, filtros por período,
+  setor, especialidade e tipo, contagens, permanência média/mediana com
+  cobertura, proporção de Óbitos entre Desfechos, consolidações, CIDs e tabela
+  de auditoria.
+- A proporção de Óbitos é identificada explicitamente como proporção entre os
+  Desfechos registrados, não como mortalidade institucional.
+- A aba Desfechos não baixa o evento privado: consulta somente a projeção
+  mínima sem `patientSnapshot` e usa o timestamp do servidor para período,
+  auditoria e permanência.
+- O setor legado `uti` participa das consultas e dos totais.
+- As Rules ampliadas passaram em 46/46 cenários no Emulator local. A validação
+  dinâmica completa das novas telas será repetida no CI com Java 21 e
+  Chromium.
+- A descoberta Playwright contém 212 testes: 131 funcionais, 80 da matriz
+  responsiva e um cenário de estabilidade repetido 50 vezes separadamente.
+  Os 211 primeiros compõem a suíte principal.
+- Antes da publicação é obrigatório habilitar Email/Password e Email Link,
+  revisar contas verificadas existentes, criar e verificar manualmente somente
+  o primeiro Gestor, cadastrar os dois perfis desse UID, validar envio,
+  reenvio, cadastro e reset e publicar as Rules. O e-mail real do Gestor nunca
+  deve ser incluído no repositório.
+
+Consulte `docs/FIRESTORE_SECURITY.md`.
 
 ### Persistência intermediária — RC1.2.9
 
@@ -177,10 +308,10 @@ informado` em vez de assumir estabilidade.
 ## Limitações técnicas atuais
 
 - `passagem.html` é monolítico e concentra interface, estilos e scripts.
-- O artefato de referência possui 25.417 linhas, 104 blocos `<style>` e 60
-  blocos `<script>`.
-- O estado é majoritariamente global; a persistência combina Firebase
-  Auth/Firestore e fallback por `localStorage`.
+- O artefato continua monolítico, com grande volume de HTML, CSS e JavaScript
+  inline.
+- O estado é majoritariamente global; a persistência clínica exige Firebase
+  Auth/Firestore e falha fechada.
 - O repositório possui uma suíte portátil de caracterização com Playwright,
   Chromium gerenciado, Firebase em memória e rede restrita a localhost.
 - Os testes fortalecidos da RC1.2.9 cobrem Auto Save intermediário,
@@ -192,6 +323,13 @@ informado` em vez de assumir estabilidade.
   ambiente e de um Chromium localizado em caminho temporário absoluto.
 - A estabilidade desktop em 1440 px permanece protegida por 50 repetições,
   um worker e nenhum retry.
+- As Rules locais não protegem produção até serem efetivamente publicadas no
+  projeto Firebase.
+- O login nominal remove o acesso clínico anônimo, mas não valida campo a
+  campo os pacientes nem restringe o profissional a setores específicos.
+- As Rules locais não têm efeito até o deploy; o merge continua bloqueado por
+  provisionamento do primeiro Gestor e publicação controlada, não por falta
+  de implementação.
 - Antes de uma refatoração ampla, os cenários homologados devem permanecer
   protegidos pelos testes de caracterização do repositório.
 

@@ -101,7 +101,161 @@ Em todas as larguras:
 - [ ] O cenário homologado de oito pacientes cabe em uma página A4.
 - [ ] O modo horizontal da tela não altera indevidamente a impressão.
 
-## 9. Revisão do PR
+## 9. Desfecho
+
+- [ ] Card e drawer apresentam `Desfecho`, sem ação `Excluir` do paciente.
+- [ ] Existem somente Tratado, Óbito e Transferido.
+- [ ] Abrir, navegar e cancelar não criam escrita de Desfecho.
+- [ ] Óbito exige CID principal; os demais não persistem CID.
+- [ ] Médico responsável é obrigatório e explicitamente confirmado.
+- [ ] `Encerrando atendimento...` permanece visível durante a persistência.
+- [ ] O paciente permanece ativo quando a persistência falha.
+- [ ] Evento privado, lápide mínima e retirada do ativo são atômicos e
+      idempotentes no Firebase.
+- [ ] A lápide contém somente identificadores técnicos, tipo, timestamps e
+      `closedByUid`, sem nome, CID, diagnóstico, alertas ou snapshot.
+- [ ] Retry após perda de confirmação não sobrescreve o primeiro registro.
+- [ ] Retry confirmado consulta somente a lápide e não lê nem reescreve o
+      histórico privado.
+- [ ] `actorUid` e `closedByUid` correspondem ao UID Firebase autenticado.
+- [ ] `patientSnapshot` preserva os dados clínicos integrais.
+- [ ] Autosave, salvamento manual e reordenação em voo não recriam o paciente
+      encerrado.
+- [ ] O eco local otimista do Firestore não oculta o card antes do ACK.
+- [ ] Histórico local corrompido não é sobrescrito e mantém o paciente ativo.
+- [ ] DIH inválida ou futura produz permanência `null`; mesmo dia produz `1`.
+- [ ] As Rules negam evento, lápide ou exclusão isolados e combinações
+      incompletas.
+- [ ] As Rules impedem update/delete de `patient_outcome` e
+      `patient_closed`.
+- [ ] As Rules impedem recriar o mesmo `patientId` no setor original e nos
+      demais setores conhecidos.
+- [ ] Migração válida e atualizações em lote de pacientes ativos continuam
+      permitidas.
+- [ ] O modal permanece utilizável e sem overflow nas larguras obrigatórias.
+
+## 10. Firestore e Área Administrativa
+
+- [ ] `npm run test:rules` conclui os 46 cenários no Firestore Emulator.
+- [ ] Usuário anônimo, não autenticado ou sem perfil clínico ativo não lê nem
+      grava pacientes, metadados, confirmações, lápides ou Desfechos.
+- [ ] Provedor diferente de Password ou e-mail não verificado é encerrado sem
+      consultar Firestore.
+- [ ] Clínico Email/Password com `clinical_users/<uid>` ativo pode consultar
+      por `get` uma lápide conhecida, mas não pode listar lápides nem
+      ler/listar `historico_eventos`.
+- [ ] Usuário Email/Password com `admin_users/<uid>` ativo e papel `admin` lê o
+      histórico.
+- [ ] Usuário Email/Password com papel `coordinator` ativo lê o histórico.
+- [ ] Perfil ausente, inativo ou com outro papel é negado antes da consulta de
+      pacientes.
+- [ ] Não existe código compartilhado, senha, token ou credencial administrativa
+      no HTML, testes ou documentação.
+- [ ] O login usa e-mail e senha, persistência de sessão e a instância Firebase
+      nomeada `connect-hub-admin`.
+- [ ] Login/logout administrativo não substitui nem encerra a sessão clínica
+      nominal, e logout clínico não encerra a sessão administrativa.
+- [ ] A Passagem não exibe atalho administrativo; o HUB mostra o card somente
+      para perfil administrativo próprio válido.
+- [ ] Somente o Gestor vê a aba Usuários e lista `clinical_users`,
+      `clinical_invites` e `access_audit`.
+- [ ] Coordenador não consulta essas três coleções e não executa mutações de
+      acesso.
+- [ ] Médico ativo acessa todos os setores clínicos, não vê a Área
+      Administrativa e é bloqueado ao tentar sua URL diretamente.
+- [ ] Convite tem ID aleatório de 128 bits, validade de 72 horas e criação
+      atômica com `invite_created`.
+- [ ] O Gestor cria o convite e a Área Administrativa envia o Firebase Email
+      Link diretamente à caixa postal cadastrada, sem exibir a URL de ação.
+- [ ] Convites aceitam um e-mail válido sem exigir domínio institucional.
+- [ ] Somente o Gestor pode iniciar o reenvio; o envio inicial e cada reenvio
+      consomem a cota atual de cinco Email Links por dia do Spark.
+- [ ] `cadastro.html` falha fechado sem um Firebase Email Link válido e o
+      fragmento canônico `#invite=invite_<32hex>`.
+- [ ] Depois de abrir a mensagem, o médico redigita o mesmo e-mail; ele nunca
+      é registrado na URL ou em `localStorage`, e os parâmetros da ação são
+      limpos antes de qualquer espera assíncrona.
+- [ ] `signInWithEmailLink` ocorre antes da etapa de senha e
+      `additionalUserInfo.isNewUser === true` é obrigatório.
+- [ ] Conta Firebase preexistente é desconectada, orientada a procurar o
+      Gestor e não pode reivindicar convite, entrar ou redefinir senha no
+      cadastro.
+- [ ] Somente conta comprovadamente nova define a própria senha.
+- [ ] Recuperação de falha parcial só funciona na mesma navegação depois de
+      `isNewUser === true`; após recarga, o Gestor revisa/remove a conta órfã
+      no Firebase Console, revoga o convite e emite outro.
+- [ ] Cadastro não lê Firestore antes de reautenticar por Password e renovar o
+      token.
+- [ ] Claim válido atualiza convite, cria perfil v2 e grava `invite_claimed`
+      na mesma transação.
+- [ ] Convite expirado, revogado, divergente ou utilizado por outro UID falha
+      fechado.
+- [ ] Renomear, desativar e reativar perfil v2 incrementa revisão e cria a
+      auditoria correta; duas mudanças simultâneas são negadas.
+- [ ] Perfis v1, convites e auditorias não podem ser alterados ou excluídos no
+      navegador.
+- [ ] Recuperação de senha usa mensagem genérica e nunca exibe senha ou
+      existência da conta.
+- [ ] Revogação do Gestor limpa a aba e encerra a sessão administrativa em
+      tempo real.
+- [ ] Confirmações de transição podem ser criadas e lidas, mas update/delete
+      são negados pelas Rules.
+- [ ] O contrato legado estrito mantém abas antigas funcionais na janela
+      Rules-first e nega campos extras ou timestamp do cliente.
+- [ ] Logout ou perda de autorização limpa pacientes, histórico, gráficos,
+      tabelas e relatórios administrativos.
+- [ ] Falha ou truncamento do histórico invalida relatório anterior e bloqueia
+      geração/exportação incompleta.
+- [ ] Conteúdo persistido é escapado antes de ser inserido no HTML do painel.
+- [ ] A aba Desfechos consulta somente `admin_outcomes` com
+      `patient_outcome_admin` versão 1 e tipos homologados.
+- [ ] O período padrão cobre 30 dias e os filtros por data, setor,
+      especialidade e tipo funcionam em conjunto.
+- [ ] Hoje e D-29 entram no período padrão; D-30 fica fora, e intervalo
+      invertido exibe erro sem métricas.
+- [ ] Período, ordenação e auditoria usam exclusivamente `createdAt` do
+      servidor convertido para `America/Sao_Paulo`.
+- [ ] Permanência é recalculada de `admissionDate` até o timestamp do servidor
+      e ignora `lengthOfStayDays` ou datas locais adulteradas.
+- [ ] Total, Tratados, Óbitos, Transferidos, média, mediana e cobertura usam
+      somente os registros filtrados.
+- [ ] A proporção de Óbitos é rotulada como proporção entre Desfechos e não
+      como mortalidade institucional.
+- [ ] Consolidações por setor/especialidade, CIDs de Óbitos e auditoria
+      correspondem ao mesmo conjunto filtrado.
+- [ ] A auditoria permite rastrear cada linha pelo `outcomeId`.
+- [ ] Estados carregando, pronto, vazio, filtro vazio, negado, erro e truncado
+      não exibem números parciais ou antigos.
+- [ ] Falha na leitura de pacientes ou do histórico encerra o estado de
+      carregamento e apresenta erro.
+- [ ] `patientSnapshot` e eventos privados de Desfecho não são retornados pela
+      consulta da aba; somente a projeção mínima permanece em memória.
+- [ ] O setor legado `uti` participa de consultas, filtros e totais.
+- [ ] Login e painel permanecem acessíveis e sem overflow nas larguras
+      obrigatórias.
+- [ ] Email/Password e Email Link estão habilitados no Firebase Authentication.
+- [ ] Contas Password verificadas sem perfil aprovado foram revisadas e
+      desativadas antes do corte.
+- [ ] O primeiro Gestor foi criado e verificado manualmente; o mesmo UID possui
+      `clinical_users/<uid>` v1 e `admin_users/<uid>` v1 exatos.
+- [ ] O e-mail real do primeiro Gestor não aparece no repositório, fixtures,
+      documentação, issue ou PR.
+- [ ] Novos médicos são adicionados pela aba Usuários e ativam a própria conta
+      pela mensagem entregue diretamente à caixa postal, sem senha definida
+      pelo Gestor.
+- [ ] HUB e Passagem consultam o perfil no servidor antes de qualquer dado,
+      observam revogação e usam persistência `SESSION`.
+- [ ] Logout clínico aguarda escritas e limpa listeners, pacientes, formulário,
+      modal de Desfecho, metadados, impressão e caches legados de todos os
+      setores.
+- [ ] Falha ou ausência da persistência `SESSION` encerra uma credencial
+      restaurada antes de manter a aplicação fechada.
+- [ ] Configuração/auth/permissão ausente falha fechada, sem `localStorage`.
+- [ ] O provedor Anonymous foi desabilitado depois do corte controlado.
+- [ ] `firestore.rules` foi publicado e o smoke test pós-deploy de
+      `docs/FIRESTORE_SECURITY.md` passou antes do merge da aplicação.
+
+## 11. Revisão do PR
 
 - [ ] Diff limitado ao escopo da tarefa.
 - [ ] Nenhum dado real de paciente foi incluído.
@@ -112,7 +266,7 @@ Em todas as larguras:
 - [ ] Documentação e changelog foram atualizados quando necessário.
 - [ ] Existe plano de rollback para mudança publicada.
 
-## 10. Dívida do teste histórico
+## 12. Dívida do teste histórico
 
 O comando `node test_rc128.cjs` foi usado na workspace de homologação, mas
 esse teste ainda não faz parte de uma suíte portátil do repositório: depende

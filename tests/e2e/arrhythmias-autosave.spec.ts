@@ -22,7 +22,7 @@ test('protege Auto Save intermediário, Auto Advance, reabertura e conclusão ex
     name: 'PACIENTE FICTÍCIO AUTOSAVE',
     bed: 'Leito 01',
     diagnosis: 'HIPÓTESE FICTÍCIA PARA TESTE',
-    dischargeForecast: '2026-07-20'
+    dischargeForecast: '2099-12-31'
   });
 
   await app.clearFirebaseWrites();

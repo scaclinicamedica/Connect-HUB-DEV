@@ -1,0 +1,1463 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isPasswordUser() {
+      return isSignedIn()
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && request.auth.token.email is string
+        && request.auth.token.email.size() > 0
+        && request.auth.token.email_verified == true;
+    }
+
+    function validDisplayName(displayName) {
+      return displayName is string
+        && displayName.matches('.*\\S.*')
+        && displayName.size() <= 120;
+    }
+
+    function validEmail(email) {
+      return email is string
+        && email.size() > 3
+        && email.size() <= 254
+        && email.matches('^[^@ ]+@[^@ ]+\\.[^@ ]+$');
+    }
+
+    function validInviteId(inviteId) {
+      return inviteId is string
+        && inviteId.matches('^invite_[0-9a-f]{32}$');
+    }
+
+    function validAccessEventId(eventId) {
+      return eventId is string
+        && eventId.matches('^access_[0-9a-f]{32}$');
+    }
+
+    function clinicalUserPath(uid) {
+      return /databases/$(database)/documents/clinical_users/$(uid);
+    }
+
+    function adminUserPath(uid) {
+      return /databases/$(database)/documents/admin_users/$(uid);
+    }
+
+    function clinicalInvitePath(inviteId) {
+      return /databases/$(database)/documents/clinical_invites/$(inviteId);
+    }
+
+    function accessAuditPath(eventId) {
+      return /databases/$(database)/documents/access_audit/$(eventId);
+    }
+
+    function validClinicalV1Profile(data) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email'
+        ])
+        && data.schemaVersion == 1
+        && data.active is bool
+        && data.role == 'clinician'
+        && validDisplayName(data.displayName)
+        && validEmail(data.email);
+    }
+
+    function validClinicalV2Profile(data) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email',
+          'createdAt',
+          'createdByUid',
+          'updatedAt',
+          'updatedByUid',
+          'revision',
+          'inviteId',
+          'lastAccessEventId'
+        ])
+        && data.schemaVersion == 2
+        && data.active is bool
+        && data.role == 'clinician'
+        && validDisplayName(data.displayName)
+        && validEmail(data.email)
+        && data.createdAt is timestamp
+        && data.createdByUid is string
+        && data.createdByUid.size() > 0
+        && data.updatedAt is timestamp
+        && data.updatedByUid is string
+        && data.updatedByUid.size() > 0
+        && data.revision is int
+        && data.revision >= 1
+        && validInviteId(data.inviteId)
+        && validAccessEventId(data.lastAccessEventId);
+    }
+
+    function validClinicalProfile(data) {
+      return (
+          data.schemaVersion == 1
+          && validClinicalV1Profile(data)
+        )
+        || (
+          data.schemaVersion == 2
+          && validClinicalV2Profile(data)
+        );
+    }
+
+    function validAdminProfile(data) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email'
+        ])
+        && data.schemaVersion == 1
+        && data.active is bool
+        && data.role in ['admin', 'coordinator']
+        && validDisplayName(data.displayName)
+        && validEmail(data.email)
+        && data.email == request.auth.token.email;
+    }
+
+    function isClinicalUser() {
+      return isPasswordUser()
+        && exists(clinicalUserPath(request.auth.uid))
+        && validClinicalProfile(
+          get(clinicalUserPath(request.auth.uid)).data
+        )
+        && get(clinicalUserPath(request.auth.uid)).data.active == true
+        && get(clinicalUserPath(request.auth.uid)).data.email
+          == request.auth.token.email;
+    }
+
+    function isHistoryAdmin() {
+      return isPasswordUser()
+        && exists(adminUserPath(request.auth.uid))
+        && validAdminProfile(get(adminUserPath(request.auth.uid)).data)
+        && get(adminUserPath(request.auth.uid)).data.active == true;
+    }
+
+    function isAccessManager() {
+      return isHistoryAdmin()
+        && get(adminUserPath(request.auth.uid)).data.role == 'admin';
+    }
+
+    function canReadActivePatients() {
+      return isClinicalUser() || isHistoryAdmin();
+    }
+
+    function isKnownSector(sectorUnit) {
+      return sectorUnit in [
+        'emergencia',
+        'observacao_sus',
+        'convenio',
+        'enfermaria',
+        'uti',
+        'uti_1',
+        'uti_2'
+      ];
+    }
+
+    function isOutcomeType(outcomeType) {
+      return outcomeType in ['treated', 'death', 'transferred'];
+    }
+
+    function outcomeLabelMatches(outcomeType, outcomeLabel) {
+      return (
+          outcomeType == 'treated'
+          && outcomeLabel == 'Tratado'
+        )
+        || (
+          outcomeType == 'death'
+          && outcomeLabel == 'Óbito'
+        )
+        || (
+          outcomeType == 'transferred'
+          && outcomeLabel == 'Transferido'
+        );
+    }
+
+    function patientPath(sectorUnit, patientId) {
+      return /databases/$(database)/documents/connect_hub_v55/$(sectorUnit)/pacientes/$(patientId);
+    }
+
+    function closedPatientPath(sectorUnit, patientId) {
+      return /databases/$(database)/documents/connect_hub_v55/$(sectorUnit)/closed_patients/$(patientId);
+    }
+
+    function outcomePath(outcomeId) {
+      return /databases/$(database)/documents/historico_eventos/$(outcomeId);
+    }
+
+    function adminOutcomePath(outcomeId) {
+      return /databases/$(database)/documents/admin_outcomes/$(outcomeId);
+    }
+
+    function validClosedPatient(data, sectorUnit, patientId) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'type',
+          'patientId',
+          'sectorUnit',
+          'outcomeId',
+          'outcomeType',
+          'closedAt',
+          'closedByUid'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion',
+          'type',
+          'patientId',
+          'sectorUnit',
+          'outcomeId',
+          'outcomeType',
+          'closedAt',
+          'closedByUid'
+        ])
+        && data.schemaVersion == 1
+        && data.type == 'patient_closed'
+        && data.patientId == patientId
+        && data.sectorUnit == sectorUnit
+        && data.outcomeId is string
+        && data.outcomeId.size() > 0
+        && data.outcomeId.size() <= 512
+        && isOutcomeType(data.outcomeType)
+        && data.closedAt == request.time
+        && data.closedByUid == request.auth.uid;
+    }
+
+    function validOutcome(data, outcomeId) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'sourceVersion',
+          'outcomeId',
+          'type',
+          'outcomeType',
+          'outcomeLabel',
+          'createdAt',
+          'createdAtLocal',
+          'dateLocal',
+          'patientId',
+          'patientName',
+          'sectorUnit',
+          'sectorName',
+          'unit',
+          'bed',
+          'specialty',
+          'admissionDate',
+          'lengthOfStayDays',
+          'lengthOfStayMethod',
+          'responsibleDoctor',
+          'actor',
+          'actorUid',
+          'primaryIcdCode',
+          'status',
+          'severity',
+          'alerts',
+          'patientSnapshot'
+        ])
+        && data.schemaVersion == 1
+        && data.sourceVersion is string
+        && data.sourceVersion.size() > 0
+        && data.outcomeId == outcomeId
+        && outcomeId.matches(
+          '^patient_outcome_' + data.sectorUnit + '_.*'
+        )
+        && data.type == 'patient_outcome'
+        && isOutcomeType(data.outcomeType)
+        && outcomeLabelMatches(data.outcomeType, data.outcomeLabel)
+        && data.createdAt == request.time
+        && data.createdAtLocal is string
+        && data.createdAtLocal.size() > 0
+        && data.dateLocal is string
+        && data.dateLocal.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.patientId is string
+        && data.patientId.size() > 0
+        && data.patientName is string
+        && data.patientName.size() > 0
+        && isKnownSector(data.sectorUnit)
+        && data.sectorName is string
+        && data.sectorName.size() > 0
+        && data.unit is string
+        && data.bed is string
+        && data.specialty is string
+        && data.admissionDate is string
+        && (
+          data.lengthOfStayDays == null
+          || (
+            data.lengthOfStayDays is int
+            && data.lengthOfStayDays >= 1
+          )
+        )
+        && data.lengthOfStayMethod == 'inclusive_calendar_days'
+        && data.responsibleDoctor is string
+        && data.responsibleDoctor.matches('.*\\S.*')
+        && data.actor == data.responsibleDoctor
+        && data.actorUid == request.auth.uid
+        && data.primaryIcdCode is string
+        && (
+          data.outcomeType != 'death'
+          || data.primaryIcdCode.matches('.*\\S.*')
+        )
+        && (
+          data.outcomeType == 'death'
+          || data.primaryIcdCode == ''
+        )
+        && data.status is string
+        && data.severity is string
+        && data.alerts is list
+        && data.patientSnapshot is map
+        && data.patientSnapshot.id == data.patientId;
+    }
+
+    function validAdminOutcome(data, outcomeId) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'sourceVersion',
+          'type',
+          'outcomeId',
+          'outcomeType',
+          'outcomeLabel',
+          'createdAt',
+          'patientId',
+          'patientName',
+          'sectorUnit',
+          'sectorName',
+          'unit',
+          'bed',
+          'specialty',
+          'admissionDate',
+          'lengthOfStayDays',
+          'lengthOfStayMethod',
+          'responsibleDoctor',
+          'primaryIcdCode',
+          'actorUid'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion',
+          'sourceVersion',
+          'type',
+          'outcomeId',
+          'outcomeType',
+          'outcomeLabel',
+          'createdAt',
+          'patientId',
+          'patientName',
+          'sectorUnit',
+          'sectorName',
+          'unit',
+          'bed',
+          'specialty',
+          'admissionDate',
+          'lengthOfStayDays',
+          'lengthOfStayMethod',
+          'responsibleDoctor',
+          'primaryIcdCode',
+          'actorUid'
+        ])
+        && data.schemaVersion == 1
+        && data.sourceVersion is string
+        && data.sourceVersion.size() > 0
+        && data.type == 'patient_outcome_admin'
+        && data.outcomeId == outcomeId
+        && outcomeId.matches(
+          '^patient_outcome_' + data.sectorUnit + '_.*'
+        )
+        && isOutcomeType(data.outcomeType)
+        && outcomeLabelMatches(data.outcomeType, data.outcomeLabel)
+        && data.createdAt == request.time
+        && data.patientId is string
+        && data.patientId.size() > 0
+        && data.patientName is string
+        && data.patientName.size() > 0
+        && isKnownSector(data.sectorUnit)
+        && data.sectorName is string
+        && data.sectorName.size() > 0
+        && data.unit is string
+        && data.bed is string
+        && data.specialty is string
+        && data.admissionDate is string
+        && (
+          data.lengthOfStayDays == null
+          || (
+            data.lengthOfStayDays is int
+            && data.lengthOfStayDays >= 1
+          )
+        )
+        && data.lengthOfStayMethod == 'inclusive_calendar_days'
+        && data.responsibleDoctor is string
+        && data.responsibleDoctor.matches('.*\\S.*')
+        && data.primaryIcdCode is string
+        && (
+          data.outcomeType != 'death'
+          || data.primaryIcdCode.matches('.*\\S.*')
+        )
+        && (
+          data.outcomeType == 'death'
+          || data.primaryIcdCode == ''
+        )
+        && data.actorUid == request.auth.uid;
+    }
+
+    function markerMatchesOutcome(marker, outcome) {
+      return marker.outcomeId == outcome.outcomeId
+        && marker.patientId == outcome.patientId
+        && marker.sectorUnit == outcome.sectorUnit
+        && marker.outcomeType == outcome.outcomeType
+        && marker.closedByUid == outcome.actorUid;
+    }
+
+    function adminProjectionMatchesOutcome(projection, outcome) {
+      return projection.schemaVersion == outcome.schemaVersion
+        && projection.sourceVersion == outcome.sourceVersion
+        && projection.outcomeId == outcome.outcomeId
+        && projection.outcomeType == outcome.outcomeType
+        && projection.outcomeLabel == outcome.outcomeLabel
+        && projection.createdAt == outcome.createdAt
+        && projection.patientId == outcome.patientId
+        && projection.patientName == outcome.patientName
+        && projection.sectorUnit == outcome.sectorUnit
+        && projection.sectorName == outcome.sectorName
+        && projection.unit == outcome.unit
+        && projection.bed == outcome.bed
+        && projection.specialty == outcome.specialty
+        && projection.admissionDate == outcome.admissionDate
+        && projection.lengthOfStayDays == outcome.lengthOfStayDays
+        && projection.lengthOfStayMethod == outcome.lengthOfStayMethod
+        && projection.responsibleDoctor == outcome.responsibleDoctor
+        && projection.primaryIcdCode == outcome.primaryIcdCode
+        && projection.actorUid == outcome.actorUid;
+    }
+
+    function isAtomicOutcomeCreate(outcomeId) {
+      let outcome = request.resource.data;
+      let activePath = patientPath(outcome.sectorUnit, outcome.patientId);
+      let markerPath = closedPatientPath(outcome.sectorUnit, outcome.patientId);
+      let projectionPath = adminOutcomePath(outcomeId);
+      return isClinicalUser()
+        && validOutcome(outcome, outcomeId)
+        && exists(activePath)
+        && !existsAfter(activePath)
+        && !exists(markerPath)
+        && existsAfter(markerPath)
+        && markerMatchesOutcome(getAfter(markerPath).data, outcome)
+        && !exists(projectionPath)
+        && existsAfter(projectionPath)
+        && adminProjectionMatchesOutcome(
+          getAfter(projectionPath).data,
+          outcome
+        );
+    }
+
+    function isAtomicClosedPatientCreate(sectorUnit, patientId) {
+      let marker = request.resource.data;
+      let activePath = patientPath(sectorUnit, patientId);
+      let historyPath = outcomePath(marker.outcomeId);
+      let projectionPath = adminOutcomePath(marker.outcomeId);
+      return isClinicalUser()
+        && isKnownSector(sectorUnit)
+        && validClosedPatient(marker, sectorUnit, patientId)
+        && exists(activePath)
+        && !existsAfter(activePath)
+        && !exists(historyPath)
+        && existsAfter(historyPath)
+        && markerMatchesOutcome(marker, getAfter(historyPath).data)
+        && !exists(projectionPath)
+        && existsAfter(projectionPath)
+        && adminProjectionMatchesOutcome(
+          getAfter(projectionPath).data,
+          getAfter(historyPath).data
+        );
+    }
+
+    function isAtomicAdminOutcomeCreate(outcomeId) {
+      let projection = request.resource.data;
+      let activePath = patientPath(
+        projection.sectorUnit,
+        projection.patientId
+      );
+      let markerPath = closedPatientPath(
+        projection.sectorUnit,
+        projection.patientId
+      );
+      let historyPath = outcomePath(outcomeId);
+      return isClinicalUser()
+        && validAdminOutcome(projection, outcomeId)
+        && exists(activePath)
+        && !existsAfter(activePath)
+        && !exists(markerPath)
+        && existsAfter(markerPath)
+        && !exists(historyPath)
+        && existsAfter(historyPath)
+        && markerMatchesOutcome(
+          getAfter(markerPath).data,
+          getAfter(historyPath).data
+        )
+        && adminProjectionMatchesOutcome(
+          projection,
+          getAfter(historyPath).data
+        );
+    }
+
+    function isAtomicOutcomePatientDelete(sectorUnit, patientId) {
+      let markerPath = closedPatientPath(sectorUnit, patientId);
+      return !exists(markerPath)
+        && existsAfter(markerPath)
+        && getAfter(markerPath).data.type == 'patient_closed'
+        && getAfter(markerPath).data.patientId == patientId
+        && getAfter(markerPath).data.sectorUnit == sectorUnit
+        && !exists(outcomePath(getAfter(markerPath).data.outcomeId))
+        && existsAfter(outcomePath(getAfter(markerPath).data.outcomeId))
+        && markerMatchesOutcome(
+          getAfter(markerPath).data,
+          getAfter(outcomePath(getAfter(markerPath).data.outcomeId)).data
+        )
+        && !exists(adminOutcomePath(getAfter(markerPath).data.outcomeId))
+        && existsAfter(
+          adminOutcomePath(getAfter(markerPath).data.outcomeId)
+        )
+        && adminProjectionMatchesOutcome(
+          getAfter(
+            adminOutcomePath(getAfter(markerPath).data.outcomeId)
+          ).data,
+          getAfter(outcomePath(getAfter(markerPath).data.outcomeId)).data
+        );
+    }
+
+    function validConfirmation(data, sectorUnit) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'type',
+          'sectorUnit',
+          'actorUid',
+          'createdAt',
+          'createdAtLocal',
+          'handoverDate',
+          'shift',
+          'currentDoctor',
+          'currentDoctor2',
+          'receiverDoctor',
+          'receiverDoctor2',
+          'wardAssist1R1',
+          'wardAssist2R1',
+          'wardGlobalR2',
+          'wardR2Chief',
+          'obsDoctor1',
+          'obsDoctor2',
+          'obsDoctorNight',
+          'sector',
+          'receiverSummary',
+          'handoverDoctorsText',
+          'transitionText',
+          'confirmedAtText',
+          'totalPatients',
+          'criticalPatients',
+          'severityMetricLabel',
+          'statusMetricLabel',
+          'waitingIcuPatients',
+          'statusMetricPatients',
+          'dischargeTodayPatients',
+          'pendingPatients',
+          'patientsSnapshot'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion',
+          'type',
+          'sectorUnit',
+          'actorUid',
+          'createdAt',
+          'createdAtLocal',
+          'handoverDate',
+          'shift',
+          'currentDoctor',
+          'currentDoctor2',
+          'receiverDoctor',
+          'receiverDoctor2',
+          'wardAssist1R1',
+          'wardAssist2R1',
+          'wardGlobalR2',
+          'wardR2Chief',
+          'obsDoctor1',
+          'obsDoctor2',
+          'obsDoctorNight',
+          'sector',
+          'receiverSummary',
+          'handoverDoctorsText',
+          'transitionText',
+          'confirmedAtText',
+          'totalPatients',
+          'criticalPatients',
+          'severityMetricLabel',
+          'statusMetricLabel',
+          'waitingIcuPatients',
+          'statusMetricPatients',
+          'dischargeTodayPatients',
+          'pendingPatients',
+          'patientsSnapshot'
+        ])
+        && data.schemaVersion == 1
+        && data.type == 'handover_confirmation'
+        && data.sectorUnit == sectorUnit
+        && data.actorUid == request.auth.uid
+        && data.createdAt == request.time
+        && data.createdAtLocal is string
+        && data.handoverDate is string
+        && data.shift is string
+        && data.currentDoctor is string
+        && data.currentDoctor2 is string
+        && data.receiverDoctor is string
+        && data.receiverDoctor2 is string
+        && data.wardAssist1R1 is string
+        && data.wardAssist2R1 is string
+        && data.wardGlobalR2 is string
+        && data.wardR2Chief is string
+        && data.obsDoctor1 is string
+        && data.obsDoctor2 is string
+        && data.obsDoctorNight is string
+        && data.sector is string
+        && data.receiverSummary is string
+        && data.handoverDoctorsText is string
+        && data.transitionText is string
+        && data.confirmedAtText is string
+        && data.totalPatients is int
+        && data.totalPatients >= 0
+        && data.criticalPatients is int
+        && data.criticalPatients >= 0
+        && data.severityMetricLabel is string
+        && data.statusMetricLabel is string
+        && data.waitingIcuPatients is int
+        && data.waitingIcuPatients >= 0
+        && data.statusMetricPatients is int
+        && data.statusMetricPatients >= 0
+        && data.dischargeTodayPatients is int
+        && data.dischargeTodayPatients >= 0
+        && data.pendingPatients is int
+        && data.pendingPatients >= 0
+        && data.patientsSnapshot is list;
+    }
+
+    function validLegacyConfirmation(data) {
+      return isClinicalUser()
+        && data.keys().hasAll([
+          'createdAt',
+          'createdAtLocal',
+          'handoverDate',
+          'shift',
+          'currentDoctor',
+          'currentDoctor2',
+          'receiverDoctor',
+          'receiverDoctor2',
+          'wardAssist1R1',
+          'wardAssist2R1',
+          'wardGlobalR2',
+          'wardR2Chief',
+          'obsDoctor1',
+          'obsDoctor2',
+          'obsDoctorNight',
+          'sector',
+          'receiverSummary',
+          'handoverDoctorsText',
+          'transitionText',
+          'confirmedAtText',
+          'totalPatients',
+          'criticalPatients',
+          'severityMetricLabel',
+          'statusMetricLabel',
+          'waitingIcuPatients',
+          'statusMetricPatients',
+          'dischargeTodayPatients',
+          'pendingPatients',
+          'patientsSnapshot'
+        ])
+        && data.keys().hasOnly([
+          'createdAt',
+          'createdAtLocal',
+          'handoverDate',
+          'shift',
+          'currentDoctor',
+          'currentDoctor2',
+          'receiverDoctor',
+          'receiverDoctor2',
+          'wardAssist1R1',
+          'wardAssist2R1',
+          'wardGlobalR2',
+          'wardR2Chief',
+          'obsDoctor1',
+          'obsDoctor2',
+          'obsDoctorNight',
+          'sector',
+          'receiverSummary',
+          'handoverDoctorsText',
+          'transitionText',
+          'confirmedAtText',
+          'totalPatients',
+          'criticalPatients',
+          'severityMetricLabel',
+          'statusMetricLabel',
+          'waitingIcuPatients',
+          'statusMetricPatients',
+          'dischargeTodayPatients',
+          'pendingPatients',
+          'patientsSnapshot'
+        ])
+        && data.createdAt == request.time
+        && data.createdAtLocal is string
+        && data.handoverDate is string
+        && data.shift is string
+        && data.currentDoctor is string
+        && data.currentDoctor2 is string
+        && data.receiverDoctor is string
+        && data.receiverDoctor2 is string
+        && data.wardAssist1R1 is string
+        && data.wardAssist2R1 is string
+        && data.wardGlobalR2 is string
+        && data.wardR2Chief is string
+        && data.obsDoctor1 is string
+        && data.obsDoctor2 is string
+        && data.obsDoctorNight is string
+        && data.sector is string
+        && data.receiverSummary is string
+        && data.handoverDoctorsText is string
+        && data.transitionText is string
+        && data.confirmedAtText is string
+        && data.totalPatients is int
+        && data.totalPatients >= 0
+        && data.criticalPatients is int
+        && data.criticalPatients >= 0
+        && data.severityMetricLabel is string
+        && data.statusMetricLabel is string
+        && data.waitingIcuPatients is int
+        && data.waitingIcuPatients >= 0
+        && data.statusMetricPatients is int
+        && data.statusMetricPatients >= 0
+        && data.dischargeTodayPatients is int
+        && data.dischargeTodayPatients >= 0
+        && data.pendingPatients is int
+        && data.pendingPatients >= 0
+        && data.patientsSnapshot is list;
+    }
+
+    function isValidMigrationPair(sourceSector, targetSector) {
+      return (
+          sourceSector == 'observacao_sus'
+          && targetSector in ['emergencia', 'enfermaria']
+        )
+        || (
+          sourceSector == 'emergencia'
+          && targetSector in ['uti_1', 'uti_2', 'observacao_sus', 'enfermaria']
+        )
+        || (
+          sourceSector == 'enfermaria'
+          && targetSector in ['uti_1', 'uti_2', 'emergencia', 'convenio']
+        )
+        || (
+          sourceSector == 'convenio'
+          && targetSector in ['emergencia', 'enfermaria', 'uti_1', 'uti_2']
+        )
+        || (
+          sourceSector in ['uti', 'uti_1', 'uti_2']
+          && targetSector == 'enfermaria'
+        );
+    }
+
+    function isMigrationDestinationAfter(sourceSector, targetSector, patientId) {
+      let targetPath = patientPath(targetSector, patientId);
+      return isValidMigrationPair(sourceSector, targetSector)
+        && !exists(targetPath)
+        && existsAfter(targetPath)
+        && getAfter(targetPath).data.migratedFrom == sourceSector
+        && getAfter(targetPath).data.migratedTo == targetSector;
+    }
+
+    function isValidMigrationDelete(sourceSector, patientId) {
+      return isMigrationDestinationAfter(sourceSector, 'emergencia', patientId)
+        || isMigrationDestinationAfter(sourceSector, 'observacao_sus', patientId)
+        || isMigrationDestinationAfter(sourceSector, 'convenio', patientId)
+        || isMigrationDestinationAfter(sourceSector, 'enfermaria', patientId)
+        || isMigrationDestinationAfter(sourceSector, 'uti', patientId)
+        || isMigrationDestinationAfter(sourceSector, 'uti_1', patientId)
+        || isMigrationDestinationAfter(sourceSector, 'uti_2', patientId);
+    }
+
+    function hasMigrationFields(data) {
+      return data.keys().hasAny(['migratedFrom', 'migratedTo']);
+    }
+
+    function isValidMigrationCreate(targetSector, patientId) {
+      let sourceSector = request.resource.data.migratedFrom;
+      let sourcePath = patientPath(sourceSector, patientId);
+      return request.resource.data.migratedFrom is string
+        && request.resource.data.migratedTo == targetSector
+        && isKnownSector(sourceSector)
+        && isValidMigrationPair(sourceSector, targetSector)
+        && exists(sourcePath)
+        && !existsAfter(sourcePath);
+    }
+
+    function hasNoClosedMarkerAfter(patientId) {
+      // A V1 cria um paciente por operação. No create, consultar todos os
+      // setores impede reutilizar o mesmo identificador após um Desfecho.
+      return !existsAfter(closedPatientPath('emergencia', patientId))
+        && !existsAfter(closedPatientPath('observacao_sus', patientId))
+        && !existsAfter(closedPatientPath('convenio', patientId))
+        && !existsAfter(closedPatientPath('enfermaria', patientId))
+        && !existsAfter(closedPatientPath('uti', patientId))
+        && !existsAfter(closedPatientPath('uti_1', patientId))
+        && !existsAfter(closedPatientPath('uti_2', patientId));
+    }
+
+    function isLegacyHistoryCreate(historyId) {
+      let data = request.resource.data;
+      return isClinicalUser()
+        && !historyId.matches('^patient_outcome_.*')
+        && data.keys().hasAll([
+          'type',
+          'createdAt',
+          'createdAtLocal',
+          'patientId',
+          'sectorUnit',
+          'actorUid'
+        ])
+        && data.type in [
+          'patient_created',
+          'patient_updated',
+          'sector_migration',
+          'bed_reassignment',
+          'counterflow'
+        ]
+        && data.createdAt == request.time
+        && data.createdAtLocal is string
+        && data.patientId is string
+        && data.patientId.size() > 0
+        && data.actorUid == request.auth.uid
+        && isKnownSector(data.sectorUnit);
+    }
+
+    /*
+     * Access-management contracts are intentionally closed:
+     *
+     * clinical_users v1: legacy bootstrap profile, immutable from browsers.
+     * clinical_users v2: invite-provisioned profile with revision metadata.
+     * clinical_invites v1: pending -> claimed OR pending -> revoked, never deleted.
+     * access_audit v1: one immutable event for every allowed access mutation.
+     */
+    function validClinicalInvite(data, inviteId) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'status',
+          'role',
+          'displayName',
+          'email',
+          'createdAt',
+          'createdByUid',
+          'expiresAt',
+          'updatedAt',
+          'updatedByUid',
+          'claimedAt',
+          'claimedByUid',
+          'revokedAt',
+          'revokedByUid',
+          'revision',
+          'lastAccessEventId'
+        ])
+        && validInviteId(inviteId)
+        && data.schemaVersion == 1
+        && data.status in ['pending', 'claimed', 'revoked']
+        && data.role == 'clinician'
+        && validDisplayName(data.displayName)
+        && validEmail(data.email)
+        && data.createdAt is timestamp
+        && data.createdByUid is string
+        && data.createdByUid.size() > 0
+        && data.expiresAt is timestamp
+        && data.expiresAt > data.createdAt
+        && data.updatedAt is timestamp
+        && data.updatedByUid is string
+        && data.updatedByUid.size() > 0
+        && (
+          data.claimedAt == null
+          || data.claimedAt is timestamp
+        )
+        && (
+          data.claimedByUid == null
+          || (
+            data.claimedByUid is string
+            && data.claimedByUid.size() > 0
+          )
+        )
+        && (
+          data.revokedAt == null
+          || data.revokedAt is timestamp
+        )
+        && (
+          data.revokedByUid == null
+          || (
+            data.revokedByUid is string
+            && data.revokedByUid.size() > 0
+          )
+        )
+        && data.revision is int
+        && data.revision >= 1
+        && validAccessEventId(data.lastAccessEventId)
+        && (
+          (
+            data.status == 'pending'
+            && data.claimedAt == null
+            && data.claimedByUid == null
+            && data.revokedAt == null
+            && data.revokedByUid == null
+          )
+          || (
+            data.status == 'claimed'
+            && data.claimedAt is timestamp
+            && data.claimedByUid is string
+            && data.claimedByUid.size() > 0
+            && data.revokedAt == null
+            && data.revokedByUid == null
+          )
+          || (
+            data.status == 'revoked'
+            && data.claimedAt == null
+            && data.claimedByUid == null
+            && data.revokedAt is timestamp
+            && data.revokedByUid is string
+            && data.revokedByUid.size() > 0
+          )
+        );
+    }
+
+    function validAccessAudit(data, eventId) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'type',
+          'action',
+          'actorUid',
+          'targetUid',
+          'targetEmail',
+          'targetDisplayName',
+          'inviteId',
+          'createdAt'
+        ])
+        && validAccessEventId(eventId)
+        && data.schemaVersion == 1
+        && data.type == 'access_audit'
+        && data.action in [
+          'invite_created',
+          'invite_revoked',
+          'invite_claimed',
+          'user_deactivated',
+          'user_reactivated',
+          'user_name_updated'
+        ]
+        && data.actorUid is string
+        && data.actorUid.size() > 0
+        && data.targetUid is string
+        && validEmail(data.targetEmail)
+        && validDisplayName(data.targetDisplayName)
+        && validInviteId(data.inviteId)
+        && data.createdAt == request.time;
+    }
+
+    function pendingInviteCreationIsValid(invite, inviteId) {
+      return validClinicalInvite(invite, inviteId)
+        && invite.status == 'pending'
+        && invite.createdAt == request.time
+        && invite.createdByUid == request.auth.uid
+        && invite.expiresAt > request.time + duration.value(71, 'h')
+        && invite.expiresAt <= request.time + duration.value(72, 'h')
+        && invite.updatedAt == request.time
+        && invite.updatedByUid == request.auth.uid
+        && invite.revision == 1;
+    }
+
+    function inviteCreatedAuditMatches(audit, eventId, invite, inviteId) {
+      return audit.action == 'invite_created'
+        && audit.actorUid == request.auth.uid
+        && audit.targetUid == ''
+        && audit.targetEmail == invite.email
+        && audit.targetDisplayName == invite.displayName
+        && audit.inviteId == inviteId
+        && invite.lastAccessEventId == eventId;
+    }
+
+    function inviteRevocationIsValid(before, after, inviteId) {
+      return validClinicalInvite(after, inviteId)
+        && before.status == 'pending'
+        && after.status == 'revoked'
+        && after.role == before.role
+        && after.displayName == before.displayName
+        && after.email == before.email
+        && after.createdAt == before.createdAt
+        && after.createdByUid == before.createdByUid
+        && after.expiresAt == before.expiresAt
+        && after.claimedAt == null
+        && after.claimedByUid == null
+        && after.revokedAt == request.time
+        && after.revokedByUid == request.auth.uid
+        && after.updatedAt == request.time
+        && after.updatedByUid == request.auth.uid
+        && after.revision == before.revision + 1
+        && after.diff(before).affectedKeys().hasOnly([
+          'status',
+          'updatedAt',
+          'updatedByUid',
+          'revokedAt',
+          'revokedByUid',
+          'revision',
+          'lastAccessEventId'
+        ]);
+    }
+
+    function inviteRevokedAuditMatches(audit, eventId, invite, inviteId) {
+      return audit.action == 'invite_revoked'
+        && audit.actorUid == request.auth.uid
+        && audit.targetUid == ''
+        && audit.targetEmail == invite.email
+        && audit.targetDisplayName == invite.displayName
+        && audit.inviteId == inviteId
+        && invite.lastAccessEventId == eventId;
+    }
+
+    function inviteClaimIsValid(before, after, inviteId) {
+      return isPasswordUser()
+        && validClinicalInvite(after, inviteId)
+        && before.status == 'pending'
+        && before.email == request.auth.token.email
+        && request.time < before.expiresAt
+        && after.status == 'claimed'
+        && after.role == before.role
+        && after.displayName == before.displayName
+        && after.email == before.email
+        && after.createdAt == before.createdAt
+        && after.createdByUid == before.createdByUid
+        && after.expiresAt == before.expiresAt
+        && after.claimedAt == request.time
+        && after.claimedByUid == request.auth.uid
+        && after.revokedAt == null
+        && after.revokedByUid == null
+        && after.updatedAt == request.time
+        && after.updatedByUid == request.auth.uid
+        && after.revision == before.revision + 1
+        && after.diff(before).affectedKeys().hasOnly([
+          'status',
+          'updatedAt',
+          'updatedByUid',
+          'claimedAt',
+          'claimedByUid',
+          'revision',
+          'lastAccessEventId'
+        ]);
+    }
+
+    function claimedProfileMatchesInvite(
+      profile,
+      uid,
+      invite,
+      inviteId,
+      eventId
+    ) {
+      return validClinicalV2Profile(profile)
+        && profile.active == true
+        && profile.role == invite.role
+        && profile.displayName == invite.displayName
+        && profile.email == invite.email
+        && profile.email == request.auth.token.email
+        && profile.createdAt == request.time
+        && profile.createdByUid == invite.createdByUid
+        && profile.updatedAt == request.time
+        && profile.updatedByUid == uid
+        && profile.revision == 1
+        && profile.inviteId == inviteId
+        && profile.lastAccessEventId == eventId;
+    }
+
+    function inviteClaimedAuditMatches(audit, eventId, invite, inviteId) {
+      return audit.action == 'invite_claimed'
+        && audit.actorUid == request.auth.uid
+        && audit.targetUid == request.auth.uid
+        && audit.targetEmail == invite.email
+        && audit.targetDisplayName == invite.displayName
+        && audit.inviteId == inviteId
+        && invite.lastAccessEventId == eventId;
+    }
+
+    function managerProfileRenameIsValid(before, after) {
+      return after.displayName != before.displayName
+        && after.active == before.active;
+    }
+
+    function managerProfileToggleIsValid(before, after) {
+      return after.displayName == before.displayName
+        && after.active != before.active;
+    }
+
+    function managerProfileUpdateIsValid(before, after) {
+      return validClinicalV2Profile(after)
+        && (
+          managerProfileRenameIsValid(before, after)
+          || managerProfileToggleIsValid(before, after)
+        )
+        && after.schemaVersion == before.schemaVersion
+        && after.role == before.role
+        && after.email == before.email
+        && after.createdAt == before.createdAt
+        && after.createdByUid == before.createdByUid
+        && after.inviteId == before.inviteId
+        && after.updatedAt == request.time
+        && after.updatedByUid == request.auth.uid
+        && after.revision == before.revision + 1
+        && after.diff(before).affectedKeys().hasOnly([
+          'active',
+          'displayName',
+          'updatedAt',
+          'updatedByUid',
+          'revision',
+          'lastAccessEventId'
+        ]);
+    }
+
+    function profileUpdateAuditMatches(audit, eventId, before, after, uid) {
+      return audit.actorUid == request.auth.uid
+        && audit.targetUid == uid
+        && audit.targetEmail == after.email
+        && audit.targetDisplayName == after.displayName
+        && audit.inviteId == after.inviteId
+        && after.lastAccessEventId == eventId
+        && (
+          (
+            managerProfileRenameIsValid(before, after)
+            && audit.action == 'user_name_updated'
+          )
+          || (
+            managerProfileToggleIsValid(before, after)
+            && after.active == false
+            && audit.action == 'user_deactivated'
+          )
+          || (
+            managerProfileToggleIsValid(before, after)
+            && after.active == true
+            && audit.action == 'user_reactivated'
+          )
+        );
+    }
+
+    function isAtomicInviteCreate(inviteId) {
+      let invite = request.resource.data;
+      let eventId = invite.lastAccessEventId;
+      let eventPath = accessAuditPath(eventId);
+      return isAccessManager()
+        && pendingInviteCreationIsValid(invite, inviteId)
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && inviteCreatedAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          invite,
+          inviteId
+        );
+    }
+
+    function isAtomicInviteRevoke(inviteId) {
+      let invite = request.resource.data;
+      let eventId = invite.lastAccessEventId;
+      let eventPath = accessAuditPath(eventId);
+      return isAccessManager()
+        && inviteRevocationIsValid(resource.data, invite, inviteId)
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && inviteRevokedAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          invite,
+          inviteId
+        );
+    }
+
+    function isAtomicInviteClaim(inviteId) {
+      let invite = request.resource.data;
+      let eventId = invite.lastAccessEventId;
+      let profilePath = clinicalUserPath(request.auth.uid);
+      let eventPath = accessAuditPath(eventId);
+      return inviteClaimIsValid(resource.data, invite, inviteId)
+        && !exists(profilePath)
+        && existsAfter(profilePath)
+        && claimedProfileMatchesInvite(
+          getAfter(profilePath).data,
+          request.auth.uid,
+          invite,
+          inviteId,
+          eventId
+        )
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && inviteClaimedAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          invite,
+          inviteId
+        );
+    }
+
+    function isAtomicClinicalProfileClaim(uid) {
+      let profile = request.resource.data;
+      let inviteId = profile.inviteId;
+      let invitePath = clinicalInvitePath(inviteId);
+      let eventId = profile.lastAccessEventId;
+      let eventPath = accessAuditPath(eventId);
+      return isPasswordUser()
+        && request.auth.uid == uid
+        && exists(invitePath)
+        && existsAfter(invitePath)
+        && inviteClaimIsValid(
+          get(invitePath).data,
+          getAfter(invitePath).data,
+          inviteId
+        )
+        && claimedProfileMatchesInvite(
+          profile,
+          uid,
+          getAfter(invitePath).data,
+          inviteId,
+          eventId
+        )
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && inviteClaimedAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          getAfter(invitePath).data,
+          inviteId
+        );
+    }
+
+    function isAtomicManagerProfileUpdate(uid) {
+      let profile = request.resource.data;
+      let eventId = profile.lastAccessEventId;
+      let eventPath = accessAuditPath(eventId);
+      return isAccessManager()
+        && managerProfileUpdateIsValid(resource.data, profile)
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && profileUpdateAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          resource.data,
+          profile,
+          uid
+        );
+    }
+
+    function isInviteCreationAudit(audit, eventId) {
+      let invitePath = clinicalInvitePath(audit.inviteId);
+      return audit.action == 'invite_created'
+        && isAccessManager()
+        && !exists(invitePath)
+        && existsAfter(invitePath)
+        && inviteCreatedAuditMatches(
+          audit,
+          eventId,
+          getAfter(invitePath).data,
+          audit.inviteId
+        );
+    }
+
+    function isInviteRevocationAudit(audit, eventId) {
+      let invitePath = clinicalInvitePath(audit.inviteId);
+      return audit.action == 'invite_revoked'
+        && isAccessManager()
+        && exists(invitePath)
+        && existsAfter(invitePath)
+        && get(invitePath).data.status == 'pending'
+        && getAfter(invitePath).data.status == 'revoked'
+        && getAfter(invitePath).data.revision
+          == get(invitePath).data.revision + 1
+        && inviteRevokedAuditMatches(
+          audit,
+          eventId,
+          getAfter(invitePath).data,
+          audit.inviteId
+        );
+    }
+
+    function isInviteClaimAudit(audit, eventId) {
+      let invitePath = clinicalInvitePath(audit.inviteId);
+      let profilePath = clinicalUserPath(request.auth.uid);
+      return audit.action == 'invite_claimed'
+        && exists(invitePath)
+        && existsAfter(invitePath)
+        && get(invitePath).data.status == 'pending'
+        && getAfter(invitePath).data.status == 'claimed'
+        && getAfter(invitePath).data.claimedByUid == request.auth.uid
+        && getAfter(invitePath).data.lastAccessEventId == eventId
+        && !exists(profilePath)
+        && existsAfter(profilePath)
+        && getAfter(profilePath).data.inviteId == audit.inviteId
+        && getAfter(profilePath).data.lastAccessEventId == eventId
+        && inviteClaimedAuditMatches(
+          audit,
+          eventId,
+          getAfter(invitePath).data,
+          audit.inviteId
+        );
+    }
+
+    function isProfileUpdateAudit(audit, eventId) {
+      let profilePath = clinicalUserPath(audit.targetUid);
+      return audit.action in [
+          'user_deactivated',
+          'user_reactivated',
+          'user_name_updated'
+        ]
+        && isAccessManager()
+        && exists(profilePath)
+        && existsAfter(profilePath)
+        && getAfter(profilePath).data.revision
+          == get(profilePath).data.revision + 1
+        && getAfter(profilePath).data.lastAccessEventId == eventId
+        && profileUpdateAuditMatches(
+          audit,
+          eventId,
+          get(profilePath).data,
+          getAfter(profilePath).data,
+          audit.targetUid
+        );
+    }
+
+    function isAtomicAccessAuditCreate(eventId) {
+      let audit = request.resource.data;
+      return validAccessAudit(audit, eventId)
+        && (
+          isInviteCreationAudit(audit, eventId)
+          || isInviteRevocationAudit(audit, eventId)
+          || isInviteClaimAudit(audit, eventId)
+          || isProfileUpdateAudit(audit, eventId)
+        );
+    }
+
+    match /admin_users/{uid} {
+      allow get: if isPasswordUser() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    match /clinical_users/{uid} {
+      allow get: if (
+          isPasswordUser()
+          && request.auth.uid == uid
+        )
+        || isAccessManager();
+      allow list: if isAccessManager();
+      allow create: if isAtomicClinicalProfileClaim(uid);
+      allow update: if isAtomicManagerProfileUpdate(uid);
+      allow delete: if false;
+    }
+
+    match /clinical_invites/{inviteId} {
+      allow get: if isAccessManager()
+        || (
+          isPasswordUser()
+          && validClinicalInvite(resource.data, inviteId)
+          && resource.data.email == request.auth.token.email
+        );
+      allow list: if isAccessManager();
+      allow create: if isAtomicInviteCreate(inviteId);
+      allow update: if (
+          request.resource.data.status == 'revoked'
+          && isAtomicInviteRevoke(inviteId)
+        )
+        || (
+          request.resource.data.status == 'claimed'
+          && isAtomicInviteClaim(inviteId)
+        );
+      allow delete: if false;
+    }
+
+    match /access_audit/{eventId} {
+      allow get, list: if isAccessManager();
+      allow create: if isAtomicAccessAuditCreate(eventId);
+      allow update, delete: if false;
+    }
+
+    match /historico_eventos/{outcomeId} {
+      allow get, list: if isHistoryAdmin();
+      allow create: if isAtomicOutcomeCreate(outcomeId)
+        || isLegacyHistoryCreate(outcomeId);
+      allow update, delete: if false;
+    }
+
+    match /admin_outcomes/{outcomeId} {
+      allow get, list: if isHistoryAdmin();
+      allow create: if isAtomicAdminOutcomeCreate(outcomeId);
+      allow update, delete: if false;
+    }
+
+    match /connect_hub_v55/{sectorUnit}/closed_patients/{patientId} {
+      allow get: if canReadActivePatients()
+        && isKnownSector(sectorUnit);
+      allow list: if isHistoryAdmin()
+        && isKnownSector(sectorUnit);
+      allow create: if isAtomicClosedPatientCreate(sectorUnit, patientId);
+      allow update, delete: if false;
+    }
+
+    match /connect_hub_v55/{sectorUnit}/pacientes/{patientId} {
+      allow get, list: if canReadActivePatients()
+        && isKnownSector(sectorUnit);
+
+      allow create: if isClinicalUser()
+        && isKnownSector(sectorUnit)
+        && hasNoClosedMarkerAfter(patientId)
+        && (
+          !hasMigrationFields(request.resource.data)
+          || isValidMigrationCreate(sectorUnit, patientId)
+        );
+
+      allow update: if isClinicalUser()
+        && isKnownSector(sectorUnit);
+
+      allow delete: if isClinicalUser()
+        && isKnownSector(sectorUnit)
+        && (
+          isAtomicOutcomePatientDelete(sectorUnit, patientId)
+          || isValidMigrationDelete(sectorUnit, patientId)
+        );
+    }
+
+    match /connect_hub_v55/{sectorUnit}/meta/{documentId} {
+      allow read, write: if isClinicalUser()
+        && isKnownSector(sectorUnit);
+    }
+
+    match /connect_hub_v55/{sectorUnit}/confirmacoes/{documentId} {
+      allow read: if isClinicalUser() && isKnownSector(sectorUnit);
+      allow create: if isClinicalUser()
+        && isKnownSector(sectorUnit)
+        && (
+          validConfirmation(request.resource.data, sectorUnit)
+          || validLegacyConfirmation(request.resource.data)
+        );
+      allow update, delete: if false;
+    }
+  }
+}
