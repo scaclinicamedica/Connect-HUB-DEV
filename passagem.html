@@ -6045,7 +6045,7 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 </div>
 <div class="patient-outcome-field is-hidden" id="patientOutcomeCidWrap">
 <label for="patientOutcomePrimaryCid">CID principal do óbito <span class="required-mark">*</span></label>
-<input autocapitalize="characters" id="patientOutcomePrimaryCid" oninput="updatePatientOutcomeForm()" placeholder="Ex.: I21.9"/>
+<input autocapitalize="characters" id="patientOutcomePrimaryCid" maxlength="8" oninput="updatePatientOutcomeForm()" placeholder="Ex.: I21.9" spellcheck="false"/>
 </div>
 <p aria-live="polite" class="patient-outcome-status" id="patientOutcomeStatus"></p>
 </div>
@@ -6361,6 +6361,7 @@ let patientAutosaveLastSignature = '';
 let patientAutosaveBound = false;
 let patientAutosaveHydrationEpoch = 0;
 let patientAutosaveHydrating = false;
+let patientAutosaveHydrationUserEdited = false;
 let patientOutcomeClosingPatientId = '';
 let patientOutcomeRemovalConfirmedPatientId = '';
 let patientOutcomeDeferredPatientsSnapshot = null;
@@ -10292,10 +10293,19 @@ function drawerIsOpen() {
 function beginPatientAutosaveHydration() {
   const epoch = ++patientAutosaveHydrationEpoch;
   patientAutosaveHydrating = true;
+  patientAutosaveHydrationUserEdited = false;
   if(patientAutosaveTimer) { clearTimeout(patientAutosaveTimer); patientAutosaveTimer = null; }
   patientAutosaveScheduledOptions = null;
   setTimeout(() => {
-    if(epoch === patientAutosaveHydrationEpoch) patientAutosaveHydrating = false;
+    if(epoch !== patientAutosaveHydrationEpoch) return;
+    patientAutosaveHydrating = false;
+    if(
+      !patientAutosaveHydrationUserEdited
+      &&drawerIsOpen()
+      &&val('patientId')
+    ){
+      patientAutosaveLastSignature=currentPatientDraftSignatureFromForm();
+    }
   }, 1000);
 }
 function setAutosaveStatus(state='waiting', message='') {
@@ -10320,6 +10330,7 @@ function bindPatientAutosave() {
 function schedulePatientAutosave(delay=900, { userInitiated=false, allowIncompleteArrhythmiaAutosave=false }={}) {
   if(!drawerIsOpen()) return;
   if(patientOutcomeClosingPatientId && val('patientId') === patientOutcomeClosingPatientId) return;
+  if(patientAutosaveHydrating&&userInitiated)patientAutosaveHydrationUserEdited=true;
   if(patientAutosaveHydrating && !userInitiated) return;
   if(patientAutosaveTimer) clearTimeout(patientAutosaveTimer);
   const allowIncompleteAutosave = userInitiated && allowIncompleteArrhythmiaAutosave === true;
@@ -12768,7 +12779,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
     };
   }
 
-  window.calculateIotPafi = function(){
+  window.calculateIotPafi = function(requestAutosave=true){
     const pao2 = num('deviceIotPao2');
     let fio2 = num('deviceIotFiO2');
     const out=el('deviceIotPafiResult');
@@ -12778,7 +12789,9 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
       if(frac > 0){ ratio = Math.round(pao2/frac); }
     }
     if(out) out.textContent = ratio ? ('P/F: ' + ratio) : 'P/F: —';
-    try{ if(typeof updateDevicesDraft === 'function') updateDevicesDraft(); }catch(e){}
+    if(requestAutosave){
+      try{ if(typeof updateDevicesDraft === 'function') updateDevicesDraft(); }catch(e){}
+    }
     return ratio;
   };
   function ensureIotPafi(){
@@ -13057,7 +13070,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
         let p=null; try{ if(id && Array.isArray(patients)) p=patients.find(x=>x.id===id); }catch(e){}
         if(p){
           restoreTep(p.tepData); restorePnm(p.pnmData);
-          setVal('deviceIotPao2', p.deviceIotPao2 || ''); calculateIotPafi();
+          setVal('deviceIotPao2', p.deviceIotPao2 || ''); calculateIotPafi(false);
           const alerts=(p.alerts||[]);
           window.tepFinalized=alerts.includes('TEP') && !!p.tepData;
           window.pnmFinalized=alerts.includes('PNM') && !!p.pnmData;
@@ -13068,7 +13081,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
   }
   const oldClear=window.clearForm;
   if(typeof oldClear==='function'){
-    window.clearForm = clearForm = function(){ oldClear.apply(this, arguments); runV5(); resetTep(); resetPnm(); setVal('deviceIotPao2',''); calculateIotPafi(); };
+    window.clearForm = clearForm = function(){ oldClear.apply(this, arguments); runV5(); resetTep(); resetPnm(); setVal('deviceIotPao2',''); calculateIotPafi(false); };
   }
   const oldBuild=window.buildPatientDraftFromForm;
   if(typeof oldBuild==='function'){
@@ -13078,7 +13091,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
       if(alerts.includes('TEP')) draft.tepData=tepDataFromForm(); else draft.tepData=null;
       if(alerts.includes('PNM')) draft.pnmData=pnmDataFromForm(); else draft.pnmData=null;
       draft.deviceIotPao2=val('deviceIotPao2');
-      draft.deviceIotPafi=calculateIotPafi();
+      draft.deviceIotPafi=calculateIotPafi(false);
       return draft;
     };
   }
@@ -13112,7 +13125,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
     ensureIotPafi();
     ensureAlertDom();
     formatCirrhosisResults();
-    calculateIotPafi();
+    calculateIotPafi(false);
     calculateTepScores();
     calculatePnmPsiScore();
   }
@@ -13941,7 +13954,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
   function optionsFrom(obj){
     return '<option value="">Selecionar</option>'+Object.keys(obj).sort((a,b)=>Number(b)-Number(a)).map(k=>'<option value="'+k+'">'+k+' — '+obj[k]+'</option>').join('');
   }
-  window.calculatePalliativeScores=function(){
+  window.calculatePalliativeScores=function(requestAutosave=true){
     const pps=val('ppsScore');
     const kps=val('karnofskyScore');
     const ppsOut=el('ppsResult');
@@ -13949,23 +13962,25 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
     if(ppsOut) ppsOut.textContent = pps ? ('PPS '+pps+'% — '+PPS_LABELS[pps]) : 'PPS: —';
     if(kpsOut) kpsOut.textContent = kps ? ('Karnofsky '+kps+' — '+KPS_LABELS[kps]) : 'Karnofsky: —';
     const msg=el('palliativeRequiredMsg'); if(msg) msg.classList.remove('show');
-    safeAutosave();
+    if(requestAutosave)safeAutosave();
     return {pps,karnofsky:kps};
   };
   function palliativeDataFromForm(){
-    const r=window.calculatePalliativeScores();
-    return {pps:r.pps, karnofsky:r.karnofsky};
+    return {
+      pps:val('ppsScore'),
+      karnofsky:val('karnofskyScore')
+    };
   }
   function restorePalliative(data){
     if(!data) return;
     setVal('ppsScore', data.pps || '');
     setVal('karnofskyScore', data.karnofsky || '');
-    window.calculatePalliativeScores();
+    window.calculatePalliativeScores(false);
   }
   function resetPalliative(){
     setVal('ppsScore',''); setVal('karnofskyScore',''); window.palliativeFinalized=false;
     const msg=el('palliativeRequiredMsg'); if(msg) msg.classList.remove('show');
-    window.calculatePalliativeScores();
+    window.calculatePalliativeScores(false);
   }
   function validatePalliativeState(){
     if(!val('ppsScore') || !val('karnofskyScore')) return {ok:false, reason:'Selecione PPS e Karnofsky para finalizar o alerta paliativo.'};
@@ -14027,7 +14042,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
     const label=alertLabel(V7_ALERT);
     if(panel && label && label.parentElement && panel.previousElementSibling!==label) label.insertAdjacentElement('afterend',panel);
     updatePalliativeEditButton();
-    window.calculatePalliativeScores();
+    window.calculatePalliativeScores(false);
   }
   function showPalliativePanel(){
     ensurePalliativeAlert();
@@ -14063,7 +14078,7 @@ setTimeout(()=>{ try{ initAlertEnhancements(); renderAlertOptions(normalizeAlert
   window.finalizePalliativeDetail=function(){
     const state=validatePalliativeState();
     if(!state.ok){ const msg=el('palliativeRequiredMsg'); if(msg) msg.classList.add('show'); safeToast(state.reason); return; }
-    window.palliativeFinalized=true; window.calculatePalliativeScores(); hidePalliativePanel(false); safeToast('Paliativo finalizado.'); safeAutosave();
+    window.palliativeFinalized=true; window.calculatePalliativeScores(false); hidePalliativePanel(false); safeToast('Paliativo finalizado.'); safeAutosave();
   };
 
   function selectedWithoutDpoc(selected){ return Array.isArray(selected) ? selected.filter(a=>a!=='DPOC') : selected; }
@@ -25722,7 +25737,8 @@ body.patient-outcome-open{overflow:hidden!important}
     death:{label:'Óbito'},
     transferred:{label:'Transferido'}
   });
-  const OUTCOME_SOURCE_VERSION_V66 = 'FOUNDATION-1.0-RC1.3.0-OUTCOMES';
+  const OUTCOME_SOURCE_VERSION_V66 = 'FOUNDATION-1.0-RC1.3.2-ADMIN-INTELLIGENCE';
+  const OUTCOME_ADMIN_SCHEMA_VERSION_V70 = 2;
   let outcomePatientIdV66 = '';
   let outcomeIdV66 = '';
   let outcomeBusyV66 = false;
@@ -25732,11 +25748,15 @@ body.patient-outcome-open{overflow:hidden!important}
   let outcomePendingAutosaveOptionsV66 = null;
   let outcomeRecordV66 = null;
   let outcomeRecordFormSignatureV66 = '';
+  let outcomeOpeningPatientIdV70 = '';
 
   function byIdV66(id){return document.getElementById(id)}
   function dialogV66(){return byIdV66('patientOutcomeDialog')}
   function selectedOutcomeTypeV66(){
     return document.querySelector('input[name="patientOutcomeType"]:checked')?.value || '';
+  }
+  function validPrimaryIcdCodeV70(value){
+    return /^[A-Z][0-9]{2}(?:\.[A-Z0-9]{1,4})?$/.test(String(value||'').trim().toUpperCase());
   }
   function outcomeStatusV66(message='',isError=false){
     const status=byIdV66('patientOutcomeStatus');
@@ -25817,7 +25837,7 @@ body.patient-outcome-open{overflow:hidden!important}
   }
   function patientOutcomeAdminProjectionV66(record){
     return {
-      schemaVersion:record.schemaVersion,
+      schemaVersion:OUTCOME_ADMIN_SCHEMA_VERSION_V70,
       sourceVersion:record.sourceVersion,
       type:'patient_outcome_admin',
       outcomeId:record.outcomeId,
@@ -25836,6 +25856,7 @@ body.patient-outcome-open{overflow:hidden!important}
       lengthOfStayMethod:record.lengthOfStayMethod,
       responsibleDoctor:record.responsibleDoctor,
       primaryIcdCode:record.primaryIcdCode,
+      palliativeAlertPresentAtOutcome:Array.isArray(record.alerts)&&record.alerts.includes('Paliativo'),
       actorUid:record.actorUid
     };
   }
@@ -25959,6 +25980,12 @@ body.patient-outcome-open{overflow:hidden!important}
       const mergedPatientSnapshot=preferLocalSnapshot
         ? {...currentPatient,...record.patientSnapshot,id:record.patientId}
         : {...record.patientSnapshot,...currentPatient,id:record.patientId};
+      const currentAlerts=Array.isArray(currentPatient.alerts)?currentPatient.alerts:[];
+      const mergedAlerts=Array.isArray(mergedPatientSnapshot.alerts)
+        ?mergedPatientSnapshot.alerts.filter(alert=>alert!=='Paliativo')
+        :[];
+      if(currentAlerts.includes('Paliativo'))mergedAlerts.push('Paliativo');
+      mergedPatientSnapshot.alerts=mergedAlerts;
       if(preferLocalSnapshot&&!record.patientSnapshot?.alerts?.includes('Profilaxia de TEV')){
         delete mergedPatientSnapshot.tevProtocol;
         delete mergedPatientSnapshot.improveBleedingScore;
@@ -26047,26 +26074,104 @@ body.patient-outcome-open{overflow:hidden!important}
   window.updatePatientOutcomeForm=function(){
     const type=selectedOutcomeTypeV66();
     const responsible=String(byIdV66('patientOutcomeResponsibleDoctor')?.value||'').trim();
-    const cid=String(byIdV66('patientOutcomePrimaryCid')?.value||'').trim();
+    const cid=String(byIdV66('patientOutcomePrimaryCid')?.value||'').trim().toUpperCase();
     const cidWrap=byIdV66('patientOutcomeCidWrap');
     const cidInput=byIdV66('patientOutcomePrimaryCid');
     const confirmButton=byIdV66('patientOutcomeConfirmBtn');
     const isDeath=type==='death';
     cidWrap?.classList.toggle('is-hidden',!isDeath);
     if(cidInput){
+      if(cidInput.value!==cid)cidInput.value=cid;
       cidInput.required=isDeath;
+      cidInput.setAttribute('aria-invalid',isDeath&&cid&&!validPrimaryIcdCodeV70(cid)?'true':'false');
       if(!isDeath)cidInput.value='';
     }
+    const cidValid=!isDeath||validPrimaryIcdCodeV70(cid);
     if(confirmButton&&!outcomeBusyV66){
-      confirmButton.disabled=!(type&&responsible&&(!isDeath||cid));
+      confirmButton.disabled=!(type&&responsible&&cidValid);
     }
-    if(!outcomeBusyV66)outcomeStatusV66('');
+    if(!outcomeBusyV66){
+      outcomeStatusV66(
+        isDeath&&cid&&!cidValid
+          ?'Informe um CID no formato esperado, como I21.9 ou A41.'
+          :'',
+        isDeath&&!!cid&&!cidValid
+      );
+    }
   };
 
-  window.openPatientOutcomeDialog=function(patientId,trigger=null){
-    if(outcomeBusyV66)return;
-    const patient=patients.find(item=>item.id===patientId);
+  async function flushPatientAutosaveBeforeOutcomeV70(patientId){
+    let editingSamePatient=drawerIsOpen()&&val('patientId')===patientId;
+    if(editingSamePatient&&patientAutosaveHydrating){
+      const hydrationDeadline=Date.now()+2000;
+      while(patientAutosaveHydrating&&Date.now()<hydrationDeadline){
+        await new Promise(resolve=>setTimeout(resolve,25));
+      }
+      if(patientAutosaveHydrating){
+        showToast('Aguarde o carregamento completo do paciente antes de registrar o Desfecho.');
+        return false;
+      }
+      editingSamePatient=drawerIsOpen()&&val('patientId')===patientId;
+    }
+    const draftDiffersFromLastSave=editingSamePatient
+      &&currentPatientDraftSignatureFromForm()!==patientAutosaveLastSignature;
+    const hadPendingWrite=editingSamePatient&&(
+      !!patientAutosaveTimer
+      ||patientAutosaveBusy
+      ||patientAutosaveQueued
+    );
+    if(!hadPendingWrite&&!draftDiffersFromLastSave)return true;
+    const scheduledOptions=patientAutosaveScheduledOptions
+      ?{...patientAutosaveScheduledOptions}
+      :{userInitiated:true,allowIncompleteArrhythmiaAutosave:true};
+    if(patientAutosaveTimer){
+      clearTimeout(patientAutosaveTimer);
+      patientAutosaveTimer=null;
+      patientAutosaveScheduledOptions=null;
+    }
+    patientAutosaveQueued=false;
+    try{
+      await waitForPatientMutations(patientId);
+      const deadline=Date.now()+15000;
+      while(patientAutosaveBusy&&Date.now()<deadline){
+        await new Promise(resolve=>setTimeout(resolve,50));
+      }
+      if(patientAutosaveBusy)throw new Error('O salvamento do paciente ainda está em andamento.');
+      const currentSignature=currentPatientDraftSignatureFromForm();
+      if(currentSignature&&currentSignature!==patientAutosaveLastSignature){
+        await window.savePatient(false,{
+          auto:true,
+          allowIncompleteArrhythmiaAutosave:scheduledOptions.allowIncompleteArrhythmiaAutosave===true
+        });
+        await waitForPatientMutations(patientId);
+      }
+      if(
+        val('patientId')!==patientId
+        ||currentPatientDraftSignatureFromForm()!==patientAutosaveLastSignature
+      ){
+        throw new Error('As alterações pendentes não foram confirmadas.');
+      }
+      return true;
+    }catch(error){
+      console.warn('Não foi possível confirmar o rascunho antes do Desfecho:',error);
+      if(drawerIsOpen()&&val('patientId')===patientId){
+        schedulePatientAutosave(0,scheduledOptions);
+      }
+      showToast('Aguarde a confirmação das alterações do paciente antes de registrar o Desfecho.');
+      return false;
+    }
+  }
+
+  window.openPatientOutcomeDialog=async function(patientId,trigger=null){
+    if(outcomeBusyV66||outcomeOpeningPatientIdV70)return;
+    let patient=patients.find(item=>item.id===patientId);
     if(!patient){showToast('Paciente não encontrado.');return}
+    outcomeOpeningPatientIdV70=patientId;
+    const ready=await flushPatientAutosaveBeforeOutcomeV70(patientId);
+    outcomeOpeningPatientIdV70='';
+    if(!ready)return;
+    patient=patients.find(item=>item.id===patientId);
+    if(!patient){showToast('O paciente não está mais disponível neste setor.');return}
     outcomePatientIdV66=patientId;
     outcomeIdV66=stableOutcomeIdV66(patientId);
     outcomeRecordV66=null;
@@ -26100,7 +26205,7 @@ body.patient-outcome-open{overflow:hidden!important}
   window.openPatientOutcomeFromDrawer=function(){
     const patientId=val('patientId');
     if(!patientId){showToast('Salve o paciente antes de registrar o desfecho.');return}
-    window.openPatientOutcomeDialog(patientId,byIdV66('outcomePatientBtn'));
+    return window.openPatientOutcomeDialog(patientId,byIdV66('outcomePatientBtn'));
   };
 
   window.closePatientOutcomeDialog=function(options={}){
@@ -26127,9 +26232,18 @@ body.patient-outcome-open{overflow:hidden!important}
     const outcomeType=selectedOutcomeTypeV66();
     const responsibleDoctor=String(byIdV66('patientOutcomeResponsibleDoctor')?.value||'').trim();
     const primaryIcdCode=String(byIdV66('patientOutcomePrimaryCid')?.value||'').trim().toUpperCase();
-    if(!OUTCOME_TYPES_V66[outcomeType]||!responsibleDoctor||(outcomeType==='death'&&!primaryIcdCode)){
+    if(
+      !OUTCOME_TYPES_V66[outcomeType]
+      ||!responsibleDoctor
+      ||(outcomeType==='death'&&!validPrimaryIcdCodeV70(primaryIcdCode))
+    ){
       window.updatePatientOutcomeForm();
-      outcomeStatusV66('Preencha os campos obrigatórios antes de confirmar.',true);
+      outcomeStatusV66(
+        outcomeType==='death'&&primaryIcdCode
+          ?'Informe um CID no formato esperado, como I21.9 ou A41.'
+          :'Preencha os campos obrigatórios antes de confirmar.',
+        true
+      );
       return;
     }
     setOutcomeBusyV66(true);

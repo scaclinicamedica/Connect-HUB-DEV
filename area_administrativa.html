@@ -12,6 +12,7 @@
   --green:#16a34a;--red:#b91c1c;--amber:#ca8a04;--shadow:0 14px 34px rgba(0,0,0,.26)
 }
 *{box-sizing:border-box}
+html{color-scheme:dark}
 body{margin:0;min-height:100vh;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:linear-gradient(180deg,#06101d,#071827);color:var(--text)}
 button,input,select{font:inherit}
 button{cursor:pointer}
@@ -92,7 +93,50 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 .charts-grid-v40{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.chart-card-v40{min-height:320px;padding:14px;border-radius:14px;border:1px solid var(--border);background:#081523}.chart-card-v40 h3{margin:0 0 12px;font-size:14px}.chart-card-v40 canvas{width:100%!important;max-height:255px!important}.admin-select-v40,.admin-input-v40{min-height:40px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:#06101d;color:var(--text)}.admin-warning-v40{margin:0 0 12px;padding:10px 12px;border-radius:11px;border:1px solid #ca8a04;background:#3f2d08;color:#fde68a;font-size:12px;line-height:1.45}.report-controls-v40{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:end;margin-bottom:12px}.report-controls-v40 label{display:block;color:var(--muted);font-size:12px;font-weight:850;margin-bottom:5px}.report-controls-v40 select,.report-controls-v40 input{width:100%}.report-actions-v40{display:flex;gap:8px;flex-wrap:wrap}.report-preview-v40{margin-top:12px}.report-head-v40{padding:16px;border:1px solid var(--border);border-radius:14px;background:#081523;margin-bottom:12px}.report-kpis-v40{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.report-kpi-v40{padding:12px;border:1px solid var(--border);border-radius:12px;background:#0b223d}.report-kpi-v40 small{display:block;color:var(--muted)}.report-kpi-v40 strong{display:block;font-size:23px;margin-top:4px}@media(max-width:900px){.charts-grid-v40{grid-template-columns:1fr}.report-controls-v40{grid-template-columns:1fr 1fr}.report-actions-v40{grid-column:1/-1}.report-kpis-v40{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.report-controls-v40{grid-template-columns:1fr}.report-actions-v40{grid-column:auto;flex-direction:column}.report-actions-v40 .btn{width:100%}.report-kpis-v40{grid-template-columns:1fr}}@media print{.topbar,.tabs,.toolbar,.report-controls-v40,.admin-warning-v40,#refreshBtn{display:none!important}body{background:#fff!important;color:#111!important}.panel,.chart-card-v40,.report-head-v40,.report-kpi-v40{box-shadow:none!important;background:#fff!important;color:#111!important;border-color:#bbb!important}.status,.muted,.metric small,.metric span{color:#444!important}#adminContent{display:block!important}}
 </style>
 <style id="v43-admin-outcomes">
-.outcomes-filters-v43{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}.outcomes-filter-v43{min-width:0}.outcomes-filter-v43 label{display:block;margin-bottom:5px;color:var(--muted);font-size:12px;font-weight:850}.outcomes-filter-v43 input,.outcomes-filter-v43 select{width:100%;min-width:0}.outcomes-state-v43{padding:13px;border:1px solid var(--border);border-radius:12px;background:#081523;color:var(--muted);font-size:12px;line-height:1.5}.outcomes-state-v43[data-state="error"],.outcomes-state-v43[data-state="denied"],.outcomes-state-v43[data-state="truncated"]{border-color:#ef4444;background:#3b1118;color:#fecaca}.outcomes-summary-v43{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:14px 0}.outcomes-kpi-v43{min-width:0;padding:13px;border:1px solid var(--border);border-radius:12px;background:#081523}.outcomes-kpi-v43 small{display:block;color:var(--muted);font-weight:800;line-height:1.35}.outcomes-kpi-v43 strong{display:block;margin-top:5px;font-size:24px}.outcomes-kpi-v43 span{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.35}.outcomes-breakdowns-v43{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}.outcomes-card-v43{min-width:0;padding:13px;border:1px solid var(--border);border-radius:13px;background:#081523}.outcomes-card-v43 h3{margin:0 0 10px;font-size:14px}.outcomes-card-v43 .table-wrap{max-height:360px}.outcomes-card-v43 table{min-width:520px}.outcomes-audit-v43{margin-top:12px}.outcomes-audit-v43 h3{margin:0 0 10px;font-size:14px}.outcomes-audit-v43 table{min-width:1320px}.outcomes-note-v43{margin:0 0 12px;color:var(--muted);font-size:11px;line-height:1.5}.outcomes-empty-row-v43{text-align:center;color:var(--muted)}@media(max-width:1120px){.outcomes-filters-v43{grid-template-columns:repeat(3,minmax(0,1fr))}.outcomes-summary-v43{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:760px){.outcomes-filters-v43{grid-template-columns:repeat(2,minmax(0,1fr))}.outcomes-summary-v43{grid-template-columns:repeat(2,minmax(0,1fr))}.outcomes-breakdowns-v43{grid-template-columns:1fr}}@media(max-width:520px){.outcomes-filters-v43,.outcomes-summary-v43{grid-template-columns:1fr}.outcomes-card-v43{padding:10px}.outcomes-kpi-v43 strong{font-size:22px}}
+.outcomes-filters-v43{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:14px 0}
+.outcomes-filter-v43{min-width:0}
+.outcomes-filter-v43 label{display:block;margin-bottom:5px;color:var(--muted);font-size:12px;font-weight:850}
+.outcomes-filter-v43 input,.outcomes-filter-v43 select{width:100%;min-width:0}
+.outcomes-filter-actions-v70{display:flex;justify-content:flex-end;grid-column:1/-1}
+.outcomes-state-v43{padding:13px;border:1px solid var(--border);border-radius:12px;background:#081523;color:var(--muted);font-size:12px;line-height:1.5}
+.outcomes-state-v43[data-state="error"],.outcomes-state-v43[data-state="denied"],.outcomes-state-v43[data-state="truncated"]{border-color:#ef4444;background:#3b1118;color:#fecaca}
+.outcomes-summary-v43{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
+.outcomes-kpi-v43{min-width:0;padding:13px;border:1px solid var(--border);border-radius:12px;background:#081523}
+.outcomes-kpi-v43 small{display:block;color:var(--muted);font-weight:800;line-height:1.35}
+.outcomes-kpi-v43 strong{display:block;margin-top:5px;font-size:24px}
+.outcomes-kpi-v43 span{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.35}
+.outcomes-quality-v70{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.outcomes-quality-v70 div{min-width:0;padding:9px 11px;border:1px solid #2f6fa7;border-radius:10px;background:#0b223d;color:#dbeafe;font-size:11px;line-height:1.45}
+.outcomes-quality-v70 strong{display:block;margin-bottom:2px;color:#fff;font-size:11px}
+.outcomes-insights-v70,.outcomes-breakdowns-v43{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.outcomes-card-v43{min-width:0;padding:13px;border:1px solid var(--border);border-radius:13px;background:#081523}
+.outcomes-card-v43 h3{margin:0 0 5px;font-size:14px}
+.outcomes-card-v43>p{margin:0 0 10px;color:var(--muted);font-size:11px;line-height:1.45}
+.outcomes-card-v43 tbody th,.outcomes-audit-v43 tbody th{position:static;background:#081523;color:#eaf4ff}
+.outcomes-card-v43 .table-wrap{max-height:360px}
+.outcomes-card-v43 table{min-width:520px}
+.outcomes-breakdowns-v43 table{min-width:760px}
+.outcomes-chart-v70{position:relative;height:190px;margin:8px 0 12px}
+.outcomes-chart-v70 canvas{width:100%!important;height:100%!important}
+.outcomes-chart-fallback-v70{display:flex;align-items:center;justify-content:center;height:100%;padding:16px;border:1px dashed var(--border);border-radius:11px;color:var(--muted);text-align:center;font-size:11px;line-height:1.45}
+.outcomes-chart-fallback-v70.hidden{display:none}
+.outcomes-audit-v43{margin-top:12px}
+.outcomes-audit-v43 h3{margin:0 0 5px;font-size:14px}
+.outcomes-audit-v43>p{margin:0 0 10px;color:var(--muted);font-size:11px;line-height:1.45}
+.outcomes-audit-v43 .table-wrap{max-height:640px}
+.outcomes-audit-v43 table{min-width:1420px}
+.outcomes-audit-pagination-v70{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0}
+.outcomes-audit-pagination-v70 .status{font-variant-numeric:tabular-nums}
+.outcomes-audit-pagination-v70 button:disabled{cursor:not-allowed}
+.outcomes-table-region-v70:focus-visible{outline:3px solid rgba(56,189,248,.55);outline-offset:3px}
+.outcomes-caution-v70{margin:14px 0 0;padding:11px 13px;border:1px solid #ca8a04;border-radius:11px;background:#3f2d08;color:#fde68a;font-size:12px;line-height:1.5}
+.sr-only-v70{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.outcomes-empty-row-v43{text-align:center;color:var(--muted)}
+@media(max-width:1280px){.outcomes-filters-v43{grid-template-columns:repeat(3,minmax(0,1fr))}.outcomes-breakdowns-v43{grid-template-columns:1fr}}
+@media(max-width:900px){.outcomes-summary-v43{grid-template-columns:repeat(2,minmax(0,1fr))}.outcomes-quality-v70{grid-template-columns:1fr}.outcomes-insights-v70,.outcomes-breakdowns-v43{grid-template-columns:1fr}}
+@media(max-width:760px){.outcomes-filters-v43{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.outcomes-filters-v43,.outcomes-summary-v43{grid-template-columns:1fr}.outcomes-card-v43{padding:10px}.outcomes-kpi-v43 strong{font-size:22px}.outcomes-chart-v70{height:170px}}
+@media print{.outcomes-chart-fallback-v70{display:none!important}.outcomes-card-v43{break-inside:avoid}}
 </style>
 <meta content="55-recovery-admin" name="connect-hub-version"/></head>
 <body>
@@ -134,22 +178,22 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 <div class="status" id="lastUpdated"></div>
 </div>
 <div aria-live="assertive" class="error hidden" id="adminSessionError" role="alert"></div>
-<div class="summary-grid">
+<div class="summary-grid" id="liveSummaryGridV70">
 <div class="panel metric"><small>Pacientes ativos</small><strong id="metricPatients">0</strong><span>Todos os setores</span></div>
 <div class="panel metric"><small>Pacientes em Maca</small><strong id="metricMaca">0</strong><span>Emergência, Observação e outros setores</span></div>
 <div class="panel metric"><small>Contra-fluxos ativos</small><strong id="metricCounterflow">0</strong><span>Identificados nos registros atuais</span></div>
 <div class="panel metric"><small>Pacientes críticos</small><strong id="metricCritical">0</strong><span>Conforme gravidade registrada</span></div>
 </div>
-<div class="panel tabs">
-<button class="tab active" data-tab="dashboard" onclick="openTab('dashboard')">Dashboard</button>
-<button class="tab" data-tab="overview" onclick="openTab('overview')">Visão geral</button>
-<button class="tab" data-tab="beds" onclick="openTab('beds')">Ocupação de leitos</button>
-<button class="tab" data-tab="counterflow" onclick="openTab('counterflow')">Contra-fluxos</button>
-<button class="tab" data-tab="movements" onclick="openTab('movements')">Movimentações</button>
-<button class="tab" data-tab="outcomes" onclick="openTab('outcomes')">Desfechos</button>
-<button class="tab" data-tab="reports" onclick="openTab('reports')">Relatórios</button>
+<div aria-label="Seções da Área Administrativa" class="panel tabs" role="tablist">
+<button aria-controls="tab-dashboard" aria-selected="true" class="tab active" data-tab="dashboard" id="adminTabDashboardV70" onclick="openTab('dashboard')" role="tab" tabindex="0">Dashboard</button>
+<button aria-controls="tab-overview" aria-selected="false" class="tab" data-tab="overview" id="adminTabOverviewV70" onclick="openTab('overview')" role="tab" tabindex="-1">Visão geral</button>
+<button aria-controls="tab-beds" aria-selected="false" class="tab" data-tab="beds" id="adminTabBedsV70" onclick="openTab('beds')" role="tab" tabindex="-1">Ocupação de leitos</button>
+<button aria-controls="tab-counterflow" aria-selected="false" class="tab" data-tab="counterflow" id="adminTabCounterflowV70" onclick="openTab('counterflow')" role="tab" tabindex="-1">Contra-fluxos</button>
+<button aria-controls="tab-movements" aria-selected="false" class="tab" data-tab="movements" id="adminTabMovementsV70" onclick="openTab('movements')" role="tab" tabindex="-1">Movimentações</button>
+<button aria-controls="tab-outcomes" aria-selected="false" class="tab" data-tab="outcomes" id="adminTabOutcomesV70" onclick="openTab('outcomes')" role="tab" tabindex="-1">Desfechos</button>
+<button aria-controls="tab-reports" aria-selected="false" class="tab" data-tab="reports" id="adminTabReportsV70" onclick="openTab('reports')" role="tab" tabindex="-1">Relatórios</button>
 </div>
-<section class="panel section" id="tab-dashboard">
+<section aria-labelledby="adminTabDashboardV70" class="panel section" id="tab-dashboard" role="tabpanel">
 <div class="toolbar">
 <div><h2 id="adminDashboardTitle" style="margin:0 0 4px" tabindex="-1">Dashboard administrativo</h2><div class="status">Indicadores dos pacientes cadastrados nesta ferramenta.</div></div>
 <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -169,11 +213,11 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 </div>
 <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Setor</th><th>Pacientes</th><th>Críticos</th><th>Em Maca</th><th>Contra-fluxos</th><th>Alta prevista hoje</th></tr></thead><tbody id="dashboardSummaryRowsV40"></tbody></table></div>
 </section>
-<section class="panel section hidden" id="tab-overview">
+<section aria-labelledby="adminTabOverviewV70" class="panel section hidden" id="tab-overview" role="tabpanel">
 <h2>Ocupação por setor</h2>
 <div class="occupancy-grid" id="sectorOccupancy"></div>
 </section>
-<section class="panel section hidden" id="tab-beds">
+<section aria-labelledby="adminTabBedsV70" class="panel section hidden" id="tab-beds" role="tabpanel">
 <h2>Mapa atual de leitos</h2>
 <div class="admin-warning-v39">
         Na Enfermaria, o painel mostra somente pacientes acompanhados pela Clínica Médica.
@@ -181,7 +225,7 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
       </div>
 <div id="bedMaps"></div>
 </section>
-<section class="panel section hidden" id="tab-counterflow">
+<section aria-labelledby="adminTabCounterflowV70" class="panel section hidden" id="tab-counterflow" role="tabpanel">
 <h2>Pacientes com contra-fluxo</h2>
 <div class="table-wrap">
 <table>
@@ -190,7 +234,7 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 </table>
 </div>
 </section>
-<section class="panel section hidden" id="tab-movements">
+<section aria-labelledby="adminTabMovementsV70" class="panel section hidden" id="tab-movements" role="tabpanel">
 <h2>Última movimentação registrada</h2>
 <div class="table-wrap">
 <table>
@@ -199,52 +243,100 @@ td{color:#eaf4ff}.muted{color:var(--muted)}
 </table>
 </div>
 </section>
-<section aria-labelledby="outcomesTitleV43" class="panel section hidden" id="tab-outcomes">
+<section aria-labelledby="adminTabOutcomesV70" class="panel section hidden" id="tab-outcomes" role="tabpanel">
 <div class="toolbar">
 <div>
-<h2 id="outcomesTitleV43" style="margin:0 0 4px" tabindex="-1">Desfechos</h2>
-<div class="status">Indicadores derivados exclusivamente dos registros imutáveis de Desfecho.</div>
+<h2 id="outcomesTitleV43" style="margin:0 0 4px" tabindex="-1">Inteligência de Desfechos</h2>
+<div class="status">Leitura gerencial derivada exclusivamente dos registros imutáveis de Desfecho.</div>
 </div>
 </div>
-<div aria-label="Filtros de Desfechos" class="outcomes-filters-v43">
+<div aria-label="Filtros de Desfechos" class="outcomes-filters-v43" role="group">
 <div class="outcomes-filter-v43"><label for="outcomeStartV43">Data inicial</label><input class="admin-input-v40" id="outcomeStartV43" type="date"/></div>
 <div class="outcomes-filter-v43"><label for="outcomeEndV43">Data final</label><input class="admin-input-v40" id="outcomeEndV43" type="date"/></div>
 <div class="outcomes-filter-v43"><label for="outcomeSectorV43">Setor</label><select class="admin-select-v40" id="outcomeSectorV43"><option value="all">Todos os setores</option></select></div>
 <div class="outcomes-filter-v43"><label for="outcomeSpecialtyV43">Especialidade</label><select class="admin-select-v40" id="outcomeSpecialtyV43"><option value="all">Todas as especialidades</option></select></div>
 <div class="outcomes-filter-v43"><label for="outcomeTypeV43">Desfecho</label><select class="admin-select-v40" id="outcomeTypeV43"><option value="all">Todos os desfechos</option><option value="treated">Tratado</option><option value="death">Óbito</option><option value="transferred">Transferido</option></select></div>
+<div class="outcomes-filter-v43"><label for="outcomePalliativeV70">Alerta Paliativo no encerramento</label><select class="admin-select-v40" id="outcomePalliativeV70"><option value="all">Todos os registros</option><option value="registered">Alerta registrado</option><option value="not-registered">Sem alerta registrado</option><option value="unknown">Registro indisponível</option></select></div>
+<div class="outcomes-filter-actions-v70"><button class="btn" id="outcomeClearFiltersV70" onclick="resetOutcomeFiltersV70()" type="button">Limpar filtros</button></div>
 </div>
 <div aria-live="polite" class="outcomes-state-v43" data-state="loading" id="outcomesStateV43" role="status">Carregando Desfechos...</div>
 <div class="hidden" id="outcomesResultsV43">
+<p class="outcomes-caution-v70"><strong>Escopo dos indicadores:</strong> “Óbitos gerais” representa somente os Desfechos do tipo Óbito registrados nesta ferramenta, não a mortalidade institucional. A dimensão paliativa informa apenas se o alerta estruturado <strong>Paliativo</strong> estava registrado no encerramento; ausência do alerta não classifica o paciente como não paliativo.</p>
 <div class="outcomes-summary-v43">
 <div class="outcomes-kpi-v43"><small>Total de desfechos</small><strong id="outcomeTotalV43">0</strong><span>No período e nos filtros selecionados</span></div>
 <div class="outcomes-kpi-v43"><small>Tratados</small><strong id="outcomeTreatedV43">0</strong><span>Desfechos do tipo Tratado</span></div>
-<div class="outcomes-kpi-v43"><small>Óbitos</small><strong id="outcomeDeathsV43">0</strong><span id="outcomeDeathShareV43">Proporção de óbitos entre desfechos: 0%</span></div>
 <div class="outcomes-kpi-v43"><small>Transferidos</small><strong id="outcomeTransferredV43">0</strong><span>Desfechos do tipo Transferido</span></div>
+<div class="outcomes-kpi-v43"><small>Óbitos gerais registrados</small><strong id="outcomeDeathsV43">0</strong><span id="outcomeDeathShareV43">Proporção de óbitos entre desfechos: —</span></div>
+<div class="outcomes-kpi-v43"><small>Óbitos com alerta Paliativo registrado</small><strong id="outcomePalliativeDeathsV70">0</strong><span id="outcomePalliativeDeathShareV70">Proporção entre óbitos com registro disponível: —</span></div>
+<div class="outcomes-kpi-v43"><small>Óbitos sem alerta Paliativo registrado</small><strong id="outcomeNonPalliativeDeathsV70">0</strong><span>Ausência do alerta no encerramento</span></div>
+<div class="outcomes-kpi-v43"><small>Óbitos com registro indisponível</small><strong id="outcomeUnknownPalliativeDeathsV70">0</strong><span id="outcomePalliativeDeathCoverageV70">Cobertura do registro: 0/0 óbitos</span></div>
 <div class="outcomes-kpi-v43"><small>Permanência média inclusiva</small><strong id="outcomeAverageLosV43">—</strong><span id="outcomeAverageCoverageV43">Cobertura: 0/0 desfechos</span></div>
 <div class="outcomes-kpi-v43"><small>Permanência mediana inclusiva</small><strong id="outcomeMedianLosV43">—</strong><span id="outcomeMedianCoverageV43">Cobertura: 0/0 desfechos</span></div>
 </div>
-<p class="outcomes-note-v43">A proporção de óbitos usa apenas os Desfechos registrados nesta ferramenta. Não representa mortalidade institucional. A permanência considera dias corridos de forma inclusiva e informa sua cobertura.</p>
+<div aria-label="Qualidade e cobertura dos dados" class="outcomes-quality-v70">
+<div><strong>Permanência</strong><span id="outcomeLosQualityV70">Cobertura: 0/0 desfechos</span></div>
+<div><strong>Registro do alerta Paliativo nos óbitos</strong><span id="outcomePalliativeQualityV70">Cobertura: 0/0 óbitos</span></div>
+<div><strong>CID principal nos óbitos</strong><span id="outcomeCidQualityV70">Cobertura: 0/0 óbitos</span></div>
+</div>
+<div class="outcomes-insights-v70">
+<article class="outcomes-card-v43">
+<h3>Óbitos e alerta Paliativo</h3>
+<p>Composição dos óbitos gerais conforme o alerta Paliativo no encerramento.</p>
+<div class="outcomes-chart-v70">
+<canvas aria-hidden="true" id="outcomePalliativeChartV70"></canvas>
+<div class="outcomes-chart-fallback-v70 hidden" id="outcomePalliativeChartFallbackV70">Gráfico indisponível. Os valores exatos permanecem na tabela abaixo.</div>
+</div>
+<div aria-label="Tabela de composição dos óbitos pelo alerta Paliativo" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Composição dos óbitos pelo registro do alerta Paliativo</caption><thead><tr><th scope="col">Situação do alerta</th><th scope="col">Óbitos</th><th scope="col">Proporção dos óbitos gerais</th></tr></thead><tbody id="outcomePalliativeRowsV70"></tbody></table></div>
+</article>
+<article class="outcomes-card-v43">
+<h3>Distribuição do tempo de permanência</h3>
+<p>Faixas inclusivas calculadas pela DIH e pelo timestamp autoritativo do Desfecho.</p>
+<div class="outcomes-chart-v70">
+<canvas aria-hidden="true" id="outcomeLosChartV70"></canvas>
+<div class="outcomes-chart-fallback-v70 hidden" id="outcomeLosChartFallbackV70">Gráfico indisponível. Os valores exatos permanecem na tabela abaixo.</div>
+</div>
+<div aria-label="Tabela de distribuição do tempo de permanência" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Distribuição do tempo de permanência</caption><thead><tr><th scope="col">Faixa</th><th scope="col">Desfechos</th><th scope="col">Proporção com DIH válida</th></tr></thead><tbody id="outcomeLosRowsV70"></tbody></table></div>
+</article>
+<article class="outcomes-card-v43">
+<h3>CIDs principais informados nos óbitos</h3>
+<p>Recorte nosológico restrito aos códigos CID em formato esperado informados nos Óbitos; não representa todos os pacientes nem valida o código contra uma terminologia oficial.</p>
+<div class="outcomes-chart-v70">
+<canvas aria-hidden="true" id="outcomeCidChartV70"></canvas>
+<div class="outcomes-chart-fallback-v70 hidden" id="outcomeCidChartFallbackV70">Gráfico indisponível. Os valores exatos permanecem na tabela abaixo.</div>
+</div>
+<div aria-label="Tabela de CIDs principais informados nos óbitos" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">CIDs principais em formato esperado informados nos óbitos</caption><thead><tr><th scope="col">CID principal</th><th scope="col">Óbitos</th><th scope="col">Proporção dos óbitos com CID em formato esperado</th></tr></thead><tbody id="outcomeCidRowsV43"></tbody></table></div>
+</article>
+<article class="outcomes-card-v43">
+<h3>Permanência por tipo de Desfecho</h3>
+<p>Média e mediana são exibidas somente com cobertura explícita.</p>
+<div aria-label="Tabela de permanência por tipo de Desfecho" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Permanência por tipo de Desfecho</caption><thead><tr><th scope="col">Desfecho</th><th scope="col">Total</th><th scope="col">Média</th><th scope="col">Mediana</th><th scope="col">Cobertura</th></tr></thead><tbody id="outcomeLosByTypeRowsV70"></tbody></table></div>
+</article>
+</div>
 <div class="outcomes-breakdowns-v43">
 <article class="outcomes-card-v43">
 <h3>Desfechos por setor</h3>
-<div class="table-wrap"><table><thead><tr><th>Setor</th><th>Total</th><th>Tratados</th><th>Óbitos</th><th>Transferidos</th></tr></thead><tbody id="outcomeSectorRowsV43"></tbody></table></div>
+<div aria-label="Tabela de Desfechos por setor" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Desfechos por setor</caption><thead><tr><th scope="col">Setor</th><th scope="col">Total</th><th scope="col">Tratados</th><th scope="col">Óbitos gerais</th><th scope="col">Óbitos com alerta Paliativo</th><th scope="col">Cobertura do registro</th><th scope="col">Transferidos</th></tr></thead><tbody id="outcomeSectorRowsV43"></tbody></table></div>
 </article>
 <article class="outcomes-card-v43">
 <h3>Desfechos por especialidade</h3>
-<div class="table-wrap"><table><thead><tr><th>Especialidade</th><th>Total</th><th>Tratados</th><th>Óbitos</th><th>Transferidos</th></tr></thead><tbody id="outcomeSpecialtyRowsV43"></tbody></table></div>
-</article>
-<article class="outcomes-card-v43">
-<h3>CIDs principais mais frequentes nos óbitos</h3>
-<div class="table-wrap"><table><thead><tr><th>CID principal</th><th>Óbitos</th></tr></thead><tbody id="outcomeCidRowsV43"></tbody></table></div>
+<div aria-label="Tabela de Desfechos por especialidade" class="table-wrap outcomes-table-region-v70" role="region" tabindex="0"><table><caption class="sr-only-v70">Desfechos por especialidade</caption><thead><tr><th scope="col">Especialidade</th><th scope="col">Total</th><th scope="col">Tratados</th><th scope="col">Óbitos gerais</th><th scope="col">Óbitos com alerta Paliativo</th><th scope="col">Cobertura do registro</th><th scope="col">Transferidos</th></tr></thead><tbody id="outcomeSpecialtyRowsV43"></tbody></table></div>
 </article>
 </div>
 <div class="outcomes-audit-v43">
 <h3>Auditoria dos encerramentos</h3>
-<div class="table-wrap"><table><thead><tr><th>Data e hora</th><th>ID do desfecho</th><th>Paciente</th><th>Desfecho</th><th>Setor</th><th>Especialidade</th><th>DIH</th><th>Permanência inclusiva</th><th>Médico responsável</th><th>CID principal</th></tr></thead><tbody id="outcomeAuditRowsV43"></tbody></table></div>
+<p>O registro do alerta Paliativo ausente em projeções legadas é exibido como “Indisponível”, sem ser convertido para ausência do alerta.</p>
+<div class="outcomes-audit-pagination-v70">
+<span aria-live="polite" class="status" id="outcomeAuditPageStatusV70">0 Desfechos</span>
+<div>
+<button aria-controls="outcomeAuditRowsV43" class="btn" disabled="" id="outcomeAuditPrevV70" onclick="changeOutcomeAuditPageV70(-1)" type="button">Anterior</button>
+<button aria-controls="outcomeAuditRowsV43" class="btn" disabled="" id="outcomeAuditNextV70" onclick="changeOutcomeAuditPageV70(1)" type="button">Próxima</button>
+</div>
+</div>
+<div aria-label="Tabela de auditoria individual dos Desfechos" class="table-wrap outcomes-table-region-v70" id="outcomeAuditTableWrapV70" role="region" tabindex="0"><table><caption class="sr-only-v70">Auditoria individual dos Desfechos</caption><thead><tr><th scope="col">Data e hora</th><th scope="col">ID do desfecho</th><th scope="col">Paciente</th><th scope="col">Desfecho</th><th scope="col">Setor</th><th scope="col">Especialidade</th><th scope="col">DIH</th><th scope="col">Permanência inclusiva</th><th scope="col">Alerta Paliativo no encerramento</th><th scope="col">Médico responsável</th><th scope="col">CID principal</th></tr></thead><tbody id="outcomeAuditRowsV43"></tbody></table></div>
 </div>
 </div>
 </section>
-<section class="panel section hidden" id="tab-reports">
+<section aria-labelledby="adminTabReportsV70" class="panel section hidden" id="tab-reports" role="tabpanel">
 <div class="toolbar"><div><h2 style="margin:0 0 4px">Relatórios</h2><div class="status">Consolidação do retrato atual da ferramenta.</div></div></div>
 <div class="report-controls-v40">
 <div><label>Tipo</label><select class="admin-select-v40" id="reportTypeV40" onchange="updateReportDatesV40()"><option value="weekly">Semanal</option><option value="monthly">Mensal</option><option value="custom">Personalizado</option></select></div>
@@ -786,12 +878,33 @@ function requireAuthorizedAdminAction(){
   return false;
 }
 function openTab(name){
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  document.querySelectorAll('.tab').forEach(button=>{
+    const selected=button.dataset.tab===name;
+    button.classList.toggle('active',selected);
+    button.setAttribute('aria-selected',selected?'true':'false');
+    button.tabIndex=selected?0:-1;
+  });
   ['dashboard','overview','beds','counterflow','movements','outcomes','reports'].forEach(tab=>document.getElementById('tab-'+tab).classList.toggle('hidden',tab!==name));
+  document.getElementById('liveSummaryGridV70')?.classList.toggle('hidden',name==='outcomes');
   if(name==='dashboard') setTimeout(renderDashboardSafelyV42,50);
   if(name==='outcomes') setTimeout(renderOutcomesV43,0);
   if(name==='reports'&&!document.getElementById('reportStartV40')?.value) setTimeout(updateReportDatesV40,50);
 }
+document.querySelector('.tabs[role="tablist"]')?.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  const tabs=[...document.querySelectorAll('.tabs [role="tab"]')];
+  const current=tabs.indexOf(event.target);
+  if(current<0)return;
+  event.preventDefault();
+  const nextIndex=event.key==='Home'
+    ?0
+    :event.key==='End'
+      ?tabs.length-1
+      :(current+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+  const next=tabs[nextIndex];
+  openTab(next.dataset.tab);
+  next.focus();
+});
 function normalizedBed(p){return String(p.bed||'').trim()}
 function normalizedUnit(p){return String(p.inpatientUnit||p.wardUnit||p.unit||p.obsLocation||'').trim()}
 function hasCounterflow(p){
@@ -1187,7 +1300,10 @@ const OUTCOME_LABELS_V43=Object.freeze({
   death:'Óbito',
   transferred:'Transferido'
 });
+const OUTCOME_AUDIT_PAGE_SIZE_V70=50;
 let outcomeDatesInitializedV43=false;
+let outcomeAuditPageV70=1;
+let outcomeAuditEventsV70=[];
 
 function administrativeHistoryEventV43(id,data={}){
   const safe={id:String(id||'')};
@@ -1210,7 +1326,7 @@ function administrativeOutcomeV43(id,data={}){
     'schemaVersion','sourceVersion','type','outcomeId','outcomeType','outcomeLabel',
     'createdAt','patientId','patientName','sectorUnit','sectorName','unit','bed',
     'specialty','admissionDate','lengthOfStayDays','lengthOfStayMethod',
-    'responsibleDoctor','primaryIcdCode','actorUid'
+    'responsibleDoctor','primaryIcdCode','palliativeAlertPresentAtOutcome','actorUid'
   ].forEach(field=>{
     if(Object.prototype.hasOwnProperty.call(data,field))safe[field]=data[field];
   });
@@ -1243,10 +1359,23 @@ function initializeOutcomeDatesV43(){
 function baseOutcomeEventsV43(){
   return allOutcomeEventsV43.filter(event=>(
     event?.type==='patient_outcome_admin' &&
-    event?.schemaVersion===1 &&
+    (
+      event?.schemaVersion===1 ||
+      (
+        event?.schemaVersion===2 &&
+        typeof event?.palliativeAlertPresentAtOutcome==='boolean'
+      )
+    ) &&
     firestoreTimestampDateV46(event?.createdAt)!==null &&
     Object.prototype.hasOwnProperty.call(OUTCOME_LABELS_V43,event?.outcomeType)
   ));
+}
+
+function outcomePalliativeClassificationV70(event={}){
+  if(event?.schemaVersion!==2)return 'unknown';
+  if(event?.palliativeAlertPresentAtOutcome===true)return 'registered';
+  if(event?.palliativeAlertPresentAtOutcome===false)return 'not-registered';
+  return 'unknown';
 }
 
 function outcomeSectorKeyV43(event={}){
@@ -1314,15 +1443,21 @@ function setOutcomeViewStateV43(state,message){
 }
 
 function clearOutcomeResultsV43(resetOptions=false){
+  destroyOutcomeChartsV70();
+  outcomeAuditPageV70=1;
+  outcomeAuditEventsV70=[];
   const results=document.getElementById('outcomesResultsV43');
   if(results)results.classList.add('hidden');
   [
     'outcomeSectorRowsV43','outcomeSpecialtyRowsV43',
-    'outcomeCidRowsV43','outcomeAuditRowsV43'
+    'outcomeCidRowsV43','outcomeAuditRowsV43',
+    'outcomePalliativeRowsV70','outcomeLosRowsV70','outcomeLosByTypeRowsV70'
   ].forEach(id=>document.getElementById(id)?.replaceChildren());
   [
     'outcomeTotalV43','outcomeTreatedV43',
-    'outcomeDeathsV43','outcomeTransferredV43'
+    'outcomeDeathsV43','outcomeTransferredV43',
+    'outcomePalliativeDeathsV70','outcomeNonPalliativeDeathsV70',
+    'outcomeUnknownPalliativeDeathsV70'
   ].forEach(id=>{
     const element=document.getElementById(id);
     if(element)element.textContent='0';
@@ -1332,12 +1467,52 @@ function clearOutcomeResultsV43(resetOptions=false){
     if(element)element.textContent='—';
   });
   const deathShare=document.getElementById('outcomeDeathShareV43');
-  if(deathShare)deathShare.textContent='Proporção de óbitos entre desfechos: 0%';
+  if(deathShare)deathShare.textContent='Proporção de óbitos entre desfechos: —';
+  const palliativeShare=document.getElementById('outcomePalliativeDeathShareV70');
+  if(palliativeShare)palliativeShare.textContent='Proporção entre óbitos com registro disponível: —';
+  const palliativeCoverage=document.getElementById('outcomePalliativeDeathCoverageV70');
+  if(palliativeCoverage)palliativeCoverage.textContent='Cobertura do registro: 0/0 óbitos';
   ['outcomeAverageCoverageV43','outcomeMedianCoverageV43'].forEach(id=>{
     const element=document.getElementById(id);
     if(element)element.textContent='Cobertura: 0/0 desfechos';
   });
-  if(resetOptions)updateOutcomeFilterOptionsV43([]);
+  const qualityDefaults={
+    outcomeLosQualityV70:'Cobertura: 0/0 desfechos',
+    outcomePalliativeQualityV70:'Cobertura: 0/0 óbitos',
+    outcomeCidQualityV70:'Cobertura: 0/0 óbitos'
+  };
+  Object.entries(qualityDefaults).forEach(([id,message])=>{
+    const element=document.getElementById(id);
+    if(element)element.textContent=message;
+  });
+  renderOutcomeAuditPageV70();
+  if(resetOptions){
+    updateOutcomeFilterOptionsV43([]);
+    ['outcomeTypeV43','outcomePalliativeV70'].forEach(id=>{
+      const select=document.getElementById(id);
+      if(select)select.value='all';
+    });
+    ['outcomeStartV43','outcomeEndV43'].forEach(id=>{
+      const input=document.getElementById(id);
+      if(input)input.value='';
+    });
+    outcomeDatesInitializedV43=false;
+  }
+}
+
+function resetOutcomeFiltersV70(){
+  ['outcomeStartV43','outcomeEndV43'].forEach(id=>{
+    const input=document.getElementById(id);
+    if(input)input.value='';
+  });
+  ['outcomeSectorV43','outcomeSpecialtyV43','outcomeTypeV43','outcomePalliativeV70'].forEach(id=>{
+    const select=document.getElementById(id);
+    if(select)select.value='all';
+  });
+  outcomeDatesInitializedV43=false;
+  outcomeAuditPageV70=1;
+  initializeOutcomeDatesV43();
+  renderOutcomesV43();
 }
 
 function outcomeDateRangeV43(){
@@ -1359,6 +1534,7 @@ function filteredOutcomeEventsV43(events){
   const sector=document.getElementById('outcomeSectorV43')?.value||'all';
   const specialty=document.getElementById('outcomeSpecialtyV43')?.value||'all';
   const outcomeType=document.getElementById('outcomeTypeV43')?.value||'all';
+  const palliative=document.getElementById('outcomePalliativeV70')?.value||'all';
   const filtered=events.filter(event=>{
     const localDay=saoPauloCivilDayV46(firestoreTimestampDateV46(event.createdAt));
     if(!localDay)return false;
@@ -1367,34 +1543,40 @@ function filteredOutcomeEventsV43(events){
     if(sector!=='all'&&outcomeSectorKeyV43(event)!==sector)return false;
     if(specialty!=='all'&&outcomeSpecialtyV43(event)!==specialty)return false;
     if(outcomeType!=='all'&&event.outcomeType!==outcomeType)return false;
+    if(palliative!=='all'&&outcomePalliativeClassificationV70(event)!==palliative)return false;
     return true;
   });
   return {valid:true,events:filtered};
 }
 
+function parseOutcomeAdmissionV70(value){
+  const raw=String(value||'');
+  const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if(!match)return null;
+  const year=Number(match[1]);
+  const month=Number(match[2]);
+  const day=Number(match[3]);
+  const time=Date.UTC(year,month-1,day);
+  const normalized=new Date(time);
+  if(
+    normalized.getUTCFullYear()!==year
+    ||normalized.getUTCMonth()!==month-1
+    ||normalized.getUTCDate()!==day
+  )return null;
+  return {year,month,day,time};
+}
+
 function numericOutcomeStayV43(event){
-  const admission=String(event?.admissionDate||'').slice(0,10);
-  const admissionMatch=/^(\d{4})-(\d{2})-(\d{2})$/.exec(admission);
+  const admission=parseOutcomeAdmissionV70(event?.admissionDate);
   const outcomeDay=saoPauloCivilDayV46(firestoreTimestampDateV46(event?.createdAt));
   const outcomeMatch=/^(\d{4})-(\d{2})-(\d{2})$/.exec(outcomeDay);
-  if(!admissionMatch||!outcomeMatch)return null;
-  const admissionTime=Date.UTC(
-    Number(admissionMatch[1]),
-    Number(admissionMatch[2])-1,
-    Number(admissionMatch[3])
-  );
+  if(!admission||!outcomeMatch)return null;
   const outcomeTime=Date.UTC(
     Number(outcomeMatch[1]),
     Number(outcomeMatch[2])-1,
     Number(outcomeMatch[3])
   );
-  const normalizedAdmission=new Date(admissionTime);
-  if(
-    normalizedAdmission.getUTCFullYear()!==Number(admissionMatch[1])||
-    normalizedAdmission.getUTCMonth()!==Number(admissionMatch[2])-1||
-    normalizedAdmission.getUTCDate()!==Number(admissionMatch[3])
-  )return null;
-  const inclusiveDays=Math.round((outcomeTime-admissionTime)/86_400_000)+1;
+  const inclusiveDays=Math.round((outcomeTime-admission.time)/86_400_000)+1;
   return Number.isInteger(inclusiveDays)&&inclusiveDays>=1?inclusiveDays:null;
 }
 
@@ -1403,10 +1585,14 @@ function formatOutcomeNumberV43(value){
 }
 
 function outcomeCountsV43(events){
+  const deaths=events.filter(event=>event.outcomeType==='death');
   return {
     total:events.length,
     treated:events.filter(event=>event.outcomeType==='treated').length,
-    death:events.filter(event=>event.outcomeType==='death').length,
+    death:deaths.length,
+    palliativeDeath:deaths.filter(event=>outcomePalliativeClassificationV70(event)==='registered').length,
+    nonPalliativeDeath:deaths.filter(event=>outcomePalliativeClassificationV70(event)==='not-registered').length,
+    unknownPalliativeDeath:deaths.filter(event=>outcomePalliativeClassificationV70(event)==='unknown').length,
     transferred:events.filter(event=>event.outcomeType==='transferred').length
   };
 }
@@ -1427,8 +1613,14 @@ function renderOutcomeBreakdownRowsV43(targetId,groups){
   const target=document.getElementById(targetId);
   if(!target)return;
   target.innerHTML=groups.length
-    ?groups.map(group=>`<tr><td><strong>${escapeHtml(group.label)}</strong></td><td>${escapeHtml(group.total)}</td><td>${escapeHtml(group.treated)}</td><td>${escapeHtml(group.death)}</td><td>${escapeHtml(group.transferred)}</td></tr>`).join('')
-    :'<tr><td class="outcomes-empty-row-v43" colspan="5">Nenhum Desfecho para detalhar.</td></tr>';
+    ?groups.map(group=>{
+      const classified=group.palliativeDeath+group.nonPalliativeDeath;
+      const coverage=group.death
+        ?`${classified}/${group.death} (${outcomePercentV70(classified,group.death)})`
+        :'0/0 (—)';
+      return `<tr><th scope="row">${escapeHtml(group.label)}</th><td>${escapeHtml(group.total)}</td><td>${escapeHtml(group.treated)}</td><td>${escapeHtml(group.death)}</td><td>${escapeHtml(group.palliativeDeath)}</td><td>${escapeHtml(coverage)}</td><td>${escapeHtml(group.transferred)}</td></tr>`;
+    }).join('')
+    :'<tr><td class="outcomes-empty-row-v43" colspan="7">Nenhum Desfecho para detalhar.</td></tr>';
 }
 
 function formatOutcomeDateTimeV43(event={}){
@@ -1442,65 +1634,312 @@ function formatOutcomeDateTimeV43(event={}){
 }
 
 function formatOutcomeAdmissionV43(value){
-  const raw=String(value||'').slice(0,10);
-  const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-  return match?`${match[3]}/${match[2]}/${match[1]}`:'—';
+  const parsed=parseOutcomeAdmissionV70(value);
+  return parsed
+    ?`${String(parsed.day).padStart(2,'0')}/${String(parsed.month).padStart(2,'0')}/${String(parsed.year).padStart(4,'0')}`
+    :'—';
+}
+
+function outcomePercentV70(numerator,denominator){
+  return denominator>0?`${Math.round((numerator/denominator)*100)}%`:'—';
+}
+
+function outcomeStayStatsV70(events){
+  const values=events
+    .map(numericOutcomeStayV43)
+    .filter(value=>value!==null)
+    .sort((left,right)=>left-right);
+  const average=values.length
+    ?values.reduce((total,value)=>total+value,0)/values.length
+    :null;
+  const middle=Math.floor(values.length/2);
+  const median=values.length
+    ?values.length%2
+      ?values[middle]
+      :(values[middle-1]+values[middle])/2
+    :null;
+  return {
+    values,
+    average,
+    median,
+    valid:values.length,
+    total:events.length,
+    coveragePercent:events.length?Math.round((values.length/events.length)*100):null
+  };
+}
+
+function destroyOutcomeChartsV70(){
+  ['outcomePalliative','outcomeLos','outcomeCid'].forEach(key=>{
+    if(typeof destroyChartV40==='function')destroyChartV40(key);
+  });
+}
+
+function renderOutcomeChartV70(key,canvasId,fallbackId,config,hasData,emptyMessage){
+  if(typeof destroyChartV40==='function')destroyChartV40(key);
+  const canvas=document.getElementById(canvasId);
+  const fallback=document.getElementById(fallbackId);
+  if(!canvas||!fallback)return;
+  const showFallback=message=>{
+    canvas.hidden=true;
+    fallback.textContent=message;
+    fallback.classList.remove('hidden');
+  };
+  if(!hasData){
+    showFallback(emptyMessage);
+    return;
+  }
+  if(typeof Chart==='undefined'){
+    showFallback('Gráfico indisponível. Os valores exatos permanecem na tabela abaixo.');
+    return;
+  }
+  try{
+    canvas.hidden=false;
+    fallback.classList.add('hidden');
+    chartsV40[key]=new Chart(canvas,config);
+  }catch(_error){
+    showFallback('Gráfico indisponível. Os valores exatos permanecem na tabela abaixo.');
+  }
+}
+
+function normalizedOutcomeIcdCodeV70(value){
+  const code=String(value||'').trim().toUpperCase();
+  return /^[A-Z][0-9]{2}(?:\.[A-Z0-9]{1,4})?$/.test(code)?code:'';
+}
+
+function outcomeCidGroupsV70(events){
+  const counts=new Map();
+  events
+    .filter(event=>event.outcomeType==='death')
+    .forEach(event=>{
+      const code=normalizedOutcomeIcdCodeV70(event.primaryIcdCode);
+      if(code)counts.set(code,(counts.get(code)||0)+1);
+    });
+  return [...counts]
+    .sort((left,right)=>right[1]-left[1]||left[0].localeCompare(right[0],'pt-BR',{sensitivity:'base'}));
 }
 
 function renderOutcomeCidRowsV43(events){
   const target=document.getElementById('outcomeCidRowsV43');
   if(!target)return;
-  const counts=new Map();
-  events
-    .filter(event=>event.outcomeType==='death')
-    .forEach(event=>{
-      const code=String(event.primaryIcdCode||'').trim().toUpperCase();
-      if(code)counts.set(code,(counts.get(code)||0)+1);
-    });
-  const rows=[...counts]
-    .sort((left,right)=>right[1]-left[1]||left[0].localeCompare(right[0],'pt-BR',{sensitivity:'base'}));
+  const rows=outcomeCidGroupsV70(events);
+  const deaths=events.filter(event=>event.outcomeType==='death');
+  const deathsWithCid=deaths.filter(event=>normalizedOutcomeIcdCodeV70(event.primaryIcdCode)).length;
   target.innerHTML=rows.length
-    ?rows.map(([code,total])=>`<tr><td><strong>${escapeHtml(code)}</strong></td><td>${escapeHtml(total)}</td></tr>`).join('')
-    :'<tr><td class="outcomes-empty-row-v43" colspan="2">Nenhum CID principal registrado nos óbitos filtrados.</td></tr>';
+    ?rows.map(([code,total])=>`<tr><th scope="row">${escapeHtml(code)}</th><td>${escapeHtml(total)}</td><td>${escapeHtml(outcomePercentV70(total,deathsWithCid))}</td></tr>`).join('')
+    :'<tr><td class="outcomes-empty-row-v43" colspan="3">Nenhum CID principal em formato esperado informado nos óbitos filtrados.</td></tr>';
+  renderOutcomeChartV70(
+    'outcomeCid',
+    'outcomeCidChartV70',
+    'outcomeCidChartFallbackV70',
+    {
+      type:'bar',
+      data:{
+        labels:rows.slice(0,10).map(([code])=>code),
+        datasets:[{label:'Óbitos',data:rows.slice(0,10).map(([,total])=>total)}]
+      },
+      options:{
+        indexAxis:'y',
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{beginAtZero:true,ticks:{color:'#dbeafe',precision:0}},
+          y:{ticks:{color:'#dbeafe'}}
+        }
+      }
+    },
+    rows.length>0,
+    'Nenhum CID principal em formato esperado disponível nos óbitos filtrados.'
+  );
+}
+
+function renderOutcomePalliativeV70(events){
+  const target=document.getElementById('outcomePalliativeRowsV70');
+  if(!target)return;
+  const counts=outcomeCountsV43(events);
+  const rows=[
+    {label:'Alerta Paliativo registrado',value:counts.palliativeDeath},
+    {label:'Sem alerta Paliativo registrado',value:counts.nonPalliativeDeath},
+    {label:'Registro indisponível',value:counts.unknownPalliativeDeath}
+  ];
+  target.innerHTML=counts.death
+    ?rows.map(row=>`<tr><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td><td>${escapeHtml(outcomePercentV70(row.value,counts.death))}</td></tr>`).join('')
+    :'<tr><td class="outcomes-empty-row-v43" colspan="3">Nenhum Óbito nos filtros selecionados.</td></tr>';
+  renderOutcomeChartV70(
+    'outcomePalliative',
+    'outcomePalliativeChartV70',
+    'outcomePalliativeChartFallbackV70',
+    {
+      type:'pie',
+      data:{
+        labels:rows.filter(row=>row.value>0).map(row=>row.label),
+        datasets:[{data:rows.filter(row=>row.value>0).map(row=>row.value)}]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#dbeafe'}}}
+      }
+    },
+    counts.death>0,
+    'Nenhum Óbito nos filtros selecionados.'
+  );
+}
+
+function renderOutcomeLosV70(events){
+  const target=document.getElementById('outcomeLosRowsV70');
+  if(!target)return;
+  const stats=outcomeStayStatsV70(events);
+  const buckets=[
+    {label:'1 dia',matches:value=>value===1},
+    {label:'2–3 dias',matches:value=>value>=2&&value<=3},
+    {label:'4–7 dias',matches:value=>value>=4&&value<=7},
+    {label:'8–14 dias',matches:value=>value>=8&&value<=14},
+    {label:'15–30 dias',matches:value=>value>=15&&value<=30},
+    {label:'31 dias ou mais',matches:value=>value>=31}
+  ].map(bucket=>({
+    label:bucket.label,
+    value:stats.values.filter(bucket.matches).length
+  }));
+  target.innerHTML=buckets
+    .map(row=>`<tr><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td><td>${escapeHtml(outcomePercentV70(row.value,stats.valid))}</td></tr>`)
+    .join('');
+  renderOutcomeChartV70(
+    'outcomeLos',
+    'outcomeLosChartV70',
+    'outcomeLosChartFallbackV70',
+    {
+      type:'bar',
+      data:{
+        labels:buckets.map(row=>row.label),
+        datasets:[{label:'Desfechos',data:buckets.map(row=>row.value)}]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{ticks:{color:'#dbeafe'}},
+          y:{beginAtZero:true,ticks:{color:'#dbeafe',precision:0}}
+        }
+      }
+    },
+    stats.valid>0,
+    'Nenhuma permanência válida nos filtros selecionados.'
+  );
+}
+
+function renderOutcomeLosByTypeV70(events){
+  const target=document.getElementById('outcomeLosByTypeRowsV70');
+  if(!target)return;
+  const rows=['treated','death','transferred'].map(type=>{
+    const subset=events.filter(event=>event.outcomeType===type);
+    return {type,stats:outcomeStayStatsV70(subset)};
+  });
+  target.innerHTML=rows.map(({type,stats})=>{
+    const average=stats.average===null?'—':`${formatOutcomeNumberV43(stats.average)} dias`;
+    const median=stats.median===null?'—':`${formatOutcomeNumberV43(stats.median)} dias`;
+    const coverage=stats.total
+      ?`${stats.valid}/${stats.total} (${stats.coveragePercent}%)`
+      :'0/0 (—)';
+    return `<tr><th scope="row">${escapeHtml(OUTCOME_LABELS_V43[type])}</th><td>${escapeHtml(stats.total)}</td><td>${escapeHtml(average)}</td><td>${escapeHtml(median)}</td><td>${escapeHtml(coverage)}</td></tr>`;
+  }).join('');
 }
 
 function renderOutcomeAuditRowsV43(events){
-  const target=document.getElementById('outcomeAuditRowsV43');
-  if(!target)return;
-  const sorted=[...events].sort((left,right)=>{
+  outcomeAuditEventsV70=[...events].sort((left,right)=>{
     const leftDate=firestoreTimestampDateV46(left.createdAt)?.getTime()||0;
     const rightDate=firestoreTimestampDateV46(right.createdAt)?.getTime()||0;
     return rightDate-leftDate;
   });
-  target.innerHTML=sorted.length
-    ?sorted.map(event=>{
+  renderOutcomeAuditPageV70();
+}
+
+function renderOutcomeAuditPageV70(){
+  const target=document.getElementById('outcomeAuditRowsV43');
+  const status=document.getElementById('outcomeAuditPageStatusV70');
+  const previous=document.getElementById('outcomeAuditPrevV70');
+  const next=document.getElementById('outcomeAuditNextV70');
+  if(!target)return;
+  const total=outcomeAuditEventsV70.length;
+  const totalPages=Math.max(1,Math.ceil(total/OUTCOME_AUDIT_PAGE_SIZE_V70));
+  outcomeAuditPageV70=Math.max(1,Math.min(outcomeAuditPageV70,totalPages));
+  const start=(outcomeAuditPageV70-1)*OUTCOME_AUDIT_PAGE_SIZE_V70;
+  const end=Math.min(start+OUTCOME_AUDIT_PAGE_SIZE_V70,total);
+  const visible=outcomeAuditEventsV70.slice(start,end);
+  target.innerHTML=visible.length
+    ?visible.map(event=>{
       const stay=numericOutcomeStayV43(event);
-      return `<tr><td>${escapeHtml(formatOutcomeDateTimeV43(event))}</td><td>${escapeHtml(event.outcomeId||event.id||'—')}</td><td><strong>${escapeHtml(event.patientName||'Paciente sem nome')}</strong></td><td>${escapeHtml(OUTCOME_LABELS_V43[event.outcomeType])}</td><td>${escapeHtml(outcomeSectorLabelV43(event))}</td><td>${escapeHtml(outcomeSpecialtyV43(event)||'—')}</td><td>${escapeHtml(formatOutcomeAdmissionV43(event.admissionDate))}</td><td>${escapeHtml(stay===null?'—':`${stay} dia${stay===1?'':'s'}`)}</td><td>${escapeHtml(event.responsibleDoctor||'—')}</td><td>${escapeHtml(event.outcomeType==='death'?(String(event.primaryIcdCode||'').trim().toUpperCase()||'—'):'—')}</td></tr>`;
+      const palliativeLabel=outcomePalliativeClassificationV70(event)==='registered'
+        ?'Alerta registrado'
+        :outcomePalliativeClassificationV70(event)==='not-registered'
+          ?'Sem alerta registrado'
+          :'Registro indisponível';
+      const primaryIcdCode=event.outcomeType==='death'
+        ?normalizedOutcomeIcdCodeV70(event.primaryIcdCode)||'—'
+        :'—';
+      return `<tr><td>${escapeHtml(formatOutcomeDateTimeV43(event))}</td><td>${escapeHtml(event.outcomeId||event.id||'—')}</td><th scope="row">${escapeHtml(event.patientName||'Paciente sem nome')}</th><td>${escapeHtml(OUTCOME_LABELS_V43[event.outcomeType])}</td><td>${escapeHtml(outcomeSectorLabelV43(event))}</td><td>${escapeHtml(outcomeSpecialtyV43(event)||'—')}</td><td>${escapeHtml(formatOutcomeAdmissionV43(event.admissionDate))}</td><td>${escapeHtml(stay===null?'—':`${stay} dia${stay===1?'':'s'}`)}</td><td>${escapeHtml(palliativeLabel)}</td><td>${escapeHtml(event.responsibleDoctor||'—')}</td><td>${escapeHtml(primaryIcdCode)}</td></tr>`;
     }).join('')
-    :'<tr><td class="outcomes-empty-row-v43" colspan="10">Nenhum Desfecho para auditar.</td></tr>';
+    :'<tr><td class="outcomes-empty-row-v43" colspan="11">Nenhum Desfecho para auditar.</td></tr>';
+  if(status){
+    status.textContent=total
+      ?`${start+1}–${end} de ${total} ${total===1?'Desfecho':'Desfechos'} • Página ${outcomeAuditPageV70} de ${totalPages}`
+      :'0 Desfechos';
+  }
+  if(previous)previous.disabled=!total||outcomeAuditPageV70<=1;
+  if(next)next.disabled=!total||outcomeAuditPageV70>=totalPages;
+}
+
+function changeOutcomeAuditPageV70(delta){
+  const totalPages=Math.max(1,Math.ceil(outcomeAuditEventsV70.length/OUTCOME_AUDIT_PAGE_SIZE_V70));
+  const nextPage=Math.max(1,Math.min(outcomeAuditPageV70+Number(delta||0),totalPages));
+  if(nextPage===outcomeAuditPageV70)return;
+  outcomeAuditPageV70=nextPage;
+  renderOutcomeAuditPageV70();
+  const tableWrap=document.getElementById('outcomeAuditTableWrapV70');
+  if(tableWrap)tableWrap.scrollTop=0;
 }
 
 function renderOutcomeMetricsV43(events){
   const counts=outcomeCountsV43(events);
-  const stays=events.map(numericOutcomeStayV43).filter(value=>value!==null).sort((left,right)=>left-right);
-  const average=stays.length?stays.reduce((total,value)=>total+value,0)/stays.length:null;
-  const middle=Math.floor(stays.length/2);
-  const median=stays.length
-    ?stays.length%2
-      ?stays[middle]
-      :(stays[middle-1]+stays[middle])/2
+  const stayStats=outcomeStayStatsV70(events);
+  const classifiedDeaths=counts.palliativeDeath+counts.nonPalliativeDeath;
+  const palliativeCoveragePercent=counts.death
+    ?Math.round((classifiedDeaths/counts.death)*100)
     :null;
-  const coveragePercent=counts.total?Math.round((stays.length/counts.total)*100):0;
-  const coverage=`Cobertura: ${stays.length}/${counts.total} desfechos (${coveragePercent}%)`;
+  const deathsWithCid=events.filter(event=>(
+    event.outcomeType==='death'&&normalizedOutcomeIcdCodeV70(event.primaryIcdCode)
+  )).length;
+  const cidCoveragePercent=counts.death
+    ?Math.round((deathsWithCid/counts.death)*100)
+    :null;
+  const stayCoverage=counts.total
+    ?`Cobertura: ${stayStats.valid}/${counts.total} desfechos (${stayStats.coveragePercent}%)`
+    :'Cobertura: 0/0 desfechos (—)';
+  const palliativeCoverage=counts.death
+    ?`Cobertura do registro: ${classifiedDeaths}/${counts.death} óbitos (${palliativeCoveragePercent}%)`
+    :'Cobertura do registro: 0/0 óbitos (—)';
   document.getElementById('outcomeTotalV43').textContent=String(counts.total);
   document.getElementById('outcomeTreatedV43').textContent=String(counts.treated);
   document.getElementById('outcomeDeathsV43').textContent=String(counts.death);
   document.getElementById('outcomeTransferredV43').textContent=String(counts.transferred);
-  document.getElementById('outcomeDeathShareV43').textContent=`Proporção de óbitos entre desfechos: ${counts.total?Math.round((counts.death/counts.total)*100):0}%`;
-  document.getElementById('outcomeAverageLosV43').textContent=average===null?'—':`${formatOutcomeNumberV43(average)} dias`;
-  document.getElementById('outcomeMedianLosV43').textContent=median===null?'—':`${formatOutcomeNumberV43(median)} dias`;
-  document.getElementById('outcomeAverageCoverageV43').textContent=coverage;
-  document.getElementById('outcomeMedianCoverageV43').textContent=coverage;
+  document.getElementById('outcomePalliativeDeathsV70').textContent=String(counts.palliativeDeath);
+  document.getElementById('outcomeNonPalliativeDeathsV70').textContent=String(counts.nonPalliativeDeath);
+  document.getElementById('outcomeUnknownPalliativeDeathsV70').textContent=String(counts.unknownPalliativeDeath);
+  document.getElementById('outcomeDeathShareV43').textContent=`Proporção de óbitos entre desfechos: ${outcomePercentV70(counts.death,counts.total)}`;
+  document.getElementById('outcomePalliativeDeathShareV70').textContent=`Proporção entre óbitos com registro disponível: ${outcomePercentV70(counts.palliativeDeath,classifiedDeaths)}`;
+  document.getElementById('outcomePalliativeDeathCoverageV70').textContent=palliativeCoverage;
+  document.getElementById('outcomeAverageLosV43').textContent=stayStats.average===null?'—':`${formatOutcomeNumberV43(stayStats.average)} dias`;
+  document.getElementById('outcomeMedianLosV43').textContent=stayStats.median===null?'—':`${formatOutcomeNumberV43(stayStats.median)} dias`;
+  document.getElementById('outcomeAverageCoverageV43').textContent=stayCoverage;
+  document.getElementById('outcomeMedianCoverageV43').textContent=stayCoverage;
+  document.getElementById('outcomeLosQualityV70').textContent=stayCoverage;
+  document.getElementById('outcomePalliativeQualityV70').textContent=counts.death
+    ?`Cobertura: ${classifiedDeaths}/${counts.death} óbitos (${palliativeCoveragePercent}%)`
+    :'Cobertura: 0/0 óbitos (—)';
+  document.getElementById('outcomeCidQualityV70').textContent=counts.death
+    ?`Cobertura: ${deathsWithCid}/${counts.death} óbitos (${cidCoveragePercent}%)`
+    :'Cobertura: 0/0 óbitos (—)';
 }
 
 function renderOutcomesV43(){
@@ -1544,6 +1983,9 @@ function renderOutcomesV43(){
     return;
   }
   renderOutcomeMetricsV43(filtered.events);
+  renderOutcomePalliativeV70(filtered.events);
+  renderOutcomeLosV70(filtered.events);
+  renderOutcomeLosByTypeV70(filtered.events);
   renderOutcomeBreakdownRowsV43(
     'outcomeSectorRowsV43',
     groupedOutcomeRowsV43(filtered.events,outcomeSectorKeyV43,outcomeSectorLabelV43)
@@ -1560,8 +2002,11 @@ function renderOutcomesV43(){
 
 document.addEventListener('DOMContentLoaded',()=>{
   initializeOutcomeDatesV43();
-  ['outcomeStartV43','outcomeEndV43','outcomeSectorV43','outcomeSpecialtyV43','outcomeTypeV43'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('change',renderOutcomesV43);
+  ['outcomeStartV43','outcomeEndV43','outcomeSectorV43','outcomeSpecialtyV43','outcomeTypeV43','outcomePalliativeV70'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change',()=>{
+      outcomeAuditPageV70=1;
+      renderOutcomesV43();
+    });
   });
   renderOutcomesV43();
 },{once:true});

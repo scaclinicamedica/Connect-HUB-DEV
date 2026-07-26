@@ -137,11 +137,12 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
     'lengthOfStayMethod',
     'responsibleDoctor',
     'primaryIcdCode',
+    'palliativeAlertPresentAtOutcome',
     'actorUid'
   ].sort());
   expect(adminRecord).toEqual({
-    schemaVersion: 1,
-    sourceVersion: 'FOUNDATION-1.0-RC1.3.0-OUTCOMES',
+    schemaVersion: 2,
+    sourceVersion: 'FOUNDATION-1.0-RC1.3.2-ADMIN-INTELLIGENCE',
     type: 'patient_outcome_admin',
     outcomeId: `patient_outcome_emergencia_${encodeURIComponent(patient.id)}`,
     outcomeType: 'treated',
@@ -159,6 +160,7 @@ test('registra Tratado antes de retirar o paciente e preserva o snapshot clínic
     lengthOfStayMethod: 'inclusive_calendar_days',
     responsibleDoctor: OUTCOME_TEST_DOCTOR,
     primaryIcdCode: '',
+    palliativeAlertPresentAtOutcome: false,
     actorUid: FIREBASE_TEST_UID
   });
   expect((await app.firebaseReads()).map(read => read.path)).toEqual([
@@ -179,7 +181,7 @@ test('deriva os campos administrativos do paciente mais recente lido na transaç
     admissionDate: '2026-07-20',
     status: 'Aguardando UTI',
     severity: 'critico',
-    alerts: ['DVA']
+    alerts: ['DVA', 'Paliativo']
   };
   await app.goto({
     patients: [patient],
@@ -210,7 +212,150 @@ test('deriva os campos administrativos do paciente mais recente lido na transaç
     bed: concurrentPatient.bed,
     specialty: concurrentPatient.specialty,
     admissionDate: concurrentPatient.admissionDate,
-    lengthOfStayDays: 5
+    lengthOfStayDays: 5,
+    palliativeAlertPresentAtOutcome: true
+  });
+});
+
+test('confirma o alerta Paliativo pendente antes de abrir o Desfecho', async ({ app }) => {
+  const patient = {
+    ...outcomePatient('fixture-outcome-palliative-pending'),
+    alerts: []
+  };
+  await app.goto({
+    patients: [patient],
+    meta: { currentDoctor: OUTCOME_TEST_DOCTOR }
+  });
+  await app.openPatientById(patient.id);
+  await app.waitForAutosaveHydration();
+  await app.clearFirebaseWrites();
+
+  const pendingFlush = await app.delayNextFirebaseWrite(
+    'set',
+    `connect_hub_v55/emergencia/pacientes/${patient.id}`,
+    1_500
+  );
+  await app.page.locator('#alertOptionsToggle').click();
+  await app.page.locator('#palliativeAlert').check();
+  await app.page.locator('#ppsScore').selectOption({ index: 1 });
+  await app.page.locator('#karnofskyScore').selectOption({ index: 1 });
+  const pps = await app.page.locator('#ppsScore').inputValue();
+  const karnofsky = await app.page.locator('#karnofskyScore').inputValue();
+  await app.page.locator('#palliativeWrap .detail-finish-btn').click();
+  await app.page.locator('#outcomePatientBtn').click();
+
+  await app.waitForFirebaseControl(pendingFlush, 'pending');
+  expect(await app.outcomeDialog.evaluate(dialog => dialog.classList.contains('is-open'))).toBe(false);
+  await expect(app.outcomeDialog).toHaveClass(/is-open/);
+  await app.selectOutcome('treated');
+  await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
+  await app.outcomeConfirmButton.click();
+  await expect(app.cards).toHaveCount(0);
+
+  expect(await app.firebaseDocument(historyPath(patient.id))).toMatchObject({
+    alerts: expect.arrayContaining(['Paliativo']),
+    patientSnapshot: {
+      alerts: expect.arrayContaining(['Paliativo']),
+      palliativeData: { pps, karnofsky }
+    }
+  });
+  expect(await app.firebaseDocument(adminOutcomePath(patient.id))).toMatchObject({
+    palliativeAlertPresentAtOutcome: true
+  });
+  const patientWrites = (await app.firebaseWrites())
+    .filter(write => write.path.endsWith(`/pacientes/${patient.id}`));
+  expect(patientWrites.map(write => write.operation)).toEqual(['set', 'delete']);
+});
+
+test('hidrata paciente Paliativo sem criar ciclo de autosave', async ({ app }) => {
+  const patient = {
+    ...outcomePatient('fixture-outcome-palliative-hydration'),
+    alerts: ['Paliativo'],
+    palliativeData: { pps: '50', karnofsky: '50' }
+  };
+  await app.goto({ patients: [patient] });
+  await app.clearFirebaseWrites();
+  await app.openPatientById(patient.id);
+  await app.waitForAutosaveHydration();
+  await expect(app.page.locator('#palliativeAlert')).toBeChecked();
+  await expect(app.page.locator('#ppsScore')).toHaveValue('50');
+  await expect(app.page.locator('#karnofskyScore')).toHaveValue('50');
+
+  await app.page.waitForTimeout(2_200);
+  expect(await app.firebaseWrites()).toEqual([]);
+  expect(await app.page.evaluate(() => window.eval(`({
+    timer: patientAutosaveTimer !== null,
+    busy: patientAutosaveBusy,
+    queued: patientAutosaveQueued
+  })`))).toEqual({ timer: false, busy: false, queued: false });
+
+  await app.page.locator('#alertOptionsToggle').click();
+  await expect(app.catalog).toHaveClass(/show/);
+  await expect(app.page.locator('#rc122AddClinicalAssistant')).toBeVisible();
+  await app.page.locator('#rc122AddClinicalAssistant').click();
+  await expect(app.catalog).toHaveClass(/rc122-catalog-open/);
+  await app.page.locator('#devicesAlert').check();
+  await app.page.locator('.deviceCheck[value="IOT"]').check();
+  await app.page.locator('#deviceIotFiO2').fill('50');
+  await app.page.locator('#deviceIotPao2').fill('100');
+  await expect(app.page.locator('#deviceIotPafiResult')).toContainText('P/F: 200');
+  await app.page.locator('#devicesDetailWrap .detail-finish-btn').click();
+  await expect.poll(async () => (await app.persistedPatient(patient.id))?.deviceIotPafi).toBe(200);
+  expect(await app.persistedPatient(patient.id)).toMatchObject({
+    deviceIotFiO2: '50',
+    deviceIotPao2: '100',
+    deviceIotPafi: 200
+  });
+});
+
+test('não ignora rascunho Paliativo depois de falha do autosave', async ({ app }) => {
+  const patient = {
+    ...outcomePatient('fixture-outcome-palliative-recovery'),
+    alerts: []
+  };
+  await app.goto({
+    patients: [patient],
+    meta: { currentDoctor: OUTCOME_TEST_DOCTOR }
+  });
+  await app.openPatientById(patient.id);
+  await app.waitForAutosaveHydration();
+  await app.clearFirebaseWrites();
+  app.expectConsoleError(/^Erro ao salvar paciente:/);
+  await app.failNextFirebaseWrite(
+    'set',
+    `connect_hub_v55/emergencia/pacientes/${patient.id}`,
+    'Falha fictícia do primeiro autosave.'
+  );
+
+  await app.page.locator('#alertOptionsToggle').click();
+  await app.page.locator('#palliativeAlert').check();
+  await app.page.locator('#ppsScore').selectOption({ index: 2 });
+  await app.page.locator('#karnofskyScore').selectOption({ index: 2 });
+  await app.page.locator('#palliativeWrap .detail-finish-btn').click();
+  await expect(app.page.locator('#autosaveStatus')).toContainText('Erro no salvamento automático');
+
+  const pendingRecovery = await app.delayNextFirebaseWrite(
+    'set',
+    `connect_hub_v55/emergencia/pacientes/${patient.id}`,
+    1_500
+  );
+  await app.page.locator('#outcomePatientBtn').click();
+  await app.waitForFirebaseControl(pendingRecovery, 'pending');
+  expect(await app.outcomeDialog.evaluate(dialog => dialog.classList.contains('is-open'))).toBe(false);
+  await expect(app.outcomeDialog).toHaveClass(/is-open/);
+
+  await app.selectOutcome('treated');
+  await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
+  await app.outcomeConfirmButton.click();
+  await expect(app.cards).toHaveCount(0);
+  expect(await app.firebaseDocument(adminOutcomePath(patient.id))).toMatchObject({
+    palliativeAlertPresentAtOutcome: true
+  });
+  expect(await app.firebaseDocument(historyPath(patient.id))).toMatchObject({
+    alerts: expect.arrayContaining(['Paliativo']),
+    patientSnapshot: {
+      alerts: expect.arrayContaining(['Paliativo'])
+    }
   });
 });
 
@@ -225,9 +370,15 @@ test('exige médico responsável e CID principal somente para Óbito', async ({ 
   await expect(app.outcomeConfirmButton).toBeDisabled();
   expect(await app.firebaseWrites()).toEqual([]);
 
-  await app.page.locator('#patientOutcomePrimaryCid').fill('i21.9');
-  await expect(app.outcomeConfirmButton).toBeDisabled();
+  await app.page.locator('#patientOutcomePrimaryCid').fill('A419');
   await app.fillOutcomeResponsible(OUTCOME_TEST_DOCTOR);
+  await expect(app.outcomeConfirmButton).toBeDisabled();
+  await expect(app.page.locator('#patientOutcomePrimaryCid')).toHaveAttribute('aria-invalid', 'true');
+  await expect(app.page.locator('#patientOutcomeStatus')).toHaveText('Informe um CID no formato esperado, como I21.9 ou A41.');
+
+  await app.page.locator('#patientOutcomePrimaryCid').fill('i21.9');
+  await expect(app.page.locator('#patientOutcomePrimaryCid')).toHaveValue('I21.9');
+  await expect(app.page.locator('#patientOutcomePrimaryCid')).toHaveAttribute('aria-invalid', 'false');
   await expect(app.outcomeConfirmButton).toBeEnabled();
   await app.outcomeConfirmButton.click();
   await expect(app.cards).toHaveCount(0);

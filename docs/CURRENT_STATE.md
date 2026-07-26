@@ -1,15 +1,15 @@
 # Estado atual do projeto
 
-Atualizado em: 24/07/2026
+Atualizado em: 25/07/2026
 
 ## Baseline
 
 - Produto: Connect HUB — Passagem de Plantão.
-- Componente em foco: Desfecho, segurança do Firestore e acesso
-  administrativo.
+- Componente em foco: Desfecho, inteligência administrativa e segurança do
+  Firestore.
 - Base: FOUNDATION 1.0.
 - Release funcional em preparação:
-  `FOUNDATION-1.0-RC1.3.0-OUTCOMES`.
+  `FOUNDATION-1.0-RC1.3.2-ADMIN-INTELLIGENCE`.
 - Baseline publicado imediatamente anterior: RC1.2.10 — correção da fronteira
   responsiva.
 - Arquivo publicado: `passagem.html`.
@@ -66,6 +66,11 @@ Copilot também consolida Antimicrobianos quando selecionado.
   idempotente.
 - A interface exibe `Encerrando atendimento...` e só retira o paciente depois
   da confirmação da persistência.
+- A abertura do Desfecho confirma primeiro qualquer alteração pendente do
+  alerta `Paliativo`; falha de gravação mantém o fluxo bloqueado.
+- Hidratação e geração da assinatura do rascunho não disparam autosave
+  programático; mudanças reais de Paliativo e PaO₂/FiO₂ mantêm o salvamento
+  automático.
 - Falha mantém o paciente no HUB e permite nova tentativa.
 - As mutações de paciente desta versão consultam a lápide determinística antes
   de gravar. Autosave, salvamento manual, remanejamento, migração, divisão e
@@ -77,7 +82,7 @@ Copilot também consolida Antimicrobianos quando selecionado.
 - `firestore.rules` exige as quatro partes no mesmo commit, torna histórico,
   projeção e lápide imutáveis, nega delete avulso e bloqueia recriação do
   mesmo ID em qualquer setor conhecido.
-- As Rules possuem 21 cenários automatizados no Firestore Emulator, mas ainda
+- As Rules possuem 22 cenários automatizados no Firestore Emulator, mas ainda
   precisam ser publicadas no projeto Firebase antes do merge da aplicação.
 - A Área Administrativa apresenta uma aba própria de Desfechos baseada somente
   na projeção materializada `admin_outcomes`.
@@ -106,17 +111,36 @@ Consulte `docs/OUTCOMES_SPEC.md`.
 - A leitura histórica indisponível ou truncada bloqueia relatórios e
   exportações para evitar resultado incompleto.
 - A aba Desfechos oferece período inicial de 30 dias, filtros por período,
-  setor, especialidade e tipo, contagens, permanência média/mediana com
-  cobertura, proporção de Óbitos entre Desfechos, consolidações, CIDs e tabela
-  de auditoria.
+  setor, especialidade, tipo e registro paliativo.
+- A projeção administrativa versão 2 acrescenta somente
+  `palliativeAlertPresentAtOutcome`, derivado do alerta estruturado do paciente
+  autoritativo; documentos versão 1 continuam legíveis como registro
+  indisponível.
+- A visão apresenta Óbitos gerais registrados, Óbitos com alerta Paliativo,
+  cobertura do registro, permanência média/mediana e sua distribuição,
+  permanência por tipo, perfil nosológico dos Óbitos por CID, consolidações e
+  auditoria.
+- Gráficos permanecem complementares a tabelas exatas e possuem fallback
+  textual; os KPIs do censo atual ficam ocultos na aba histórica.
 - A proporção de Óbitos é identificada explicitamente como proporção entre os
   Desfechos registrados, não como mortalidade institucional.
+- “Sem alerta Paliativo registrado” não significa “não paliativo”, e o recorte
+  nosológico desta versão não extrapola além dos CIDs dos Óbitos em formato
+  esperado; o painel não valida a terminologia oficial.
+- Cada consolidação por setor/especialidade mostra a cobertura local do
+  registro do alerta, evitando comparação enganosa entre grupos com proporções
+  diferentes de documentos legados.
+- O contrato das Rules vincula a presença do alerta no evento ao paciente
+  ativo lido pela transação e valida o formato dos novos CIDs e da DIH.
 - A aba Desfechos não baixa o evento privado: consulta somente a projeção
   mínima sem `patientSnapshot` e usa o timestamp do servidor para período,
   auditoria e permanência.
+- A auditoria renderiza no máximo 50 registros por página; filtros podem ser
+  limpos em uma única ação e tabelas roláveis são navegáveis por teclado.
 - O setor legado `uti` participa das consultas e dos totais.
-- A validação administrativa isolada passou em 25/25 cenários funcionais e
-  16/16 cenários da matriz responsiva.
+- A validação administrativa isolada passou em 30/30 cenários funcionais
+  (15 de autenticação/segurança e 15 de Desfechos) e 16/16 cenários da matriz
+  responsiva (8 por superfície).
 - Antes da publicação é obrigatório habilitar Email/Password, criar a conta
   institucional, cadastrar `admin_users/<uid>` e publicar as Rules.
 
@@ -251,7 +275,7 @@ informado` em vez de assumir estabilidade.
 ## Limitações técnicas atuais
 
 - `passagem.html` é monolítico e concentra interface, estilos e scripts.
-- O artefato RC1.3.0 possui 26.221 linhas, 105 blocos `<style>` e 61 blocos
+- O artefato RC1.3.0 possui 26.336 linhas, 105 blocos `<style>` e 61 blocos
   `<script>`.
 - O estado é majoritariamente global; a persistência combina Firebase
   Auth/Firestore e fallback por `localStorage`.
@@ -266,8 +290,14 @@ informado` em vez de assumir estabilidade.
   ambiente e de um Chromium localizado em caminho temporário absoluto.
 - A estabilidade desktop em 1440 px permanece protegida por 50 repetições,
   um worker e nenhum retry.
+- O candidato de inteligência administrativa passou em 131/131 testes da
+  suíte principal, 22/22 cenários de Rules, impressão A4 e 50/50 repetições
+  de estabilidade, sem retries.
 - As Rules locais não protegem produção até serem efetivamente publicadas no
   projeto Firebase.
+- Esta branch pode ser usada somente em teste controlado com pacientes
+  fictícios enquanto o login clínico nominal estiver adiado. Isso não remove o
+  bloqueio de publicação de produção.
 - Os usuários clínicos permanecem anônimos. O UID registra a sessão do
   Desfecho, mas não comprova a identidade nominal do profissional nem a autoria
   individual de cada campo do paciente ativo.

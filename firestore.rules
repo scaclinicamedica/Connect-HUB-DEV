@@ -50,6 +50,31 @@ service cloud.firestore {
         );
     }
 
+    function validPrimaryIcdCode(outcomeType, code) {
+      return code is string
+        && (
+          (
+            outcomeType == 'death'
+            && code.size() <= 8
+            && code.matches('^[A-Z][0-9]{2}(\\.[A-Z0-9]{1,4})?$')
+          )
+          || (
+            outcomeType != 'death'
+            && code == ''
+          )
+        );
+    }
+
+    function validOutcomeAdmissionDate(value) {
+      return value is string
+        && (
+          value == ''
+          || value.matches(
+            '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+          )
+        );
+    }
+
     function patientPath(sectorUnit, patientId) {
       return /databases/$(database)/documents/connect_hub_v55/$(sectorUnit)/pacientes/$(patientId);
     }
@@ -154,7 +179,7 @@ service cloud.firestore {
         && data.unit is string
         && data.bed is string
         && data.specialty is string
-        && data.admissionDate is string
+        && validOutcomeAdmissionDate(data.admissionDate)
         && (
           data.lengthOfStayDays == null
           || (
@@ -167,15 +192,7 @@ service cloud.firestore {
         && data.responsibleDoctor.matches('.*\\S.*')
         && data.actor == data.responsibleDoctor
         && data.actorUid == request.auth.uid
-        && data.primaryIcdCode is string
-        && (
-          data.outcomeType != 'death'
-          || data.primaryIcdCode.matches('.*\\S.*')
-        )
-        && (
-          data.outcomeType == 'death'
-          || data.primaryIcdCode == ''
-        )
+        && validPrimaryIcdCode(data.outcomeType, data.primaryIcdCode)
         && data.status is string
         && data.severity is string
         && data.alerts is list
@@ -226,9 +243,12 @@ service cloud.firestore {
           'lengthOfStayMethod',
           'responsibleDoctor',
           'primaryIcdCode',
+          'palliativeAlertPresentAtOutcome',
           'actorUid'
         ])
-        && data.schemaVersion == 1
+        && data.schemaVersion == 2
+        && data.keys().hasAll(['palliativeAlertPresentAtOutcome'])
+        && data.palliativeAlertPresentAtOutcome is bool
         && data.sourceVersion is string
         && data.sourceVersion.size() > 0
         && data.type == 'patient_outcome_admin'
@@ -249,7 +269,7 @@ service cloud.firestore {
         && data.unit is string
         && data.bed is string
         && data.specialty is string
-        && data.admissionDate is string
+        && validOutcomeAdmissionDate(data.admissionDate)
         && (
           data.lengthOfStayDays == null
           || (
@@ -260,16 +280,19 @@ service cloud.firestore {
         && data.lengthOfStayMethod == 'inclusive_calendar_days'
         && data.responsibleDoctor is string
         && data.responsibleDoctor.matches('.*\\S.*')
-        && data.primaryIcdCode is string
-        && (
-          data.outcomeType != 'death'
-          || data.primaryIcdCode.matches('.*\\S.*')
-        )
-        && (
-          data.outcomeType == 'death'
-          || data.primaryIcdCode == ''
-        )
+        && validPrimaryIcdCode(data.outcomeType, data.primaryIcdCode)
         && data.actorUid == request.auth.uid;
+    }
+
+    function hasPalliativeAlert(data) {
+      return data.keys().hasAll(['alerts'])
+        && data.alerts is list
+        && data.alerts.hasAny(['Paliativo']);
+    }
+
+    function outcomePalliativeMatchesActivePatient(outcome, activePath) {
+      return outcome.alerts.hasAny(['Paliativo'])
+        == hasPalliativeAlert(get(activePath).data);
     }
 
     function markerMatchesOutcome(marker, outcome) {
@@ -281,7 +304,10 @@ service cloud.firestore {
     }
 
     function adminProjectionMatchesOutcome(projection, outcome) {
-      return projection.schemaVersion == outcome.schemaVersion
+      return projection.schemaVersion == 2
+        && outcome.schemaVersion == 1
+        && projection.palliativeAlertPresentAtOutcome
+          == outcome.alerts.hasAny(['Paliativo'])
         && projection.sourceVersion == outcome.sourceVersion
         && projection.outcomeId == outcome.outcomeId
         && projection.outcomeType == outcome.outcomeType
@@ -310,6 +336,7 @@ service cloud.firestore {
       return isSignedIn()
         && validOutcome(outcome, outcomeId)
         && exists(activePath)
+        && outcomePalliativeMatchesActivePatient(outcome, activePath)
         && !existsAfter(activePath)
         && !exists(markerPath)
         && existsAfter(markerPath)

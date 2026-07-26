@@ -1,5 +1,64 @@
 # Changelog
 
+## [Não publicado — inteligência administrativa de Desfechos] — 2026-07-25
+
+### Indicadores
+
+- A projeção administrativa evolui para o esquema 2 com o único campo
+  `palliativeAlertPresentAtOutcome`, derivado do alerta estruturado `Paliativo` no
+  paciente autoritativo da transação.
+- Projeções versão 1 continuam nos totais com registro do alerta
+  indisponível, sem inferência retrospectiva.
+- A Área Administrativa passa a separar Óbitos gerais registrados, Óbitos com
+  alerta Paliativo, Óbitos sem esse alerta e registros indisponíveis, sempre
+  com cobertura.
+- Permanência ganha distribuição por faixas e segmentação por tipo de
+  Desfecho, preservando média, mediana e denominadores válidos.
+- O perfil nosológico é apresentado somente pelos CIDs principais dos Óbitos,
+  pois esta versão não captura CID homologado para os demais Desfechos.
+- Setor e especialidade passam a detalhar Óbitos gerais, com alerta Paliativo
+  e cobertura local do registro; a auditoria individual mostra o estado
+  disponível.
+- A auditoria passa a renderizar 50 registros por página, com navegação
+  explícita, e os seis filtros podem ser restaurados em uma única ação.
+
+### Qualidade e segurança
+
+- Novo filtro do alerta Paliativo combina com período, setor, especialidade
+  e tipo.
+- Gráficos de composição, permanência e CIDs complementam tabelas exatas e
+  degradam para mensagens textuais sem ocultar os dados.
+- Os KPIs do censo atual são ocultados na aba histórica para evitar mistura de
+  conceitos.
+- O painel continua lendo projeções legadas v1 como registro indisponível;
+  novas criações são obrigatoriamente v2 e vinculam o booleano administrativo
+  ao evento privado e ao paciente ativo.
+- Novos CIDs são limitados ao formato estruturado; isso não substitui validação
+  contra terminologia oficial, e valores legados fora do formato não entram no
+  agrupamento nem na cobertura.
+- DIH com sufixo ou data impossível não é truncada: fica fora da permanência e
+  aparece como indisponível na auditoria; novas gravações fora do formato são
+  negadas.
+- O Desfecho confirma alterações pendentes do alerta `Paliativo` antes de abrir
+  o modal, evitando consolidar o estado anterior.
+- Cálculos programáticos usados na hidratação e na assinatura do rascunho
+  deixam de reagendar o autosave; alterações reais de Paliativo e PaO₂/FiO₂
+  continuam salvando normalmente.
+- Novas projeções são obrigatoriamente versão 2; documentos versão 1 permanecem
+  apenas como leitura histórica.
+- A cobertura focada passa a 15 cenários funcionais, 8 viewports e 22 cenários
+  de Rules.
+- Validação integrada: suíte principal 131/131, impressão A4 incluída,
+  estabilidade desktop 50/50, um worker e zero retries.
+
+### Limites
+
+- “Óbitos gerais” significa todos os Óbitos registrados nesta ferramenta, não
+  mortalidade institucional.
+- “Sem alerta Paliativo registrado” não significa “não paliativo”.
+- O login clínico nominal pode permanecer adiado somente em teste controlado
+  com pacientes fictícios; continua bloqueando merge/deploy de produção.
+
 ## [Não publicado — segurança de Desfecho e acesso administrativo] — 2026-07-24
 
 ### Segurança do Desfecho

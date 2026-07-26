@@ -15,10 +15,32 @@ type Seed = {
 };
 
 export class PassagemPage {
+  private readonly expectedConsoleErrorPatterns: RegExp[] = [];
+
   constructor(
     readonly page: Page,
     readonly networkAttempts: Array<{ url: string; method: string; disposition: string }>
   ){}
+
+  expectConsoleError(pattern: RegExp){
+    this.expectedConsoleErrorPatterns.push(pattern);
+  }
+
+  classifyConsoleErrors(messages: string[]){
+    const unexpected = [...messages];
+    const missing: string[] = [];
+
+    for(const pattern of this.expectedConsoleErrorPatterns){
+      const index = unexpected.findIndex(message => {
+        pattern.lastIndex = 0;
+        return pattern.test(message);
+      });
+      if(index >= 0) unexpected.splice(index, 1);
+      else missing.push(String(pattern));
+    }
+
+    return { unexpected, missing };
+  }
 
   get drawer(){ return this.page.locator('#drawer'); }
   get catalog(){ return this.page.locator('#alertChecks'); }

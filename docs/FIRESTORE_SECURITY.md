@@ -151,21 +151,25 @@ credenciais para o repositório, PR, terminal compartilhado ou documentação.
 
    O Emulator desta branch exige Java 21 ou superior.
 
-8. Publique apenas as Rules, apontando explicitamente para o projeto:
+8. Bloqueie o uso clínico durante uma janela controlada. O cliente anterior
+   cria projeção administrativa versão 1, negada pelas Rules finais, enquanto
+   as Rules anteriores rejeitam a versão 2 do novo cliente.
+9. Publique as Rules, apontando explicitamente para o projeto:
 
    ```bash
    npx firebase deploy --only firestore:rules \
      --project passagem-de-plantao-1746c
    ```
 
-9. Confirme no Firebase Console que a nova release está ativa.
-10. Execute o smoke test abaixo antes de integrar ou publicar os HTMLs.
+10. Confirme no Firebase Console que a nova release está ativa e publique
+    imediatamente os HTMLs do mesmo candidato.
+11. Execute o smoke test abaixo antes de reabrir o uso.
 
-As Rules devem entrar primeiro para que o novo HTML nunca opere sem a proteção.
-No intervalo entre o deploy das Rules e a publicação do HTML, a versão
-administrativa antiga e anônima deixará de ler o histórico. Essa indisponibilidade
-temporária é esperada; planeje uma janela curta, valide o candidato local contra
-o projeto protegido e publique a aplicação somente depois do smoke test.
+Não existe ordem de publicação compatível com uso simultâneo: o cliente antigo
+e as Rules finais discordam sobre o esquema 1, e o cliente novo e as Rules
+anteriores discordam sobre o esquema 2. A janela deve impedir novos Desfechos
+até Rules e HTML coincidirem. Em rollback, reverta os dois artefatos antes de
+reabrir o uso.
 
 ## Smoke test após o deploy
 
@@ -180,6 +184,8 @@ Use somente registros fictícios em ambiente controlado:
 - [ ] cliente clínico consegue consultar por `get` a lápide conhecida;
 - [ ] Tratado cria histórico + projeção mínima + lápide e retira o ativo em um
       único commit;
+- [ ] a projeção criada usa esquema 2 e registra o booleano Paliativo igual ao
+      paciente autoritativo; tentativa de criar esquema 1 é negada;
 - [ ] Óbito sem CID é negado;
 - [ ] update/delete de histórico ou lápide é negado;
 - [ ] exclusão avulsa de paciente é negada;
@@ -202,7 +208,7 @@ O comando oficial é:
 npm run test:rules
 ```
 
-Ele inicia o Firestore Emulator e executa 21 cenários em
+Ele inicia o Firestore Emulator e executa 22 cenários em
 `tests/firestore/firestore.rules.test.mjs`. A cobertura inclui:
 
 - operação de Desfecho com quatro mutações e negação de combinações parciais;
@@ -218,6 +224,8 @@ Ele inicia o Firestore Emulator e executa 21 cenários em
 - reserva do identificador determinístico de Desfecho;
 - imutabilidade das confirmações de transição de cuidados.
 - compatibilidade estrita da confirmação legada durante a janela Rules-first.
+- leitura administrativa de projeções v1 históricas, negação de novas
+  projeções v1 e consistência do booleano Paliativo na v2.
 
 ## Limitação residual
 

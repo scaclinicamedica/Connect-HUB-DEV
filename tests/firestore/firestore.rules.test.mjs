@@ -88,10 +88,11 @@ function fictitiousPatient(patientId, extra = {}) {
 function fictitiousOutcome(patientId, {
   sectorUnit = SECTOR,
   actorUid = CLINICIAN_UID,
-  outcomeType = 'treated'
+  outcomeType = 'treated',
+  alerts = []
 } = {}) {
   const id = outcomeId(sectorUnit, patientId);
-  const patient = fictitiousPatient(patientId);
+  const patient = fictitiousPatient(patientId, { alerts });
   return {
     schemaVersion: 1,
     sourceVersion: 'FOUNDATION-1.0-RC1.3.0-OUTCOMES',
@@ -147,15 +148,17 @@ function closedPatientMarker(patientId, {
 function fictitiousAdminOutcome(patientId, {
   sectorUnit = SECTOR,
   actorUid = CLINICIAN_UID,
-  outcomeType = 'treated'
+  outcomeType = 'treated',
+  alerts = []
 } = {}) {
   const outcome = fictitiousOutcome(patientId, {
     sectorUnit,
     actorUid,
-    outcomeType
+    outcomeType,
+    alerts
   });
   return {
-    schemaVersion: outcome.schemaVersion,
+    schemaVersion: 2,
     sourceVersion: outcome.sourceVersion,
     type: 'patient_outcome_admin',
     outcomeId: outcome.outcomeId,
@@ -174,6 +177,7 @@ function fictitiousAdminOutcome(patientId, {
     lengthOfStayMethod: outcome.lengthOfStayMethod,
     responsibleDoctor: outcome.responsibleDoctor,
     primaryIcdCode: outcome.primaryIcdCode,
+    palliativeAlertPresentAtOutcome: outcome.alerts.includes('Paliativo'),
     actorUid: outcome.actorUid
   };
 }
@@ -248,12 +252,18 @@ async function seedAdmin(uid, role = 'admin', active = true) {
 async function closePatient(db, patientId, {
   sectorUnit = SECTOR,
   actorUid = CLINICIAN_UID,
-  outcomeType = 'treated'
+  outcomeType = 'treated',
+  alerts = []
 } = {}) {
   const batch = writeBatch(db);
   batch.set(
     doc(db, outcomePath(sectorUnit, patientId)),
-    fictitiousOutcome(patientId, { sectorUnit, actorUid, outcomeType })
+    fictitiousOutcome(patientId, {
+      sectorUnit,
+      actorUid,
+      outcomeType,
+      alerts
+    })
   );
   batch.set(
     doc(db, markerPath(sectorUnit, patientId)),
@@ -268,7 +278,8 @@ async function closePatient(db, patientId, {
     fictitiousAdminOutcome(patientId, {
       sectorUnit,
       actorUid,
-      outcomeType
+      outcomeType,
+      alerts
     })
   );
   batch.delete(doc(db, patientPath(sectorUnit, patientId)));
@@ -330,6 +341,7 @@ describe('Desfecho atômico', () => {
         'outcomeId',
         'outcomeLabel',
         'outcomeType',
+        'palliativeAlertPresentAtOutcome',
         'patientId',
         'patientName',
         'primaryIcdCode',
@@ -348,6 +360,119 @@ describe('Desfecho atômico', () => {
       'patient_outcome_admin'
     );
     assert.equal('patientSnapshot' in persisted.projection.data(), false);
+  });
+
+  test('exige v2, preserva leitura legada no painel e nega divergência', async () => {
+    const db = clinicianDb();
+
+    const palliativeId = 'fixture-palliative-outcome';
+    await seedPatient(palliativeId, SECTOR, { alerts: ['Paliativo'] });
+    await assertSucceeds(closePatient(db, palliativeId, {
+      alerts: ['Paliativo']
+    }));
+
+    let palliativeProjection;
+    await testEnvironment.withSecurityRulesDisabled(async context => {
+      palliativeProjection = (
+        await getDoc(doc(
+          context.firestore(),
+          adminOutcomePath(SECTOR, palliativeId)
+        ))
+      ).data();
+    });
+    assert.equal(palliativeProjection.schemaVersion, 2);
+    assert.equal(palliativeProjection.palliativeAlertPresentAtOutcome, true);
+
+    const legacyId = 'fixture-legacy-admin-projection';
+    await seedPatient(legacyId);
+    const legacyProjection = fictitiousAdminOutcome(legacyId);
+    legacyProjection.schemaVersion = 1;
+    delete legacyProjection.palliativeAlertPresentAtOutcome;
+    const legacyBatch = writeBatch(db);
+    legacyBatch.set(
+      doc(db, outcomePath(SECTOR, legacyId)),
+      fictitiousOutcome(legacyId)
+    );
+    legacyBatch.set(
+      doc(db, markerPath(SECTOR, legacyId)),
+      closedPatientMarker(legacyId)
+    );
+    legacyBatch.set(
+      doc(db, adminOutcomePath(SECTOR, legacyId)),
+      legacyProjection
+    );
+    legacyBatch.delete(doc(db, patientPath(SECTOR, legacyId)));
+    await assertFails(legacyBatch.commit());
+
+    const divergentId = 'fixture-divergent-palliative-projection';
+    await seedPatient(divergentId, SECTOR, { alerts: ['Paliativo'] });
+    const divergentBatch = writeBatch(db);
+    divergentBatch.set(
+      doc(db, outcomePath(SECTOR, divergentId)),
+      fictitiousOutcome(divergentId, { alerts: ['Paliativo'] })
+    );
+    divergentBatch.set(
+      doc(db, markerPath(SECTOR, divergentId)),
+      closedPatientMarker(divergentId)
+    );
+    divergentBatch.set(
+      doc(db, adminOutcomePath(SECTOR, divergentId)),
+      {
+        ...fictitiousAdminOutcome(divergentId, {
+          alerts: ['Paliativo']
+        }),
+        palliativeAlertPresentAtOutcome: false
+      }
+    );
+    divergentBatch.delete(doc(db, patientPath(SECTOR, divergentId)));
+    await assertFails(divergentBatch.commit());
+
+    async function assertRejectedProjection(patientId, {
+      activeAlerts = [],
+      outcomeAlerts = activeAlerts,
+      mutateProjection = projection => projection
+    } = {}) {
+      await seedPatient(patientId, SECTOR, { alerts: activeAlerts });
+      const outcome = fictitiousOutcome(patientId, { alerts: outcomeAlerts });
+      const projection = mutateProjection(
+        fictitiousAdminOutcome(patientId, { alerts: outcomeAlerts })
+      );
+      const batch = writeBatch(db);
+      batch.set(doc(db, outcomePath(SECTOR, patientId)), outcome);
+      batch.set(
+        doc(db, markerPath(SECTOR, patientId)),
+        closedPatientMarker(patientId)
+      );
+      batch.set(
+        doc(db, adminOutcomePath(SECTOR, patientId)),
+        projection
+      );
+      batch.delete(doc(db, patientPath(SECTOR, patientId)));
+      await assertFails(batch.commit());
+    }
+
+    await assertRejectedProjection('fixture-v2-without-palliative-field', {
+      mutateProjection(projection) {
+        delete projection.palliativeAlertPresentAtOutcome;
+        return projection;
+      }
+    });
+    await assertRejectedProjection('fixture-v2-invalid-palliative-field', {
+      mutateProjection(projection) {
+        projection.palliativeAlertPresentAtOutcome = 'true';
+        return projection;
+      }
+    });
+    await assertRejectedProjection('fixture-v1-with-v2-field', {
+      mutateProjection(projection) {
+        projection.schemaVersion = 1;
+        return projection;
+      }
+    });
+    await assertRejectedProjection('fixture-forged-palliative-event', {
+      activeAlerts: [],
+      outcomeAlerts: ['Paliativo']
+    });
   });
 
   test('nega partes isoladas e qualquer fechamento sem as quatro mutações', async () => {
@@ -433,7 +558,7 @@ describe('Desfecho atômico', () => {
     await assertFails(batch.commit());
   });
 
-  test('nega outcome sem médico responsável ou Óbito com CID em branco', async () => {
+  test('nega médico ausente, CID incompatível ou DIH fora do formato', async () => {
     const db = clinicianDb();
 
     const missingDoctorId = 'fixture-missing-doctor';
@@ -479,6 +604,60 @@ describe('Desfecho atômico', () => {
     );
     blankCidBatch.delete(doc(db, patientPath(SECTOR, blankCidId)));
     await assertFails(blankCidBatch.commit());
+
+    const invalidCidId = 'fixture-invalid-death-cid';
+    await seedPatient(invalidCidId);
+    const invalidCidOutcome = {
+      ...fictitiousOutcome(invalidCidId, { outcomeType: 'death' }),
+      primaryIcdCode: 'TEXTO IDENTIFICÁVEL'
+    };
+    const invalidCidProjection = {
+      ...fictitiousAdminOutcome(invalidCidId, { outcomeType: 'death' }),
+      primaryIcdCode: 'TEXTO IDENTIFICÁVEL'
+    };
+    const invalidCidBatch = writeBatch(db);
+    invalidCidBatch.set(
+      doc(db, outcomePath(SECTOR, invalidCidId)),
+      invalidCidOutcome
+    );
+    invalidCidBatch.set(
+      doc(db, markerPath(SECTOR, invalidCidId)),
+      closedPatientMarker(invalidCidId, { outcomeType: 'death' })
+    );
+    invalidCidBatch.set(
+      doc(db, adminOutcomePath(SECTOR, invalidCidId)),
+      invalidCidProjection
+    );
+    invalidCidBatch.delete(doc(db, patientPath(SECTOR, invalidCidId)));
+    await assertFails(invalidCidBatch.commit());
+
+    const invalidAdmissionId = 'fixture-invalid-admission-date';
+    await seedPatient(invalidAdmissionId);
+    const invalidAdmissionOutcome = {
+      ...fictitiousOutcome(invalidAdmissionId),
+      admissionDate: '2026-07-20XYZ'
+    };
+    const invalidAdmissionProjection = {
+      ...fictitiousAdminOutcome(invalidAdmissionId),
+      admissionDate: '2026-07-20XYZ'
+    };
+    const invalidAdmissionBatch = writeBatch(db);
+    invalidAdmissionBatch.set(
+      doc(db, outcomePath(SECTOR, invalidAdmissionId)),
+      invalidAdmissionOutcome
+    );
+    invalidAdmissionBatch.set(
+      doc(db, markerPath(SECTOR, invalidAdmissionId)),
+      closedPatientMarker(invalidAdmissionId)
+    );
+    invalidAdmissionBatch.set(
+      doc(db, adminOutcomePath(SECTOR, invalidAdmissionId)),
+      invalidAdmissionProjection
+    );
+    invalidAdmissionBatch.delete(
+      doc(db, patientPath(SECTOR, invalidAdmissionId))
+    );
+    await assertFails(invalidAdmissionBatch.commit());
   });
 
   test('nega projeção com campo extra ou divergente do evento privado', async () => {

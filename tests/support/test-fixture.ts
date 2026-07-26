@@ -67,14 +67,21 @@ export const test = base.extend<Fixtures>({
     const app = new PassagemPage(page, networkAttempts);
     await use(app);
 
+    const consoleErrorResult = app.classifyConsoleErrors(consoleErrors);
     if(pageErrors.length || consoleErrors.length || testInfo.status !== testInfo.expectedStatus) {
       await testInfo.attach('browser-diagnostics.json', {
-        body: Buffer.from(JSON.stringify({ pageErrors, consoleErrors }, null, 2)),
+        body: Buffer.from(JSON.stringify({
+          pageErrors,
+          consoleErrors,
+          unexpectedConsoleErrors: consoleErrorResult.unexpected,
+          missingExpectedConsoleErrors: consoleErrorResult.missing
+        }, null, 2)),
         contentType: 'application/json'
       });
     }
     expect(pageErrors, 'No uncaught page errors').toEqual([]);
-    expect(consoleErrors, 'No blocking console errors').toEqual([]);
+    expect(consoleErrorResult.missing, 'Every expected console error occurred').toEqual([]);
+    expect(consoleErrorResult.unexpected, 'No unexpected blocking console errors').toEqual([]);
   }
 });
 

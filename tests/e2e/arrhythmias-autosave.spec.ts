@@ -137,6 +137,7 @@ test('novo paciente não herda o estado de Arritmias do paciente anterior', asyn
   await app.fillRequiredPatientFields('NOVO');
   await expect.poll(async () => app.page.locator('#patientId').inputValue()).not.toBe('');
   const newPatientId = await app.page.locator('#patientId').inputValue();
+  await expect.poll(async () => Boolean(await app.persistedPatient(newPatientId))).toBe(true);
   await app.openCatalog();
   await app.selectModule('Arritmias');
   await expect.poll(async () => {

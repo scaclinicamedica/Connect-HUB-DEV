@@ -136,7 +136,7 @@ Em todas as larguras:
 
 ## 10. Firestore e Área Administrativa
 
-- [ ] `npm run test:rules` conclui os 21 cenários no Firestore Emulator.
+- [ ] `npm run test:rules` conclui os 22 cenários no Firestore Emulator.
 - [ ] Cliente clínico anônimo pode consultar por `get` uma lápide conhecida,
       mas não pode listar lápides nem ler/listar `historico_eventos`.
 - [ ] Usuário não-anônimo com `admin_users/<uid>` ativo e papel `admin` lê o
@@ -162,22 +162,53 @@ Em todas as larguras:
       geração/exportação incompleta.
 - [ ] Conteúdo persistido é escapado antes de ser inserido no HTML do painel.
 - [ ] A aba Desfechos consulta somente `admin_outcomes` com
-      `patient_outcome_admin` versão 1 e tipos homologados.
+      `patient_outcome_admin` versões 1 ou 2 e tipos homologados.
+- [ ] A projeção versão 2 exige `palliativeAlertPresentAtOutcome` booleano igual à
+      presença do alerta estruturado `Paliativo` no evento privado e no
+      paciente ativo lido antes da exclusão.
+- [ ] Evento e projeção que forjam juntos o alerta em divergência com o
+      paciente ativo são negados.
+- [ ] Projeções versão 1 permanecem nos totais como registro do alerta
+      indisponível, nunca como “não paliativo”.
 - [ ] O período padrão cobre 30 dias e os filtros por data, setor,
-      especialidade e tipo funcionam em conjunto.
+      especialidade, tipo e registro paliativo funcionam em conjunto.
 - [ ] Hoje e D-29 entram no período padrão; D-30 fica fora, e intervalo
       invertido exibe erro sem métricas.
 - [ ] Período, ordenação e auditoria usam exclusivamente `createdAt` do
       servidor convertido para `America/Sao_Paulo`.
 - [ ] Permanência é recalculada de `admissionDate` até o timestamp do servidor
       e ignora `lengthOfStayDays` ou datas locais adulteradas.
+- [ ] Hidratar um paciente já Paliativo não cria escrita ou timer recorrente;
+      alterações reais de Paliativo e PaO₂/FiO₂ continuam agendando autosave.
+- [ ] DIH com sufixo, formato incompleto ou data impossível não entra na
+      permanência nem é apresentada como data válida na auditoria.
 - [ ] Total, Tratados, Óbitos, Transferidos, média, mediana e cobertura usam
       somente os registros filtrados.
+- [ ] Óbitos gerais, com alerta, sem alerta e com registro indisponível
+      respeitam os invariantes `com alerta <= com registro <= óbitos <= total`.
+- [ ] Percentual do alerta usa somente Óbitos com registro disponível;
+      denominador zero
+      apresenta `—`, sem `NaN`, `Infinity` ou percentual artificial.
+- [ ] Distribuição da permanência e tabela por tipo usam a mesma lista válida
+      da média/mediana e mantêm cobertura explícita.
 - [ ] A proporção de Óbitos é rotulada como proporção entre Desfechos e não
       como mortalidade institucional.
-- [ ] Consolidações por setor/especialidade, CIDs de Óbitos e auditoria
-      correspondem ao mesmo conjunto filtrado.
+- [ ] CIDs novos aceitam somente formato estruturado; texto livre ou
+      identificável é negado e valores legados inválidos não entram na
+      cobertura.
+- [ ] O recorte nosológico é rotulado como CIDs principais em formato esperado
+      informados nos Óbitos, sem inferir diagnóstico geral dos demais
+      Desfechos nem afirmar validação contra terminologia oficial.
+- [ ] Consolidações por setor/especialidade exibem cobertura local do alerta;
+      CIDs e auditoria correspondem ao mesmo conjunto filtrado.
+- [ ] Falha total ou parcial de Chart.js preserva KPIs e tabelas exatas e
+      apresenta fallback textual.
+- [ ] Os KPIs do censo atual ficam ocultos na aba histórica de Desfechos e
+      reaparecem nas demais abas.
 - [ ] A auditoria permite rastrear cada linha pelo `outcomeId`.
+- [ ] A auditoria limita a renderização a 50 linhas por página e mantém
+      ordenação, totais e navegação Anterior/Próxima corretos.
+- [ ] A ação Limpar filtros restaura os últimos 30 dias e todas as dimensões.
 - [ ] Estados carregando, pronto, vazio, filtro vazio, negado, erro e truncado
       não exibem números parciais ou antigos.
 - [ ] Falha na leitura de pacientes ou do histórico encerra o estado de

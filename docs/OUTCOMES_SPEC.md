@@ -1,6 +1,6 @@
 # Desfecho do paciente — V1
 
-Atualizado em: 24/07/2026
+Atualizado em: 25/07/2026
 
 ## Objetivo
 
@@ -36,6 +36,9 @@ usado apenas como sugestão editável.
   novamente.
 - O autosave pendente é coordenado antes do encerramento para impedir que uma
   escrita tardia recrie o paciente.
+- Uma alteração pendente do alerta estruturado `Paliativo` é confirmada antes
+  da abertura do modal; se a gravação não puder ser comprovada, o Desfecho não
+  é liberado.
 - O snapshot incorpora o formulário atual quando o Desfecho é iniciado pelo
   drawer.
 
@@ -113,8 +116,9 @@ Campos do contrato:
 | `status`, `severity`, `alerts` | Estado imediatamente anterior |
 | `patientSnapshot` | Cópia integral e imutável do paciente |
 
-Permanência no mesmo dia equivale a um dia. DIH ausente, inválida ou futura
-produz `null`, sem inferência.
+Permanência no mesmo dia equivale a um dia. DIH ausente, fora do formato exato
+`YYYY-MM-DD`, impossível no calendário ou futura produz `null`, sem truncar
+sufixos nem fazer inferência.
 
 Contrato da lápide mínima:
 
@@ -133,7 +137,7 @@ Contrato da projeção administrativa:
 
 | Campo | Conteúdo |
 |---|---|
-| `schemaVersion`, `sourceVersion` | Versão do esquema e release de origem |
+| `schemaVersion`, `sourceVersion` | Esquema `2` e release de origem |
 | `type` | `patient_outcome_admin` |
 | `outcomeId`, `outcomeType`, `outcomeLabel` | Identificação e tipo do Desfecho |
 | `createdAt` | Timestamp autoritativo do servidor |
@@ -142,9 +146,22 @@ Contrato da projeção administrativa:
 | `specialty`, `admissionDate` | Especialidade e DIH |
 | `lengthOfStayDays`, `lengthOfStayMethod` | Valor persistido de compatibilidade |
 | `responsibleDoctor`, `primaryIcdCode`, `actorUid` | Responsável, CID e sessão |
+| `palliativeAlertPresentAtOutcome` | Booleano derivado da presença exata do alerta estruturado `Paliativo` |
 
-A projeção não aceita `patientSnapshot`, diagnóstico, alertas, gravidade,
-status, `createdAtLocal` ou `dateLocal`.
+A projeção versão 2 não transporta a lista de alertas nem dados da avaliação
+paliativa. Ela registra somente o booleano mínimo derivado do mesmo paciente
+autoritativo usado no evento privado. As Rules exigem simultaneamente que o
+valor seja igual à presença de `Paliativo` no evento privado e que essa
+presença corresponda ao paciente ativo lido antes da exclusão. Uma alteração
+local ainda não persistida não é promovida silenciosamente ao histórico.
+
+Essa verificação protege a consistência da transação de Desfecho; enquanto o
+acesso clínico continuar anônimo, ela não impede que um cliente autorizado
+altere previamente o paciente ativo. Por isso o login nominal continua sendo
+gate de produção.
+
+A projeção não aceita `patientSnapshot`, diagnóstico, alertas brutos,
+gravidade, status, `createdAtLocal` ou `dateLocal`.
 
 ## Modo local
 
@@ -193,33 +210,61 @@ anônimo pode consultar uma lápide individual, mas não listar lápides nem ler
 
 ## Área Administrativa — Desfechos
 
-A aba `Desfechos` consome somente projeções `patient_outcome_admin` de
-`schemaVersion: 1` e tipos homologados. O período inicial corresponde aos
-últimos 30 dias. Os filtros disponíveis são:
+A aba `Desfechos` consome somente projeções `patient_outcome_admin` dos
+esquemas 1 e 2 e tipos homologados. A versão 1 continua legível como dado
+histórico, mas novas projeções precisam usar o esquema 2. Nos documentos
+legados, o registro do alerta Paliativo é apresentado como indisponível;
+ausência histórica do novo campo nunca é interpretada como ausência de cuidado
+paliativo. O
+período inicial corresponde aos últimos 30 dias. Os filtros disponíveis são:
 
 - data inicial e final;
 - setor;
 - especialidade;
-- tipo de Desfecho.
+- tipo de Desfecho;
+- alerta Paliativo: registrado, sem registro ou registro indisponível.
 
 A visão apresenta:
 
-- total, Tratados, Óbitos e Transferidos;
+- total, Tratados, Transferidos e Óbitos gerais registrados;
+- Óbitos com alerta Paliativo registrado, Óbitos sem esse alerta e cobertura
+  do registro;
 - proporção de Óbitos entre os Desfechos filtrados;
 - permanência média e mediana inclusivas, sempre com cobertura;
-- consolidação por setor e por especialidade;
-- CIDs principais mais frequentes nos Óbitos filtrados;
+- distribuição da permanência em faixas e permanência segmentada por tipo de
+  Desfecho;
+- consolidação por setor e por especialidade, incluindo Óbitos gerais, com
+  alerta Paliativo e cobertura local do registro;
+- recorte nosológico dos Óbitos pelos CIDs principais em formato esperado;
 - tabela de auditoria com data/hora, `outcomeId`, paciente, Desfecho, setor,
-  especialidade, DIH, permanência, médico responsável e CID quando aplicável.
+  especialidade, DIH, permanência, registro paliativo, médico responsável e
+  CID quando aplicável, paginada em lotes de 50 registros.
+
+Os gráficos são complementares. Cada visualização mantém uma tabela exata como
+fonte de leitura e auditoria; se Chart.js estiver ausente ou falhar, o painel
+preserva números e tabelas e apresenta uma mensagem de indisponibilidade. Ao
+abrir Desfechos, os KPIs do censo atual são ocultados para não misturar
+pacientes ativos com o histórico filtrado.
 
 A proporção de Óbitos não representa mortalidade institucional: o denominador
 contém somente os Desfechos registrados nesta ferramenta. Permanência sem valor
 válido fica fora da média e mediana e continua explícita na cobertura.
+Da mesma forma, `palliativeAlertPresentAtOutcome: false` significa somente que
+o alerta estruturado não estava registrado no encerramento; não equivale a
+classificar o paciente como não paliativo. O recorte nosológico desta versão é
+restrito aos Óbitos, pois o CID continua homologado e obrigatório somente nesse
+tipo de Desfecho. Novos CIDs devem respeitar o formato estruturado
+`A00`–`Z99` com subcategoria alfanumérica opcional; projeções históricas com
+valor inválido não entram no agrupamento nem na cobertura.
+Essa verificação confirma apenas o formato do campo, não a existência do código
+em uma terminologia oficial nem sua descrição clínica.
 O filtro por período, a ordenação e a auditoria usam exclusivamente
 `createdAt`, gravado pelo servidor e convertido para a data civil de
 `America/Sao_Paulo`. Registros sem timestamp válido não entram nas métricas.
 A permanência é recalculada de `admissionDate` até essa data civil, sem confiar
-no relógio do navegador nem no `lengthOfStayDays` persistido.
+no relógio do navegador nem no `lengthOfStayDays` persistido. A auditoria
+também exibe `—` para DIH malformada ou impossível; novas gravações com valor
+fora de `''` ou do formato estruturado são negadas pelas Rules.
 
 O painel diferencia os estados carregando, pronto, sem dados, sem resultado
 para o filtro, acesso negado, erro e histórico truncado. Se a leitura falhar ou
@@ -232,18 +277,21 @@ da consulta histórica no servidor e não trafegam para a aba Desfechos.
 
 ## Gate de publicação
 
-As Rules estão versionadas em `firestore.rules` e possuem 21 testes no
+As Rules estão versionadas em `firestore.rules` e possuem 22 testes no
 Firestore Emulator. Isso não significa que já estejam publicadas no projeto
 Firebase. Antes de integrar ou publicar a aplicação:
 
-1. resolver o acesso clínico anônimo no site público com autenticação nominal
+1. bloquear o uso clínico durante uma janela controlada: o cliente antigo cria
+   esquema 1, que as Rules finais negam, e as Rules antigas rejeitam o esquema
+   2; portanto não existe uma ordem de publicação compatível sem essa janela;
+2. publicar as novas Rules e o novo HTML como uma única troca coordenada;
+3. resolver o acesso clínico anônimo no site público com autenticação nominal
    ou barreira institucional comprovada;
-2. habilitar o provedor Email/Password no Firebase Authentication;
-3. criar a conta institucional no Authentication;
-4. criar `admin_users/<uid>` com `active: true` e papel `admin` ou
+4. habilitar o provedor Email/Password no Firebase Authentication;
+5. criar a conta institucional no Authentication;
+6. criar `admin_users/<uid>` com `active: true` e papel `admin` ou
    `coordinator`, por ferramenta administrativa privilegiada;
-5. publicar `firestore.rules`;
-6. validar login autorizado, acesso negado, Desfecho e tentativa de
+7. validar login autorizado, acesso negado, Desfecho e tentativa de
    ressurreição em ambiente controlado.
 
 Nunca registrar senha, token ou outra credencial no repositório. O procedimento

@@ -10,7 +10,7 @@ Datas de previsão usadas para exercitar pacientes não atrasados devem ser
 determinísticas e permanecer no futuro, sem depender da data de execução.
 
 A identificação funcional atualmente caracterizada é
-`FOUNDATION-1.0-RC1.3.0-OUTCOMES`.
+`FOUNDATION-1.0-RC1.3.2-ADMIN-INTELLIGENCE`.
 
 ## Pré-requisitos
 
@@ -121,6 +121,9 @@ A configuração global e os cenários de estabilidade permanecem com
   consistentes entre si;
 - coordenação com autosave, salvamento manual e reordenação em voo sem
   recriação tardia;
+- confirmação do alerta `Paliativo` pendente antes de liberar o modal;
+- hidratação de paciente já Paliativo sem escrita ou timer recorrente, mantendo
+  autosave em alterações reais;
 - preservação visual durante o eco local otimista do Firestore;
 - datas de permanência inválidas, futuras e no mesmo dia;
 - falha fechada quando o histórico local está corrompido;
@@ -129,7 +132,7 @@ A configuração global e os cenários de estabilidade permanecem com
 
 ## Cobertura de segurança do Desfecho
 
-`npm run test:rules` executa 21 cenários contra o Firestore Emulator:
+`npm run test:rules` executa 22 cenários contra o Firestore Emulator:
 
 - criação conjunta de evento privado, projeção mínima, lápide e exclusão do
   ativo;
@@ -152,6 +155,11 @@ A configuração global e os cenários de estabilidade permanecem com
 - criação/leitura e imutabilidade das confirmações de transição de cuidados.
 - compatibilidade transitória do contrato legado de confirmação, sem campos
   extras nem timestamp fornecido pelo cliente.
+- leitura histórica da projeção administrativa v1, negação de novas criações
+  v1, obrigatoriedade do booleano na v2 e negação de divergência em relação ao
+  evento privado ou ao paciente ativo;
+- rejeição de CID livre/identificável fora do formato estruturado.
+- rejeição de DIH com sufixo ou fora do formato estruturado.
 
 Os testes usam exclusivamente o projeto de demonstração
 `demo-connect-hub-rules`. Nenhuma credencial ou dado do Firebase real deve ser
@@ -188,33 +196,45 @@ Os testes dedicados verificam:
   personalizado e intervalo invertido;
 - uso exclusivo do timestamp de servidor convertido para a data civil de
   `America/Sao_Paulo`;
-- inclusão somente de `patient_outcome_admin` versão 1 e tipos homologados;
+- inclusão somente de `patient_outcome_admin` versões 1 ou 2 e tipos
+  homologados;
 - exclusão de `patient_deleted`, esquemas desconhecidos e eventos fora do
   período;
 - contagens de Tratados, Óbitos e Transferidos;
+- separação de Óbitos gerais, com alerta Paliativo, sem alerta e registro
+  histórico indisponível, com cobertura e denominador zero;
 - proporção de Óbitos entre Desfechos, média, mediana par/ímpar e cobertura que
   exclui permanências inválidas;
-- consolidações por setor e especialidade, agrupamento de CIDs e auditoria;
-- combinação dos filtros por setor, especialidade e tipo;
+- distribuição em faixas, permanência por tipo, consolidações por setor e
+  especialidade, perfil nosológico dos Óbitos por CID e auditoria;
+- combinação dos filtros por setor, especialidade, tipo e alerta Paliativo;
+- restauração conjunta dos filtros para o período padrão;
 - distinção entre histórico vazio e filtro sem resultados;
 - estados negado, carregando, erro e truncado sem números parciais, inclusive
   quando a leitura de pacientes falha;
 - permanência recalculada por `admissionDate + createdAt`, ignorando campos
   locais e valor persistido adulteráveis;
+- descarte de DIH com sufixo ou data impossível na permanência e auditoria;
 - escape de todos os campos persistidos exibidos, ausência de transferência de
   `patientSnapshot` e zero escrita;
 - inclusão do setor legado `uti` em consultas e totais;
-- contenção do layout, filtros e tabela de auditoria em todos os oito
-  viewports da matriz.
+- auditoria paginada em lotes de 50, com ordenação e limites de página;
+- fallback de gráficos preservando números e tabelas exatas;
+- separação visual entre KPIs do censo atual e indicadores históricos;
+- contenção do layout, filtros, gráficos e tabelas em todos os oito viewports
+  da matriz.
 
-Validação isolada registrada nesta branch: 25/25 cenários administrativos
-funcionais e 16/16 cenários responsivos (oito viewports para autenticação e
-oito para Desfechos).
+Validação focada da inteligência de Desfechos nesta branch: 15/15 cenários
+funcionais e 8/8 cenários responsivos.
 
-Validação funcional de Desfecho: 15/15, incluindo o conflito entre sessões.
-Validação integrada do candidato: 123/123 na suíte principal, 1/1 na impressão
-A4 e 50/50 na estabilidade desktop, sem retries. A descoberta completa contém
-124 testes, incluindo o caso de estabilidade executado separadamente.
+Validação funcional de Desfecho: 18/18, incluindo concorrência do alerta
+Paliativo, recuperação após autosave falho, salvamento manual e conflito entre
+sessões. A descoberta completa contém 132 testes, incluindo o caso de
+estabilidade executado separadamente.
+
+Validação integrada final: 131/131 testes da suíte principal, 22/22 cenários
+de Rules, impressão A4 incluída e estabilidade desktop 50/50, com um worker e
+zero retries.
 
 ## Isolamento
 

@@ -31,7 +31,11 @@ export class AdminPage {
       class ChartTestDouble {
         static instances: ChartTestDouble[] = [];
         destroyed = false;
-        constructor(){
+        canvasId: string;
+        config: unknown;
+        constructor(canvas: HTMLCanvasElement, config: unknown){
+          this.canvasId = canvas?.id || '';
+          this.config = config;
           ChartTestDouble.instances.push(this);
         }
         destroy(){ this.destroyed = true; }
@@ -54,7 +58,8 @@ export class AdminPage {
         XLSX: xlsxTestDouble,
         __adminAssetTestHarness: {
           workbookWrites,
-          printInvocations: 0
+          printInvocations: 0,
+          ChartTestDouble
         },
         __xssTriggered: false
       });

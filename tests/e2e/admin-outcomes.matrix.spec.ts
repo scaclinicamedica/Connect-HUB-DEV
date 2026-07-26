@@ -14,53 +14,72 @@ test('aba Desfechos permanece utilizável e contida em toda a matriz responsiva'
   }).formatToParts(date);
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
   const day = `${values.year}-${values.month}-${values.day}`;
+  const adminOutcomes = Array.from({ length: 12 }, (_, index) => {
+    const outcomeType = index % 3 === 0
+      ? 'death'
+      : index % 3 === 1
+        ? 'treated'
+        : 'transferred';
+    return {
+      id: `outcome-responsive-${index}`,
+      schemaVersion: 2,
+      sourceVersion: 'fixture-v2',
+      type: 'patient_outcome_admin',
+      outcomeType,
+      outcomeLabel: outcomeType === 'death'
+        ? 'Óbito'
+        : outcomeType === 'treated'
+          ? 'Tratado'
+          : 'Transferido',
+      createdAt: {
+        __testTimestamp: true,
+        iso: `${day}T${String(10 + (index % 10)).padStart(2, '0')}:00:00-03:00`
+      },
+      patientId: `patient-responsive-${index}`,
+      patientName: `PACIENTE FICTÍCIO COM NOME EXTENSO PARA TESTE RESPONSIVO ${index}`,
+      sectorUnit: index % 2 ? 'observacao_sus' : 'uti',
+      sectorName: index % 2 ? 'Observação SUS' : 'UTI',
+      specialty: index % 2 ? 'Clínica Médica com descrição extensa' : 'Cardiologia',
+      admissionDate: day,
+      lengthOfStayDays: 1,
+      lengthOfStayMethod: 'inclusive_calendar_days',
+      responsibleDoctor: 'DRA. FICTÍCIA COM NOME EXTENSO',
+      primaryIcdCode: outcomeType === 'death'
+        ? ['A41.9', 'J18.9', 'C34.9'][Math.floor(index / 3) % 3]
+        : '',
+      palliativeAlertPresentAtOutcome: index % 2 === 0,
+      actorUid: uid
+    };
+  });
 
   await admin.goto({
     adminAccounts: [{ uid, email, password }],
     adminUsers: [{ id: uid, active: true, role: 'coordinator' }],
     patientsByUnit: {},
     historyEvents: [],
-    adminOutcomes: [
-      {
-        id: 'outcome-responsive',
-        schemaVersion: 1,
-        sourceVersion: 'fixture-v1',
-        type: 'patient_outcome_admin',
-        outcomeType: 'death',
-        outcomeLabel: 'Óbito',
-        createdAt: {
-          __testTimestamp: true,
-          iso: `${day}T12:00:00-03:00`
-        },
-        patientId: 'patient-responsive',
-        patientName: 'PACIENTE FICTÍCIO COM NOME EXTENSO PARA TESTE RESPONSIVO',
-        sectorUnit: 'observacao_sus',
-        sectorName: 'Observação SUS',
-        specialty: 'Clínica Médica com descrição extensa',
-        admissionDate: day,
-        lengthOfStayDays: 1,
-        lengthOfStayMethod: 'inclusive_calendar_days',
-        responsibleDoctor: 'DRA. FICTÍCIA COM NOME EXTENSO',
-        primaryIcdCode: 'A41.9',
-        actorUid: uid
-      }
-    ]
+    adminOutcomes
   });
   await admin.loginAsAuthorized(email, password);
   await page.locator('button[data-tab="outcomes"]').click();
 
   await expect(page.locator('#outcomesStateV43')).toHaveAttribute('data-state', 'ready');
   await expect(page.locator('#outcomesResultsV43')).toBeVisible();
-  await expect(page.locator('#outcomeAuditRowsV43 tr')).toHaveCount(1);
+  await expect(page.locator('#outcomeAuditRowsV43 tr')).toHaveCount(12);
   await expect(page.locator('#outcomeStartV43')).toBeVisible();
   await expect(page.locator('#outcomeTypeV43')).toBeVisible();
 
   await expect.poll(() => page.evaluate(() => (
     document.documentElement.scrollWidth <= document.documentElement.clientWidth
   ))).toBe(true);
+  await expect.poll(() => page.evaluate(() => (
+    [...document.querySelectorAll('.outcomes-card-v43')].every(card => {
+      const rect = card.getBoundingClientRect();
+      return rect.left >= -1 && rect.right <= document.documentElement.clientWidth + 1;
+    })
+  ))).toBe(true);
 
   const viewportWidth = page.viewportSize()?.width || 0;
-  for(const selector of ['#outcomeStartV43', '#outcomeEndV43', '#outcomeSectorV43', '#outcomeSpecialtyV43', '#outcomeTypeV43']){
+  for(const selector of ['#outcomeStartV43', '#outcomeEndV43', '#outcomeSectorV43', '#outcomeSpecialtyV43', '#outcomeTypeV43', '#outcomePalliativeV70']){
     const box = await page.locator(selector).boundingBox();
     expect(box, `${selector} deve permanecer visível`).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -73,5 +92,9 @@ test('aba Desfechos permanece utilizável e contida em toda a matriz responsiva'
     documentWidth: document.documentElement.clientWidth
   }));
   expect(auditViewport.clientWidth).toBeLessThanOrEqual(auditViewport.documentWidth);
-  expect(auditViewport.scrollWidth).toBeGreaterThanOrEqual(auditViewport.clientWidth);
+  expect(auditViewport.scrollWidth).toBeGreaterThan(auditViewport.clientWidth);
+  expect(await page.locator('#outcomeAuditRowsV43').locator('xpath=ancestor::div[contains(@class,"table-wrap")]').evaluate(element => {
+    element.scrollLeft = element.scrollWidth;
+    return element.scrollLeft > 0;
+  })).toBe(true);
 });
