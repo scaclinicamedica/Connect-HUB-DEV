@@ -672,7 +672,9 @@ function showView(viewId){
   window.requestAnimationFrame(()=>{
     const view=byId(viewId);
     if(!view)return;
-    const focusTarget=view.querySelector('h2,button,input,a');
+    const focusTarget=view.querySelector(
+      'input:not([disabled]),button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])'
+    )||view.querySelector('h2');
     if(focusTarget&&typeof focusTarget.focus==='function')focusTarget.focus({preventScroll:true});
   });
 }

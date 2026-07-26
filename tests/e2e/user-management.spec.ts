@@ -158,7 +158,7 @@ test('Gestor cria convite auditado e envia Email Link somente à caixa postal in
     handleCodeInApp: true
   }));
   const continueUrl = new URL(String(sends[0].continueUrl));
-  expect(continueUrl.pathname).toEndWith('/cadastro.html');
+  expect(continueUrl.pathname).toMatch(/\/cadastro\.html$/);
   expect(continueUrl.search).toBe('');
   const fragment = new URLSearchParams(continueUrl.hash.slice(1));
   expect(fragment.get('invite')).toBe(invitePath!.split('/')[1]);

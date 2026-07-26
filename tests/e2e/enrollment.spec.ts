@@ -77,6 +77,9 @@ test('recusa convite isolado, query arbitrária e fragmento legado sem acessar F
     `/cadastro.html?invite=${INVITE_ID}${invitationFragment()}`,
     `/cadastro.html#invite=${INVITE_ID}&email=${encodeURIComponent(DOCTOR_EMAIL)}`
   ]){
+    // Force a new document for every URL so a hash-only case exercises
+    // cadastro.html initialization instead of reusing the previous DOM.
+    await page.goto('about:blank');
     await app.goto({
       initialAuthUser: null,
       authAccounts: [],

@@ -1,7 +1,7 @@
 {
   "artifact": "passagem.html",
-  "capturedAtCommit": "dd2989ab544ad2e44410211d85abe9290e1b3a4b",
-  "canonicalSha256": "671c4309b69615377b968de64d210530d842cc807ff7fd9f3930000797564629",
-  "windowsCheckoutSha256": "1faf5bb04ef75d39ec2a574bb9fa5d90a3bc0edad1945b4d1d9f2814cde4e530",
-  "gitBlob": "ec3ba94a2895da5064fd9c5b2cf9c5ea23fd0a5b"
+  "capturedAtCommit": "bf4b2729395d01ae1acdd9999cbb43929b88f933",
+  "canonicalSha256": "cac69cdb4e1f3a0fc9a83fa0a7e3e8be9799a488bd31e231ebd604abfdc65216",
+  "windowsCheckoutSha256": "83b12caa14dcc8541958dd2dcc3e42095f0676988c0317ed831fcbd95ccdbbcd",
+  "gitBlob": "d58f3f98914f1d0326b967ab4ce0296eb9e3cacf"
 }
