@@ -100,6 +100,13 @@ Matriz responsiva do acesso administrativo:
 npx playwright test tests/e2e/admin-auth.matrix.spec.ts
 ```
 
+Gestão de usuários e ativação por convite:
+
+```bash
+npx playwright test tests/e2e/user-management.spec.ts \
+  tests/e2e/enrollment.spec.ts --project=functional-1180
+```
+
 Indicadores administrativos de Desfecho em 1180 px:
 
 ```bash
@@ -152,7 +159,7 @@ A configuração global e os cenários de estabilidade permanecem com
 
 ## Cobertura de segurança do Desfecho
 
-`npm run test:rules` executa 27 cenários contra o Firestore Emulator:
+`npm run test:rules` executa 46 cenários contra o Firestore Emulator:
 
 - criação conjunta de evento privado, projeção mínima, lápide e exclusão do
   ativo;
@@ -176,6 +183,10 @@ A configuração global e os cenários de estabilidade permanecem com
 - criação/leitura e imutabilidade das confirmações de transição de cuidados.
 - compatibilidade transitória do contrato legado de confirmação, sem campos
   extras nem timestamp fornecido pelo cliente.
+- e-mail verificado e schema administrativo exato;
+- Gestor separado do Coordenador nas coleções de gestão;
+- convite, revogação, claim e alteração de perfil com auditoria atômica;
+- expiração, e-mail divergente, concorrência e imutabilidade de acesso.
 
 Os testes usam exclusivamente o projeto de demonstração
 `demo-connect-hub-rules`. Nenhuma credencial ou dado do Firebase real deve ser
@@ -186,12 +197,12 @@ fornecido ao Emulator.
 Os testes Playwright da Área Administrativa verificam:
 
 - remoção do código compartilhado e do login anônimo;
-- redirecionamento do atalho clínico para o login administrativo real;
-- login por e-mail/senha e consulta de `admin_users/<uid>`;
+- card administrativo condicional no HUB e ausência de atalho na Passagem;
+- login Password verificado e consulta de `admin_users/<uid>` exato;
 - autorização somente para perfil ativo `admin` ou `coordinator`;
 - instância nomeada `connect-hub-admin` e preservação da sessão clínica;
 - zero leitura de pacientes ou histórico antes da autorização;
-- zero escrita pelo painel;
+- painéis assistenciais somente leitura;
 - limpeza de dados, gráficos e relatórios no logout;
 - escape de conteúdo persistido no contexto privilegiado;
 - bloqueio de relatório/exportação quando o histórico falha ou ultrapassa
@@ -201,6 +212,33 @@ Os testes Playwright da Área Administrativa verificam:
 - degradação segura quando a biblioteca de gráficos falha;
 - foco previsível e contenção responsiva do login e do dashboard.
 
+Os testes de gestão e cadastro verificam:
+
+- aba Usuários exclusiva do Gestor e zero consulta pelo Coordenador;
+- criação e revogação de convite com IDs de 128 bits e auditoria;
+- envio e reenvio do Firebase Email Link diretamente pela Área Administrativa
+  para a caixa postal cadastrada, sem renderizar a URL de ação;
+- falha fechada sem Firebase Email Link válido e o fragmento canônico
+  `#invite=invite_<32hex>`;
+- redigitação do mesmo e-mail sem registrá-lo na URL ou `localStorage`;
+- `signInWithEmailLink` antes da etapa de senha e exigência de
+  `additionalUserInfo.isNewUser === true`;
+- conta Firebase preexistente desconectada, sem claim, login ou reset pelo
+  cadastro;
+- conta comprovadamente nova definindo a própria senha;
+- retomada de falha parcial somente na mesma navegação e orientação para o
+  Gestor revisar/remover a conta órfã no Firebase Console após recarga;
+- envio inicial e reenvio exclusivo do Gestor consumindo a cota atual de cinco
+  Email Links por dia do Spark;
+- zero Firestore antes da reautenticação Password com token novo;
+- claim e retry idempotente limitado à mesma navegação autorizada;
+- convite expirado, revogado, divergente ou reutilizado;
+- perfil v2 exato, renomeação, ativação/desativação e revisão;
+- perfil v1 somente leitura, reset genérico e revogação do Gestor;
+- médicos com acesso a todos os setores clínicos e sem Área Administrativa;
+- ausência de senha, URL de ação e e-mail real do Gestor nos documentos e
+  logs de escrita.
+
 As contas, senhas, pacientes e históricos da suíte são totalmente fictícios e
 existem somente no test double em memória.
 
@@ -209,7 +247,7 @@ existem somente no test double em memória.
 Os testes dedicados verificam:
 
 - ausência de autenticação anônima no HUB e na Passagem;
-- zero leitura, listener ou escrita antes da autorização;
+- zero leitura, listener ou escrita antes de Password e e-mail verificado;
 - leitura autoritativa `source: server` do próprio perfil antes dos dados;
 - shell oculto enquanto o perfil está pendente;
 - perfil exato, ativo, papel, e-mail e sessão restaurada;
@@ -251,15 +289,12 @@ Os testes dedicados verificam:
 - contenção do layout, filtros e tabela de auditoria em todos os oito
   viewports da matriz.
 
-Validação isolada registrada nesta branch: 25/25 cenários administrativos
-funcionais e 16/16 cenários responsivos (oito viewports para autenticação e
-oito para Desfechos).
-
 Validação funcional anterior de Desfecho: 15/15, incluindo o conflito entre
-sessões. O candidato nominal possui 173 testes descobertos: 172 na suíte
-principal e um cenário de estabilidade executado 50 vezes separadamente.
-Os resultados executados deste candidato devem ser registrados no PR antes do
-merge; descoberta de testes não substitui execução.
+sessões. O candidato de gestão possui 212 testes descobertos: 131 funcionais,
+80 da matriz responsiva e um cenário de estabilidade executado 50 vezes
+separadamente. Os 211 primeiros compõem a suíte principal. Os resultados
+executados devem ser registrados no PR antes do merge; descoberta de testes
+não substitui execução.
 
 ## Isolamento
 

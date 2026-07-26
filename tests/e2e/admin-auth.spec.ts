@@ -9,6 +9,7 @@ const CLINICAL_UID = 'fixture-clinical-user';
 const CLINICAL_EMAIL = 'clinician.ficticio@example.test';
 const adminHtml = await readFile(new URL('../../area_administrativa.html', import.meta.url), 'utf8');
 const passagemHtml = await readFile(new URL('../../passagem.html', import.meta.url), 'utf8');
+const hubHtml = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
 
 function timestamp(iso: string){
   return { __testTimestamp: true, iso };
@@ -25,7 +26,14 @@ function authorizedSeed(overrides: Partial<AdminSeed> = {}): AdminSeed {
       { uid: ADMIN_UID, email: ADMIN_EMAIL, password: ADMIN_PASSWORD }
     ],
     adminUsers: [
-      { id: ADMIN_UID, active: true, role: 'admin' }
+      {
+        id: ADMIN_UID,
+        schemaVersion: 1,
+        active: true,
+        role: 'admin',
+        displayName: 'GESTOR FICTÍCIO',
+        email: ADMIN_EMAIL
+      }
     ],
     patientsByUnit: {
       emergencia: [
@@ -67,7 +75,9 @@ test('mantém dependências administrativas fixadas e remove o acesso por códig
   expect(adminHtml).toContain(".orderBy('createdAt','desc')");
   expect(passagemHtml).not.toContain('SCACM2026');
   expect(passagemHtml).not.toContain('ADMIN_HISTORY_CODE');
-  expect(passagemHtml).toContain("location.href='./area_administrativa.html'");
+  expect(passagemHtml).not.toContain("location.href='./area_administrativa.html'");
+  expect(hubHtml).toContain('id="adminSectorCard"');
+  expect(hubHtml).toContain('href="./area_administrativa.html?v=68"');
 });
 
 test('autoriza somente o perfil administrativo e preserva a sessão clínica nominal separada', async ({ admin, page }) => {
@@ -188,7 +198,14 @@ test('inclui o setor legado UTI nas consultas e nos totais administrativos', asy
 test('nega conta autenticada sem perfil administrativo ativo antes de ler pacientes', async ({ admin }) => {
   await admin.goto(authorizedSeed({
     adminUsers: [
-      { id: ADMIN_UID, active: false, role: 'admin' }
+      {
+        id: ADMIN_UID,
+        schemaVersion: 1,
+        active: false,
+        role: 'admin',
+        displayName: 'GESTOR FICTÍCIO',
+        email: ADMIN_EMAIL
+      }
     ]
   }));
   await admin.login(ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -207,6 +224,81 @@ test('nega conta autenticada sem perfil administrativo ativo antes de ler pacien
   expect(authState['[DEFAULT]']?.uid).toBe(CLINICAL_UID);
   expect(authState['connect-hub-admin']).toBeNull();
 });
+
+test('nega e-mail administrativo não verificado antes de qualquer leitura Firestore', async ({ admin }) => {
+  await admin.goto(authorizedSeed({
+    adminAccounts: [{
+      uid: ADMIN_UID,
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
+      emailVerified: false
+    }]
+  }));
+  await admin.login(ADMIN_EMAIL, ADMIN_PASSWORD);
+
+  await expect(admin.accessDenied).toContainText('e-mail verificado');
+  await expect(admin.adminContent).toBeHidden();
+  await expect.poll(async () => (
+    await admin.authState()
+  )['connect-hub-admin']).toBeNull();
+  expect(await admin.firebaseReads()).toEqual([]);
+  expect(await admin.firebaseWrites()).toEqual([]);
+});
+
+test('nega provedor administrativo diferente de Password antes do Firestore', async ({ admin }) => {
+  await admin.goto(authorizedSeed({
+    initialAuthByApp: {
+      'connect-hub-admin': {
+        uid: ADMIN_UID,
+        email: ADMIN_EMAIL,
+        isAnonymous: false,
+        emailVerified: true,
+        providerData: [{ providerId: 'google.com', uid: ADMIN_EMAIL }]
+      }
+    }
+  }));
+
+  await expect(admin.accessDenied).toContainText('autenticação por senha');
+  await expect(admin.adminContent).toBeHidden();
+  await expect.poll(async () => (
+    await admin.authState()
+  )['connect-hub-admin']).toBeNull();
+  expect(await admin.firebaseReads()).toEqual([]);
+  expect(await admin.firebaseWrites()).toEqual([]);
+});
+
+for(const persistenceFailure of [
+  { label: 'ausente', seed: { authPersistenceUnavailable: true } },
+  { label: 'rejeitada', seed: { authPersistenceFailure: true } }
+]){
+  test(`Área Administrativa: persistência SESSION ${persistenceFailure.label} encerra credencial restaurada`, async ({ admin }) => {
+    await admin.goto(authorizedSeed({
+      initialAuthByApp: {
+        'connect-hub-admin': {
+          uid: ADMIN_UID,
+          email: ADMIN_EMAIL,
+          isAnonymous: false,
+          emailVerified: true
+        }
+      },
+      ...persistenceFailure.seed
+    }));
+
+    await expect(admin.accessPanel).toBeVisible();
+    await expect(admin.adminContent).toBeHidden();
+    await expect(admin.accessError).toContainText('Não foi possível iniciar a autenticação');
+    expect(await admin.firebaseReads()).toEqual([]);
+    expect(await admin.firebaseWrites()).toEqual([]);
+    await expect.poll(async () => (
+      await admin.authState()
+    )['connect-hub-admin']).toBeNull();
+    expect(await admin.authLog()).toContainEqual({
+      operation: 'signOut',
+      appName: 'connect-hub-admin',
+      uid: ADMIN_UID
+    });
+  });
+}
 
 test('escapa conteúdo persistido antes de renderizá-lo no contexto privilegiado', async ({ admin, page }) => {
   const payload = '<img src=x onerror="window.__xssTriggered=true">';
@@ -392,7 +484,14 @@ test('rejeita credencial inválida sem consultar qualquer dado administrativo', 
 test('rejeita perfil ativo com papel não administrativo', async ({ admin }) => {
   await admin.goto(authorizedSeed({
     adminUsers: [
-      { id: ADMIN_UID, active: true, role: 'clinician' }
+      {
+        id: ADMIN_UID,
+        schemaVersion: 1,
+        active: true,
+        role: 'clinician',
+        displayName: 'GESTOR FICTÍCIO',
+        email: ADMIN_EMAIL
+      }
     ]
   }));
   await admin.login(ADMIN_EMAIL, ADMIN_PASSWORD);

@@ -227,7 +227,7 @@ da consulta histórica no servidor e não trafegam para a aba Desfechos.
 
 ## Gate de publicação
 
-As Rules estão versionadas em `firestore.rules` e possuem 27 testes no
+As Rules estão versionadas em `firestore.rules` e possuem 46 testes no
 Firestore Emulator. Isso não significa que já estejam publicadas no projeto
 Firebase. Antes de integrar ou publicar a aplicação:
 

@@ -60,7 +60,14 @@ function outcomeSeed(
       { uid: ADMIN_UID, email: ADMIN_EMAIL, password: ADMIN_PASSWORD }
     ],
     adminUsers: [
-      { id: ADMIN_UID, active: true, role: 'admin' }
+      {
+        id: ADMIN_UID,
+        schemaVersion: 1,
+        active: true,
+        role: 'admin',
+        displayName: 'GESTOR FICTÍCIO',
+        email: ADMIN_EMAIL
+      }
     ],
     patientsByUnit: {},
     historyEvents,

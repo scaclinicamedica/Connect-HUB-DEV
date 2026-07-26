@@ -21,6 +21,8 @@ test('remove autenticação anônima das duas superfícies clínicas', async () 
     expect(html).toContain('signInWithEmailAndPassword');
     expect(html).toContain('Persistence?.SESSION');
     expect(html).not.toContain(CLINICAL_TEST_PASSWORD);
+    expect(html).not.toContain('href="./cadastro.html"');
+    expect(html).toContain('A ativação inicial chega por e-mail');
   }
   expect(passagemHtml).not.toContain('localStorage.setItem(STORAGE_KEY');
   expect(passagemHtml).not.toContain('localStorage.setItem(META_KEY');
@@ -28,6 +30,92 @@ test('remove autenticação anônima das duas superfícies clínicas', async () 
   expect(passagemHtml).not.toContain('localStorage.setItem(OUTCOMES_KEY');
   expect(passagemHtml).not.toContain('persistPatientOutcomeLocal');
   expect(hubHtml).not.toContain("localStorage.setItem('clinical");
+});
+
+for(const surface of [
+  { label: 'Passagem', url: '/passagem.html?setor=emergencia' },
+  { label: 'HUB', url: '/index.html' }
+]){
+  test(`${surface.label}: e-mail não verificado é encerrado antes de qualquer leitura clínica`, async ({ app }) => {
+    await app.goto({
+      initialAuthUser: {
+        uid: CLINICAL_TEST_UID,
+        email: CLINICAL_TEST_EMAIL,
+        isAnonymous: false,
+        emailVerified: false
+      },
+      authAccounts: [{
+        uid: CLINICAL_TEST_UID,
+        email: CLINICAL_TEST_EMAIL,
+        password: CLINICAL_TEST_PASSWORD,
+        emailVerified: false
+      }]
+    }, {
+      session: 'as-seeded',
+      url: surface.url
+    });
+
+    await expect(app.authGate).toBeVisible();
+    await expect(app.appShell).toBeHidden();
+    await expect(app.authError).toContainText('Confirme seu e-mail antes de entrar');
+    await expect.poll(() => app.authState()).toEqual({ '[DEFAULT]': null });
+    expect(await app.firestoreAccesses()).toEqual([]);
+    expect(await app.firebaseWrites()).toEqual([]);
+  });
+}
+
+for(const surface of [
+  { label: 'Passagem', url: '/passagem.html?setor=emergencia' },
+  { label: 'HUB', url: '/index.html' }
+]){
+  test(`${surface.label}: provedor diferente de Password é encerrado antes do Firestore`, async ({ app }) => {
+    await app.goto({
+      initialAuthUser: {
+        uid: CLINICAL_TEST_UID,
+        email: CLINICAL_TEST_EMAIL,
+        isAnonymous: false,
+        emailVerified: true,
+        providerData: [{ providerId: 'google.com', uid: CLINICAL_TEST_EMAIL }]
+      }
+    }, {
+      session: 'as-seeded',
+      url: surface.url
+    });
+
+    await expect(app.authGate).toBeVisible();
+    await expect(app.authError).toContainText('e-mail e senha');
+    await expect.poll(() => app.authState()).toEqual({ '[DEFAULT]': null });
+    expect(await app.firestoreAccesses()).toEqual([]);
+    expect(await app.firebaseWrites()).toEqual([]);
+  });
+}
+
+test('aceita o perfil clínico v2 criado por um convite auditado', async ({ app }) => {
+  const inviteId = 'invite_0123456789abcdef0123456789abcdef';
+  const lastAccessEventId = 'access_0123456789abcdef0123456789abcdef';
+  await app.goto({
+    patients: [basePatient('fixture-v2-profile')],
+    clinicalUsers: [{
+      id: CLINICAL_TEST_UID,
+      schemaVersion: 2,
+      active: true,
+      role: 'clinician',
+      displayName: CLINICAL_TEST_DISPLAY_NAME,
+      email: CLINICAL_TEST_EMAIL,
+      createdAt: { __testTimestamp: true, iso: '2026-07-25T12:00:00Z' },
+      createdByUid: 'fixture-manager',
+      updatedAt: { __testTimestamp: true, iso: '2026-07-25T12:00:00Z' },
+      updatedByUid: CLINICAL_TEST_UID,
+      revision: 1,
+      inviteId,
+      lastAccessEventId
+    }]
+  });
+
+  await expect(app.authGate).toBeHidden();
+  await expect(app.appShell).toBeVisible();
+  await expect(app.sessionName).toHaveText(CLINICAL_TEST_DISPLAY_NAME);
+  await expect(app.cards).toHaveCount(1);
 });
 
 test('não consulta Firestore antes de uma sessão clínica autorizada', async ({ app }) => {
@@ -683,6 +771,7 @@ test('HUB também bloqueia indicadores até validar o perfil nominal', async ({ 
   expect((await app.firestoreAccesses()).map(access => access.path)).toEqual([
     `clinical_users/${CLINICAL_TEST_UID}`,
     `clinical_users/${CLINICAL_TEST_UID}`,
+    `admin_users/${CLINICAL_TEST_UID}`,
     'connect_hub_v55/emergencia/pacientes',
     'connect_hub_v55/observacao_sus/pacientes',
     'connect_hub_v55/convenio/pacientes',
@@ -693,6 +782,7 @@ test('HUB também bloqueia indicadores até validar o perfil nominal', async ({ 
   expect((await app.firestoreAccesses())[0]).toEqual(expect.objectContaining({
     source: 'server'
   }));
+  await expect(page.locator('#adminSectorCard')).toBeHidden();
 
   await page.evaluate(() => {
     localStorage.setItem('sbar_breve_santa_casa_v1_uti_2', 'DADO CLÍNICO FICTÍCIO');
@@ -704,6 +794,53 @@ test('HUB também bloqueia indicadores até validar o perfil nominal', async ({ 
     localStorage.getItem('sbar_breve_santa_casa_v1_uti_2')
   ))).toBeNull();
   expect(await app.authState()).toEqual({ '[DEFAULT]': null });
+});
+
+test('HUB exibe a Área Administrativa somente para um perfil administrativo próprio e válido', async ({ app, page }) => {
+  await app.goto({
+    adminUsers: [{
+      id: CLINICAL_TEST_UID,
+      schemaVersion: 1,
+      active: true,
+      role: 'admin',
+      displayName: CLINICAL_TEST_DISPLAY_NAME,
+      email: CLINICAL_TEST_EMAIL
+    }]
+  }, {
+    url: '/index.html'
+  });
+
+  const card = page.locator('#adminSectorCard');
+  await expect(card).toBeVisible();
+  await expect(card).toHaveAttribute('aria-hidden', 'false');
+  await expect(card).toHaveAttribute('href', './area_administrativa.html?v=68');
+
+  await app.replaceFirebaseDocument(`admin_users/${CLINICAL_TEST_UID}`, {
+    schemaVersion: 1,
+    active: false,
+    role: 'admin',
+    displayName: CLINICAL_TEST_DISPLAY_NAME,
+    email: CLINICAL_TEST_EMAIL
+  });
+  await expect(card).toBeHidden();
+  await expect(app.appShell).toBeVisible();
+});
+
+test('recuperação de senha responde sem revelar se a conta existe', async ({ app }) => {
+  await app.goto({}, {
+    session: 'signed-out',
+    url: '/index.html'
+  });
+  await app.authEmail.fill('profissional.inexistente@example.test');
+  await app.page.locator('#clinicalPasswordResetBtn').click();
+
+  await expect(app.authStatus).toContainText('Se existir uma conta para esse e-mail');
+  expect(await app.authLog()).toContainEqual({
+    operation: 'sendPasswordResetEmail',
+    appName: '[DEFAULT]',
+    email: 'profissional.inexistente@example.test'
+  });
+  expect(await app.firestoreAccesses()).toEqual([]);
 });
 
 test('HUB revoga a sessão quando uma leitura setorial perde permissão', async ({ app, page }) => {

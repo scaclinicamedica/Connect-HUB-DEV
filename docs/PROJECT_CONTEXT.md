@@ -28,6 +28,7 @@ evolução, prescrição, prontuário institucional ou julgamento clínico.
 - `passagem.html`: passagem de plantão e Clinical Copilot.
 - `hub_uti.html`: área relacionada ao HUB UTI.
 - `area_administrativa.html`: área administrativa.
+- `cadastro.html`: ativação de acesso clínico por convite individual.
 
 Antes de modificar qualquer uma delas, confirme as relações de navegação e
 persistência no código atual.
@@ -66,12 +67,26 @@ clínica, persistência, renderização, responsividade e camadas sucessivas de
 compatibilidade, incluindo Firebase Compat 10.12.5.
 
 O estado principal é global. HUB e Passagem exigem Firebase Auth
-Email/Password, perfil nominal ativo em `clinical_users/<uid>` e persistência
-`SESSION` antes de consultar o Firestore. A Área Administrativa usa uma
-instância Firebase separada e `admin_users/<uid>`. Falha de configuração,
-autenticação ou autorização permanece fechada; dados clínicos não usam mais
-`localStorage` como fallback. A ordem dos scripts, wrappers, observadores e
-temporizadores continua fazendo parte do comportamento atual.
+Email/Password, e-mail verificado, perfil nominal ativo em
+`clinical_users/<uid>` e persistência `SESSION` antes de consultar o
+Firestore. A Área Administrativa usa uma instância Firebase separada e
+`admin_users/<uid>`. O Gestor cria convites auditados e a própria Área
+Administrativa envia ou reenvia o Firebase Email Link diretamente à caixa
+postal cadastrada, sem expor a URL de ação. `cadastro.html` falha fechado se
+não receber um Email Link Firebase válido junto do fragmento canônico
+`#invite=invite_<32hex>`; o médico redigita o e-mail e
+`signInWithEmailLink` ocorre antes de a conta nova definir senha. O cadastro
+exige `additionalUserInfo.isNewUser === true`; conta Firebase preexistente é
+desconectada e encaminhada ao Gestor, sem claim, login ou reset nessa tela.
+Falha parcial só pode ser retomada na mesma navegação; após recarga, o Gestor
+revisa/remove a conta órfã no Firebase Console e emite novo convite. Médicos
+ativos acessam todos os setores clínicos e não acessam a Área Administrativa;
+Coordenadores não acessam a gestão de usuários. O primeiro Gestor é
+provisionado manualmente e seu e-mail real nunca pertence ao repositório.
+Falha de configuração, autenticação ou autorização permanece fechada; dados
+clínicos não usam mais `localStorage` como fallback. A ordem dos scripts,
+wrappers, observadores e temporizadores continua fazendo parte do
+comportamento atual.
 
 Esse desenho permitiu evolução rápida, mas aumenta o risco de:
 

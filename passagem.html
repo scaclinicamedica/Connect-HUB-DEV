@@ -5424,6 +5424,11 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
   color:#fff!important;font-weight:900!important
 }
 .clinical-auth-submit:disabled{cursor:wait!important;opacity:.62}
+.clinical-auth-secondary{
+  min-height:40px!important;border:1px solid #315f89!important;border-radius:10px!important;
+  background:#102b45!important;color:#dff3ff!important;font-size:12px!important;font-weight:850!important
+}
+.clinical-auth-secondary:disabled{cursor:wait!important;opacity:.62}
 .clinical-auth-status,.clinical-auth-error{
   min-height:18px;margin:0;font-size:12px;line-height:1.45
 }
@@ -5468,10 +5473,10 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 </div>
 <span class="clinical-auth-eyebrow">Acesso protegido</span>
 <h1 id="clinicalAuthTitle">Acesso clínico</h1>
-<p class="clinical-auth-help" id="clinicalAuthHelp">Entre com sua conta institucional para acessar os pacientes e a passagem de plantão.</p>
+<p class="clinical-auth-help" id="clinicalAuthHelp">Entre com sua conta autorizada para acessar os pacientes e a passagem de plantão.</p>
 <form aria-busy="true" class="clinical-auth-form" id="clinicalLoginForm" onsubmit="handleClinicalLogin(event)">
 <div class="clinical-auth-field">
-<label for="clinicalEmail">E-mail institucional</label>
+<label for="clinicalEmail">E-mail cadastrado</label>
 <input aria-describedby="clinicalAuthHelp" autocomplete="username" id="clinicalEmail" inputmode="email" required="" type="email"/>
 </div>
 <div class="clinical-auth-field">
@@ -5479,9 +5484,10 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 <input autocomplete="current-password" id="clinicalPassword" required="" type="password"/>
 </div>
 <button class="clinical-auth-submit" disabled="" id="clinicalLoginBtn" type="submit">Entrar</button>
+<button class="clinical-auth-secondary" disabled="" id="clinicalPasswordResetBtn" onclick="handleClinicalPasswordReset()" type="button">Esqueci minha senha</button>
 <p aria-live="polite" class="clinical-auth-status" id="clinicalAuthStatus" role="status">Inicializando autenticação...</p>
 <p aria-live="assertive" class="clinical-auth-error" hidden="" id="clinicalAuthError" role="alert"></p>
-<p class="clinical-auth-note">Não há cadastro público. O acesso é provisionado pela instituição.</p>
+<p class="clinical-auth-note">A ativação inicial chega por e-mail após um convite individual emitido pelo Gestor.</p>
 </form>
 </div>
 </section>
@@ -5636,10 +5642,6 @@ body[data-sector="enfermaria"] .identification-grid > div:last-child{
 <div class="quick-note">Ao confirmar, o sistema registra automaticamente médico em check-out, médico em check-in, data/hora, total de pacientes, indicador de gravidade, status prioritário e altas previstas para hoje.</div>
 </div>
 <div class="confirmed" id="confirmedBox"></div>
-<div class="admin-history-access" id="adminHistoryAccess">
-<button class="secondary" onclick="location.href='./area_administrativa.html'">Área administrativa</button>
-<small>Acesso institucional autenticado em uma área separada.</small>
-</div>
 <div aria-hidden="true" class="confirmation-history admin-history-panel is-hidden" id="adminHistoryPanel">
 <div class="history-title">
 <span>Histórico de confirmações</span>
@@ -6373,7 +6375,8 @@ const SECTOR_KEY = resolveSectorKey();
 const CURRENT_SECTOR = SECTOR_CONFIG[SECTOR_KEY] || SECTOR_CONFIG.emergencia;
 const FIRESTORE_ROOT = 'connect_hub_v55';
 const CLINICAL_USERS_COLLECTION = 'clinical_users';
-const CLINICAL_PROFILE_SCHEMA_VERSION = 1;
+const CLINICAL_PROFILE_SCHEMA_VERSION_V1 = 1;
+const CLINICAL_PROFILE_SCHEMA_VERSION_V2 = 2;
 const CLINICAL_ROLE = 'clinician';
 
 const HISTORY_COLLECTION_V41 = 'historico_eventos';
@@ -7801,6 +7804,7 @@ function setClinicalLoginBusy(busy, label='Entrar') {
   const button = document.getElementById('clinicalLoginBtn');
   const email = document.getElementById('clinicalEmail');
   const password = document.getElementById('clinicalPassword');
+  const reset = document.getElementById('clinicalPasswordResetBtn');
   if(form) form.setAttribute('aria-busy', busy ? 'true' : 'false');
   if(button) {
     button.disabled = !!busy || !clinicalAuthReady;
@@ -7808,6 +7812,7 @@ function setClinicalLoginBusy(busy, label='Entrar') {
   }
   if(email) email.disabled = !!busy;
   if(password) password.disabled = !!busy;
+  if(reset) reset.disabled = !!busy || !clinicalAuthReady;
 }
 
 function setClinicalAppAuthorized(authorized) {
@@ -7823,12 +7828,22 @@ function setClinicalAppAuthorized(authorized) {
   }
 }
 
+function clinicalPasswordUserV68(user) {
+  return !!(
+    user &&
+    user.isAnonymous !== true &&
+    Array.isArray(user.providerData) &&
+    user.providerData.some(provider => provider?.providerId === 'password')
+  );
+}
+
 function isAuthorizedClinicalSession(uid=authorizedClinical?.uid) {
   return !!(
     uid &&
     authorizedClinical?.uid === uid &&
     clinicalAuth?.currentUser?.uid === uid &&
-    clinicalAuth.currentUser.isAnonymous !== true &&
+    clinicalPasswordUserV68(clinicalAuth.currentUser) &&
+    clinicalAuth.currentUser.emailVerified === true &&
     authorizedClinical.role === CLINICAL_ROLE
   );
 }
@@ -7856,14 +7871,24 @@ function isPermissionDeniedV67(error) {
   return code === 'permission-denied' || code.endsWith('/permission-denied');
 }
 
+function clinicalTimestampV68(value) {
+  if(!value || typeof value.toDate !== 'function') return false;
+  try {
+    return Number.isFinite(value.toDate().getTime());
+  } catch(_error) {
+    return false;
+  }
+}
+
 function clinicalProfileV67(user, profile) {
-  if(!user || user.isAnonymous === true || !profile || typeof profile !== 'object') return null;
-  const keys = Object.keys(profile).sort();
-  const expectedKeys = ['active','displayName','email','role','schemaVersion'].sort();
   if(
-    keys.length !== expectedKeys.length ||
-    keys.some((key, index) => key !== expectedKeys[index])
+    !user ||
+    !clinicalPasswordUserV68(user) ||
+    user.emailVerified !== true ||
+    !profile ||
+    typeof profile !== 'object'
   ) return null;
+  const keys = Object.keys(profile).sort();
   if(
     typeof profile.displayName !== 'string' ||
     typeof profile.email !== 'string' ||
@@ -7872,7 +7897,6 @@ function clinicalProfileV67(user, profile) {
   const displayName = profile.displayName;
   const email = profile.email;
   if(
-    profile.schemaVersion !== CLINICAL_PROFILE_SCHEMA_VERSION ||
     profile.active !== true ||
     profile.role !== CLINICAL_ROLE ||
     !/\S/.test(displayName) ||
@@ -7880,11 +7904,47 @@ function clinicalProfileV67(user, profile) {
     !email ||
     email !== user.email
   ) return null;
+  if(profile.schemaVersion === CLINICAL_PROFILE_SCHEMA_VERSION_V1) {
+    const expectedKeys = ['active','displayName','email','role','schemaVersion'].sort();
+    if(
+      keys.length !== expectedKeys.length ||
+      keys.some((key, index) => key !== expectedKeys[index])
+    ) return null;
+    return Object.freeze({
+      uid: user.uid,
+      email,
+      displayName,
+      role: profile.role,
+      schemaVersion: 1
+    });
+  }
+  if(profile.schemaVersion !== CLINICAL_PROFILE_SCHEMA_VERSION_V2) return null;
+  const expectedKeys = [
+    'active','createdAt','createdByUid','displayName','email','inviteId',
+    'lastAccessEventId','revision','role','schemaVersion','updatedAt','updatedByUid'
+  ].sort();
+  if(
+    keys.length !== expectedKeys.length ||
+    keys.some((key, index) => key !== expectedKeys[index]) ||
+    !clinicalTimestampV68(profile.createdAt) ||
+    !clinicalTimestampV68(profile.updatedAt) ||
+    typeof profile.createdByUid !== 'string' ||
+    !profile.createdByUid ||
+    typeof profile.updatedByUid !== 'string' ||
+    !profile.updatedByUid ||
+    !Number.isInteger(profile.revision) ||
+    profile.revision < 1 ||
+    typeof profile.inviteId !== 'string' ||
+    !/^invite_[0-9a-f]{32}$/.test(profile.inviteId) ||
+    typeof profile.lastAccessEventId !== 'string' ||
+    !/^access_[0-9a-f]{32}$/.test(profile.lastAccessEventId)
+  ) return null;
   return Object.freeze({
     uid: user.uid,
     email,
     displayName,
-    role: profile.role
+    role: profile.role,
+    schemaVersion: 2
   });
 }
 
@@ -8000,7 +8060,7 @@ function showClinicalSignedOutInterface(notice=null) {
   if(notice?.kind && notice.message) {
     setClinicalAuthFeedback(notice.kind, notice.message);
   } else {
-    setClinicalAuthFeedback('status', 'Entre com seu e-mail e sua senha institucionais.');
+    setClinicalAuthFeedback('status', 'Entre com seu e-mail cadastrado e sua senha.');
   }
   window.setTimeout(() => document.getElementById('clinicalEmail')?.focus(), 0);
 }
@@ -8118,7 +8178,21 @@ async function handleClinicalAuthStateChanged(user) {
   if(user.isAnonymous === true) {
     await finishUnauthorizedClinicalSession(
       'error',
-      'A sessão anônima anterior não é mais aceita. Entre com sua conta institucional.'
+      'A sessão anônima anterior não é mais aceita. Entre com sua conta autorizada.'
+    );
+    return;
+  }
+  if(!clinicalPasswordUserV68(user)) {
+    await finishUnauthorizedClinicalSession(
+      'error',
+      'Use uma conta cadastrada com e-mail e senha para entrar.'
+    );
+    return;
+  }
+  if(user.emailVerified !== true) {
+    await finishUnauthorizedClinicalSession(
+      'error',
+      'Confirme seu e-mail antes de entrar. Procure o Gestor para revisar o acesso.'
     );
     return;
   }
@@ -8166,6 +8240,39 @@ function handleClinicalAuthObserverError() {
     'error',
     'O serviço de autenticação está indisponível. Atualize a página e tente novamente.'
   );
+}
+
+async function handleClinicalPasswordReset() {
+  const emailInput = document.getElementById('clinicalEmail');
+  const email = emailInput?.value.trim() || '';
+  if(!email || !emailInput?.checkValidity()) {
+    setClinicalAuthFeedback('error', 'Informe um e-mail válido para recuperar a senha.');
+    emailInput?.focus();
+    return;
+  }
+  if(!clinicalAuthReady || !clinicalAuth) {
+    setClinicalAuthFeedback('error', 'A autenticação ainda não está disponível. Atualize a página e tente novamente.');
+    return;
+  }
+  setClinicalLoginBusy(true, 'Aguarde...');
+  setClinicalAuthFeedback('status', 'Solicitando a recuperação de senha...');
+  try {
+    await clinicalAuth.sendPasswordResetEmail(email);
+    setClinicalAuthFeedback(
+      'status',
+      'Se existir uma conta para esse e-mail, enviaremos as instruções de recuperação.'
+    );
+  } catch(error) {
+    const code = String(error?.code || '').toLowerCase();
+    setClinicalAuthFeedback(
+      code.endsWith('/network-request-failed') ? 'error' : 'status',
+      code.endsWith('/network-request-failed')
+        ? 'Não foi possível conectar ao serviço de autenticação.'
+        : 'Se existir uma conta para esse e-mail, enviaremos as instruções de recuperação.'
+    );
+  } finally {
+    setClinicalLoginBusy(false);
+  }
 }
 
 async function handleClinicalLogin(event) {

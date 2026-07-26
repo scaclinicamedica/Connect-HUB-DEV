@@ -9,6 +9,8 @@ type AuthUserSeed = {
   uid: string;
   email?: string;
   isAnonymous?: boolean;
+  emailVerified?: boolean;
+  providerData?: Array<{ providerId: string; uid?: string }>;
 };
 
 type AuthAccountSeed = {
@@ -16,6 +18,7 @@ type AuthAccountSeed = {
   email: string;
   password: string;
   disabled?: boolean;
+  emailVerified?: boolean;
 };
 
 export type PassagemSeed = {
@@ -26,6 +29,8 @@ export type PassagemSeed = {
   authAccounts?: AuthAccountSeed[];
   authPersistenceUnavailable?: boolean;
   authPersistenceFailure?: boolean;
+  authSignOutFailure?: boolean;
+  authInitialStateDelayMs?: number;
   patients?: unknown[];
   patientsByUnit?: Record<string, unknown[]>;
   meta?: Record<string, unknown>;
@@ -35,6 +40,9 @@ export type PassagemSeed = {
   adminOutcomes?: unknown[];
   adminUsers?: unknown[];
   clinicalUsers?: unknown[];
+  clinicalInvites?: unknown[];
+  accessAudit?: unknown[];
+  nextAuthUid?: string;
   adminAccounts?: AuthAccountSeed[];
   readDelays?: Array<{ pathIncludes?: string; delayMs?: number }>;
   listenerDelays?: Array<{ pathIncludes?: string; delayMs?: number }>;
@@ -302,6 +310,13 @@ export class PassagemPage {
     return this.page.evaluate(documentPath => window.__firebaseTestHarness.document(documentPath), path);
   }
 
+  async verifyAuthEmail(email: string){
+    return this.page.evaluate(
+      address => window.__firebaseTestHarness.verifyAuthEmail(address),
+      email
+    );
+  }
+
   async replaceFirebaseDocumentSilently(path: string, data: Record<string, unknown>){
     await this.page.evaluate(
       ({ documentPath, documentData }) =>
@@ -377,6 +392,7 @@ declare global {
       failAfterNextTransactionCommit(message?: string): void;
       failNextAuth(operation: string, appName?: string, code?: string, message?: string): string;
       failActiveListener(pathIncludes: string, code?: string, message?: string): number;
+      verifyAuthEmail(email: string): boolean;
       pendingControls(): Array<Record<string, unknown>>;
     };
   }

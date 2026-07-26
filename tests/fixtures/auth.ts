@@ -6,13 +6,15 @@ export const CLINICAL_TEST_DISPLAY_NAME = 'DRA. CLÍNICA FICTÍCIA';
 export const clinicalTestAccount = {
   uid: CLINICAL_TEST_UID,
   email: CLINICAL_TEST_EMAIL,
-  password: CLINICAL_TEST_PASSWORD
+  password: CLINICAL_TEST_PASSWORD,
+  emailVerified: true
 };
 
 export const clinicalTestUser = {
   uid: CLINICAL_TEST_UID,
   email: CLINICAL_TEST_EMAIL,
-  isAnonymous: false
+  isAnonymous: false,
+  emailVerified: true
 };
 
 export const clinicalTestProfile = {

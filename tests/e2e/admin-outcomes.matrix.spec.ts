@@ -17,7 +17,14 @@ test('aba Desfechos permanece utilizável e contida em toda a matriz responsiva'
 
   await admin.goto({
     adminAccounts: [{ uid, email, password }],
-    adminUsers: [{ id: uid, active: true, role: 'coordinator' }],
+    adminUsers: [{
+      id: uid,
+      schemaVersion: 1,
+      active: true,
+      role: 'coordinator',
+      displayName: 'COORDENADOR FICTÍCIO',
+      email
+    }],
     patientsByUnit: {},
     historyEvents: [],
     adminOutcomes: [

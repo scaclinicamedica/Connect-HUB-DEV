@@ -9,7 +9,7 @@ Atualizado em: 25/07/2026
   e acesso administrativo.
 - Base: FOUNDATION 1.0.
 - Release funcional em preparação:
-  `FOUNDATION-1.0-RC1.3.1-NOMINAL-AUTH`.
+  `FOUNDATION-1.0-RC1.3.2-ACCESS-MANAGEMENT`.
 - Baseline publicado imediatamente anterior: RC1.2.10 — correção da fronteira
   responsiva.
 - Arquivo publicado: `passagem.html`.
@@ -77,7 +77,7 @@ Copilot também consolida Antimicrobianos quando selecionado.
 - `firestore.rules` exige as quatro partes no mesmo commit, torna histórico,
   projeção e lápide imutáveis, nega delete avulso e bloqueia recriação do
   mesmo ID em qualquer setor conhecido.
-- As Rules possuem 27 cenários automatizados no Firestore Emulator, mas ainda
+- As Rules possuem 46 cenários automatizados no Firestore Emulator, mas ainda
   precisam ser publicadas no projeto Firebase antes do merge da aplicação.
 - A Área Administrativa apresenta uma aba própria de Desfechos baseada somente
   na projeção materializada `admin_outcomes`.
@@ -87,15 +87,18 @@ Consulte `docs/OUTCOMES_SPEC.md`.
 ### Login clínico nominal
 
 - `index.html` e `passagem.html` não usam mais `signInAnonymously`.
-- O acesso exige Email/Password e perfil próprio
+- O acesso exige Email/Password, e-mail verificado e perfil próprio
   `clinical_users/<uid>` exato, ativo e com papel `clinician`.
+- Perfis bootstrap v1 permanecem compatíveis e imutáveis. Médicos ativados por
+  convite recebem perfil v2 com timestamps, revisão, `inviteId` e
+  `lastAccessEventId`.
 - O perfil é consultado no servidor antes de qualquer leitura clínica e
   observado em tempo real; desativação encerra a sessão e limpa a interface.
 - A persistência obrigatória é `SESSION`. Configuração ausente, falha de
   autenticação ou perda de permissão não abre cache local.
 - Logout aguarda autosave, Desfecho, metadados, confirmação e auditoria em
   voo; depois remove listeners, pacientes, formulário, metadados e impressão.
-- HUB e Passagem exibem o nome institucional com inserção textual segura.
+- HUB e Passagem exibem o nome autorizado com inserção textual segura.
 - Eventos comuns, confirmações, Desfecho e lápide vinculam a gravação ao UID
   nominal.
 - Todos os clínicos ativos ainda acessam todos os setores conhecidos; menor
@@ -105,7 +108,8 @@ Consulte `docs/OUTCOMES_SPEC.md`.
 
 - O código compartilhado de acesso administrativo foi removido.
 - O painel exige Firebase Authentication por e-mail e senha e valida
-  `admin_users/<uid>` com `active: true` e papel `admin` ou `coordinator`.
+  `admin_users/<uid>` no schema v1 exato, com e-mail verificado,
+  `active: true` e papel `admin` ou `coordinator`.
 - A autenticação usa a instância Firebase nomeada `connect-hub-admin`, com
   persistência de sessão, sem substituir a sessão clínica nominal.
 - Clínico nominal pode consultar somente uma lápide conhecida por `get`; não
@@ -114,8 +118,37 @@ Consulte `docs/OUTCOMES_SPEC.md`.
   histórico integral.
 - Logout, acesso negado e falha de autorização limpam os dados administrativos
   da interface e da memória.
-- O atalho histórico da tela clínica não contém mais código compartilhado e
-  leva ao login administrativo real.
+- A tela clínica não oferece atalho administrativo aos médicos. O HUB exibe o
+  card administrativo somente para um perfil administrativo próprio válido;
+  a URL continua protegida pelas Rules.
+- O papel `admin` é apresentado como Gestor e recebe a aba Usuários.
+  Coordenadores permanecem somente leitura e não consultam as coleções de
+  gestão de acesso.
+- O Gestor cria convites de 72 horas, envia ou reenvia o Firebase Email Link
+  diretamente para a caixa postal cadastrada, revoga convites pendentes,
+  edita o nome, ativa/desativa perfis v2 e solicita redefinição genérica de
+  senha. Toda mutação persistente é atômica e grava `access_audit`.
+- Não há domínio institucional obrigatório nesta etapa: o Gestor pode
+  convidar qualquer endereço de e-mail sintaticamente válido.
+- A Área Administrativa não disponibiliza a URL de ação. `cadastro.html` só
+  prossegue quando recebe um Firebase Email Link válido junto do fragmento
+  canônico `#invite=invite_<32hex>`; qualquer combinação ausente ou
+  malformada falha fechada.
+- Depois de abrir a mensagem recebida, o médico redigita o e-mail e
+  `signInWithEmailLink` confirma a posse da caixa postal. O cadastro exige
+  `additionalUserInfo.isNewUser === true`; conta Firebase preexistente é
+  desconectada, orientada a procurar o Gestor e não pode reivindicar convite,
+  entrar ou redefinir senha nessa tela.
+- Somente a conta comprovadamente nova define senha, encerra a sessão Email
+  Link e reautentica por Password antes de reivindicar o convite. Recuperação
+  de falha parcial só existe na mesma navegação depois da confirmação de
+  `isNewUser === true`; após recarga, o Gestor revisa e remove a conta órfã no
+  Firebase Console e emite um novo convite.
+- Nenhuma leitura Firestore ocorre antes da reautenticação Password.
+- O fluxo usa o plano Firebase gratuito atual; não depende de Cloud Functions
+  nem de Supabase nesta etapa. O limite atual do Spark é de cinco Email Links
+  ao dia; o envio inicial e cada reenvio feito pelo Gestor consomem essa cota.
+  Os acessos seguintes usam senha.
 - Confirmações de transição de cuidados podem ser criadas e lidas, mas passam
   a ser imutáveis nas Rules.
 - Um contrato legado fechado preserva a criação por abas antigas durante a
@@ -132,10 +165,17 @@ Consulte `docs/OUTCOMES_SPEC.md`.
   mínima sem `patientSnapshot` e usa o timestamp do servidor para período,
   auditoria e permanência.
 - O setor legado `uti` participa das consultas e dos totais.
-- A validação administrativa isolada passou em 25/25 cenários funcionais e
-  16/16 cenários da matriz responsiva.
-- Antes da publicação é obrigatório habilitar Email/Password, criar a conta
-  institucional, cadastrar `admin_users/<uid>` e publicar as Rules.
+- As Rules ampliadas passaram em 46/46 cenários no Emulator local. A validação
+  dinâmica completa das novas telas será repetida no CI com Java 21 e
+  Chromium.
+- A descoberta Playwright contém 212 testes: 131 funcionais, 80 da matriz
+  responsiva e um cenário de estabilidade repetido 50 vezes separadamente.
+  Os 211 primeiros compõem a suíte principal.
+- Antes da publicação é obrigatório habilitar Email/Password e Email Link,
+  revisar contas verificadas existentes, criar e verificar manualmente somente
+  o primeiro Gestor, cadastrar os dois perfis desse UID, validar envio,
+  reenvio, cadastro e reset e publicar as Rules. O e-mail real do Gestor nunca
+  deve ser incluído no repositório.
 
 Consulte `docs/FIRESTORE_SECURITY.md`.
 
@@ -288,8 +328,8 @@ informado` em vez de assumir estabilidade.
 - O login nominal remove o acesso clínico anônimo, mas não valida campo a
   campo os pacientes nem restringe o profissional a setores específicos.
 - As Rules locais não têm efeito até o deploy; o merge continua bloqueado por
-  provisionamento institucional e publicação controlada, não por falta de
-  implementação.
+  provisionamento do primeiro Gestor e publicação controlada, não por falta
+  de implementação.
 - Antes de uma refatoração ampla, os cenários homologados devem permanecer
   protegidos pelos testes de caracterização do repositório.
 

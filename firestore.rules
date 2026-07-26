@@ -10,14 +10,50 @@ service cloud.firestore {
       return isSignedIn()
         && request.auth.token.firebase.sign_in_provider == 'password'
         && request.auth.token.email is string
-        && request.auth.token.email.size() > 0;
+        && request.auth.token.email.size() > 0
+        && request.auth.token.email_verified == true;
+    }
+
+    function validDisplayName(displayName) {
+      return displayName is string
+        && displayName.matches('.*\\S.*')
+        && displayName.size() <= 120;
+    }
+
+    function validEmail(email) {
+      return email is string
+        && email.size() > 3
+        && email.size() <= 254
+        && email.matches('^[^@ ]+@[^@ ]+\\.[^@ ]+$');
+    }
+
+    function validInviteId(inviteId) {
+      return inviteId is string
+        && inviteId.matches('^invite_[0-9a-f]{32}$');
+    }
+
+    function validAccessEventId(eventId) {
+      return eventId is string
+        && eventId.matches('^access_[0-9a-f]{32}$');
     }
 
     function clinicalUserPath(uid) {
       return /databases/$(database)/documents/clinical_users/$(uid);
     }
 
-    function validClinicalProfile(data) {
+    function adminUserPath(uid) {
+      return /databases/$(database)/documents/admin_users/$(uid);
+    }
+
+    function clinicalInvitePath(inviteId) {
+      return /databases/$(database)/documents/clinical_invites/$(inviteId);
+    }
+
+    function accessAuditPath(eventId) {
+      return /databases/$(database)/documents/access_audit/$(eventId);
+    }
+
+    function validClinicalV1Profile(data) {
       return data.keys().hasAll([
           'schemaVersion',
           'active',
@@ -33,12 +69,75 @@ service cloud.firestore {
           'email'
         ])
         && data.schemaVersion == 1
-        && data.active == true
+        && data.active is bool
         && data.role == 'clinician'
-        && data.displayName is string
-        && data.displayName.matches('.*\\S.*')
-        && data.displayName.size() <= 120
-        && data.email is string
+        && validDisplayName(data.displayName)
+        && validEmail(data.email);
+    }
+
+    function validClinicalV2Profile(data) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email',
+          'createdAt',
+          'createdByUid',
+          'updatedAt',
+          'updatedByUid',
+          'revision',
+          'inviteId',
+          'lastAccessEventId'
+        ])
+        && data.schemaVersion == 2
+        && data.active is bool
+        && data.role == 'clinician'
+        && validDisplayName(data.displayName)
+        && validEmail(data.email)
+        && data.createdAt is timestamp
+        && data.createdByUid is string
+        && data.createdByUid.size() > 0
+        && data.updatedAt is timestamp
+        && data.updatedByUid is string
+        && data.updatedByUid.size() > 0
+        && data.revision is int
+        && data.revision >= 1
+        && validInviteId(data.inviteId)
+        && validAccessEventId(data.lastAccessEventId);
+    }
+
+    function validClinicalProfile(data) {
+      return (
+          data.schemaVersion == 1
+          && validClinicalV1Profile(data)
+        )
+        || (
+          data.schemaVersion == 2
+          && validClinicalV2Profile(data)
+        );
+    }
+
+    function validAdminProfile(data) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion',
+          'active',
+          'role',
+          'displayName',
+          'email'
+        ])
+        && data.schemaVersion == 1
+        && data.active is bool
+        && data.role in ['admin', 'coordinator']
+        && validDisplayName(data.displayName)
+        && validEmail(data.email)
         && data.email == request.auth.token.email;
     }
 
@@ -47,15 +146,22 @@ service cloud.firestore {
         && exists(clinicalUserPath(request.auth.uid))
         && validClinicalProfile(
           get(clinicalUserPath(request.auth.uid)).data
-        );
+        )
+        && get(clinicalUserPath(request.auth.uid)).data.active == true
+        && get(clinicalUserPath(request.auth.uid)).data.email
+          == request.auth.token.email;
     }
 
     function isHistoryAdmin() {
       return isPasswordUser()
-        && exists(/databases/$(database)/documents/admin_users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.active == true
-        && get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.role
-          in ['admin', 'coordinator'];
+        && exists(adminUserPath(request.auth.uid))
+        && validAdminProfile(get(adminUserPath(request.auth.uid)).data)
+        && get(adminUserPath(request.auth.uid)).data.active == true;
+    }
+
+    function isAccessManager() {
+      return isHistoryAdmin()
+        && get(adminUserPath(request.auth.uid)).data.role == 'admin';
     }
 
     function canReadActivePatients() {
@@ -749,14 +855,548 @@ service cloud.firestore {
         && isKnownSector(data.sectorUnit);
     }
 
+    /*
+     * Access-management contracts are intentionally closed:
+     *
+     * clinical_users v1: legacy bootstrap profile, immutable from browsers.
+     * clinical_users v2: invite-provisioned profile with revision metadata.
+     * clinical_invites v1: pending -> claimed OR pending -> revoked, never deleted.
+     * access_audit v1: one immutable event for every allowed access mutation.
+     */
+    function validClinicalInvite(data, inviteId) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'status',
+          'role',
+          'displayName',
+          'email',
+          'createdAt',
+          'createdByUid',
+          'expiresAt',
+          'updatedAt',
+          'updatedByUid',
+          'claimedAt',
+          'claimedByUid',
+          'revokedAt',
+          'revokedByUid',
+          'revision',
+          'lastAccessEventId'
+        ])
+        && validInviteId(inviteId)
+        && data.schemaVersion == 1
+        && data.status in ['pending', 'claimed', 'revoked']
+        && data.role == 'clinician'
+        && validDisplayName(data.displayName)
+        && validEmail(data.email)
+        && data.createdAt is timestamp
+        && data.createdByUid is string
+        && data.createdByUid.size() > 0
+        && data.expiresAt is timestamp
+        && data.expiresAt > data.createdAt
+        && data.updatedAt is timestamp
+        && data.updatedByUid is string
+        && data.updatedByUid.size() > 0
+        && (
+          data.claimedAt == null
+          || data.claimedAt is timestamp
+        )
+        && (
+          data.claimedByUid == null
+          || (
+            data.claimedByUid is string
+            && data.claimedByUid.size() > 0
+          )
+        )
+        && (
+          data.revokedAt == null
+          || data.revokedAt is timestamp
+        )
+        && (
+          data.revokedByUid == null
+          || (
+            data.revokedByUid is string
+            && data.revokedByUid.size() > 0
+          )
+        )
+        && data.revision is int
+        && data.revision >= 1
+        && validAccessEventId(data.lastAccessEventId)
+        && (
+          (
+            data.status == 'pending'
+            && data.claimedAt == null
+            && data.claimedByUid == null
+            && data.revokedAt == null
+            && data.revokedByUid == null
+          )
+          || (
+            data.status == 'claimed'
+            && data.claimedAt is timestamp
+            && data.claimedByUid is string
+            && data.claimedByUid.size() > 0
+            && data.revokedAt == null
+            && data.revokedByUid == null
+          )
+          || (
+            data.status == 'revoked'
+            && data.claimedAt == null
+            && data.claimedByUid == null
+            && data.revokedAt is timestamp
+            && data.revokedByUid is string
+            && data.revokedByUid.size() > 0
+          )
+        );
+    }
+
+    function validAccessAudit(data, eventId) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'type',
+          'action',
+          'actorUid',
+          'targetUid',
+          'targetEmail',
+          'targetDisplayName',
+          'inviteId',
+          'createdAt'
+        ])
+        && validAccessEventId(eventId)
+        && data.schemaVersion == 1
+        && data.type == 'access_audit'
+        && data.action in [
+          'invite_created',
+          'invite_revoked',
+          'invite_claimed',
+          'user_deactivated',
+          'user_reactivated',
+          'user_name_updated'
+        ]
+        && data.actorUid is string
+        && data.actorUid.size() > 0
+        && data.targetUid is string
+        && validEmail(data.targetEmail)
+        && validDisplayName(data.targetDisplayName)
+        && validInviteId(data.inviteId)
+        && data.createdAt == request.time;
+    }
+
+    function pendingInviteCreationIsValid(invite, inviteId) {
+      return validClinicalInvite(invite, inviteId)
+        && invite.status == 'pending'
+        && invite.createdAt == request.time
+        && invite.createdByUid == request.auth.uid
+        && invite.expiresAt > request.time + duration.value(71, 'h')
+        && invite.expiresAt <= request.time + duration.value(72, 'h')
+        && invite.updatedAt == request.time
+        && invite.updatedByUid == request.auth.uid
+        && invite.revision == 1;
+    }
+
+    function inviteCreatedAuditMatches(audit, eventId, invite, inviteId) {
+      return audit.action == 'invite_created'
+        && audit.actorUid == request.auth.uid
+        && audit.targetUid == ''
+        && audit.targetEmail == invite.email
+        && audit.targetDisplayName == invite.displayName
+        && audit.inviteId == inviteId
+        && invite.lastAccessEventId == eventId;
+    }
+
+    function inviteRevocationIsValid(before, after, inviteId) {
+      return validClinicalInvite(after, inviteId)
+        && before.status == 'pending'
+        && after.status == 'revoked'
+        && after.role == before.role
+        && after.displayName == before.displayName
+        && after.email == before.email
+        && after.createdAt == before.createdAt
+        && after.createdByUid == before.createdByUid
+        && after.expiresAt == before.expiresAt
+        && after.claimedAt == null
+        && after.claimedByUid == null
+        && after.revokedAt == request.time
+        && after.revokedByUid == request.auth.uid
+        && after.updatedAt == request.time
+        && after.updatedByUid == request.auth.uid
+        && after.revision == before.revision + 1
+        && after.diff(before).affectedKeys().hasOnly([
+          'status',
+          'updatedAt',
+          'updatedByUid',
+          'revokedAt',
+          'revokedByUid',
+          'revision',
+          'lastAccessEventId'
+        ]);
+    }
+
+    function inviteRevokedAuditMatches(audit, eventId, invite, inviteId) {
+      return audit.action == 'invite_revoked'
+        && audit.actorUid == request.auth.uid
+        && audit.targetUid == ''
+        && audit.targetEmail == invite.email
+        && audit.targetDisplayName == invite.displayName
+        && audit.inviteId == inviteId
+        && invite.lastAccessEventId == eventId;
+    }
+
+    function inviteClaimIsValid(before, after, inviteId) {
+      return isPasswordUser()
+        && validClinicalInvite(after, inviteId)
+        && before.status == 'pending'
+        && before.email == request.auth.token.email
+        && request.time < before.expiresAt
+        && after.status == 'claimed'
+        && after.role == before.role
+        && after.displayName == before.displayName
+        && after.email == before.email
+        && after.createdAt == before.createdAt
+        && after.createdByUid == before.createdByUid
+        && after.expiresAt == before.expiresAt
+        && after.claimedAt == request.time
+        && after.claimedByUid == request.auth.uid
+        && after.revokedAt == null
+        && after.revokedByUid == null
+        && after.updatedAt == request.time
+        && after.updatedByUid == request.auth.uid
+        && after.revision == before.revision + 1
+        && after.diff(before).affectedKeys().hasOnly([
+          'status',
+          'updatedAt',
+          'updatedByUid',
+          'claimedAt',
+          'claimedByUid',
+          'revision',
+          'lastAccessEventId'
+        ]);
+    }
+
+    function claimedProfileMatchesInvite(
+      profile,
+      uid,
+      invite,
+      inviteId,
+      eventId
+    ) {
+      return validClinicalV2Profile(profile)
+        && profile.active == true
+        && profile.role == invite.role
+        && profile.displayName == invite.displayName
+        && profile.email == invite.email
+        && profile.email == request.auth.token.email
+        && profile.createdAt == request.time
+        && profile.createdByUid == invite.createdByUid
+        && profile.updatedAt == request.time
+        && profile.updatedByUid == uid
+        && profile.revision == 1
+        && profile.inviteId == inviteId
+        && profile.lastAccessEventId == eventId;
+    }
+
+    function inviteClaimedAuditMatches(audit, eventId, invite, inviteId) {
+      return audit.action == 'invite_claimed'
+        && audit.actorUid == request.auth.uid
+        && audit.targetUid == request.auth.uid
+        && audit.targetEmail == invite.email
+        && audit.targetDisplayName == invite.displayName
+        && audit.inviteId == inviteId
+        && invite.lastAccessEventId == eventId;
+    }
+
+    function managerProfileRenameIsValid(before, after) {
+      return after.displayName != before.displayName
+        && after.active == before.active;
+    }
+
+    function managerProfileToggleIsValid(before, after) {
+      return after.displayName == before.displayName
+        && after.active != before.active;
+    }
+
+    function managerProfileUpdateIsValid(before, after) {
+      return validClinicalV2Profile(after)
+        && (
+          managerProfileRenameIsValid(before, after)
+          || managerProfileToggleIsValid(before, after)
+        )
+        && after.schemaVersion == before.schemaVersion
+        && after.role == before.role
+        && after.email == before.email
+        && after.createdAt == before.createdAt
+        && after.createdByUid == before.createdByUid
+        && after.inviteId == before.inviteId
+        && after.updatedAt == request.time
+        && after.updatedByUid == request.auth.uid
+        && after.revision == before.revision + 1
+        && after.diff(before).affectedKeys().hasOnly([
+          'active',
+          'displayName',
+          'updatedAt',
+          'updatedByUid',
+          'revision',
+          'lastAccessEventId'
+        ]);
+    }
+
+    function profileUpdateAuditMatches(audit, eventId, before, after, uid) {
+      return audit.actorUid == request.auth.uid
+        && audit.targetUid == uid
+        && audit.targetEmail == after.email
+        && audit.targetDisplayName == after.displayName
+        && audit.inviteId == after.inviteId
+        && after.lastAccessEventId == eventId
+        && (
+          (
+            managerProfileRenameIsValid(before, after)
+            && audit.action == 'user_name_updated'
+          )
+          || (
+            managerProfileToggleIsValid(before, after)
+            && after.active == false
+            && audit.action == 'user_deactivated'
+          )
+          || (
+            managerProfileToggleIsValid(before, after)
+            && after.active == true
+            && audit.action == 'user_reactivated'
+          )
+        );
+    }
+
+    function isAtomicInviteCreate(inviteId) {
+      let invite = request.resource.data;
+      let eventId = invite.lastAccessEventId;
+      let eventPath = accessAuditPath(eventId);
+      return isAccessManager()
+        && pendingInviteCreationIsValid(invite, inviteId)
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && inviteCreatedAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          invite,
+          inviteId
+        );
+    }
+
+    function isAtomicInviteRevoke(inviteId) {
+      let invite = request.resource.data;
+      let eventId = invite.lastAccessEventId;
+      let eventPath = accessAuditPath(eventId);
+      return isAccessManager()
+        && inviteRevocationIsValid(resource.data, invite, inviteId)
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && inviteRevokedAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          invite,
+          inviteId
+        );
+    }
+
+    function isAtomicInviteClaim(inviteId) {
+      let invite = request.resource.data;
+      let eventId = invite.lastAccessEventId;
+      let profilePath = clinicalUserPath(request.auth.uid);
+      let eventPath = accessAuditPath(eventId);
+      return inviteClaimIsValid(resource.data, invite, inviteId)
+        && !exists(profilePath)
+        && existsAfter(profilePath)
+        && claimedProfileMatchesInvite(
+          getAfter(profilePath).data,
+          request.auth.uid,
+          invite,
+          inviteId,
+          eventId
+        )
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && inviteClaimedAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          invite,
+          inviteId
+        );
+    }
+
+    function isAtomicClinicalProfileClaim(uid) {
+      let profile = request.resource.data;
+      let inviteId = profile.inviteId;
+      let invitePath = clinicalInvitePath(inviteId);
+      let eventId = profile.lastAccessEventId;
+      let eventPath = accessAuditPath(eventId);
+      return isPasswordUser()
+        && request.auth.uid == uid
+        && exists(invitePath)
+        && existsAfter(invitePath)
+        && inviteClaimIsValid(
+          get(invitePath).data,
+          getAfter(invitePath).data,
+          inviteId
+        )
+        && claimedProfileMatchesInvite(
+          profile,
+          uid,
+          getAfter(invitePath).data,
+          inviteId,
+          eventId
+        )
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && inviteClaimedAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          getAfter(invitePath).data,
+          inviteId
+        );
+    }
+
+    function isAtomicManagerProfileUpdate(uid) {
+      let profile = request.resource.data;
+      let eventId = profile.lastAccessEventId;
+      let eventPath = accessAuditPath(eventId);
+      return isAccessManager()
+        && managerProfileUpdateIsValid(resource.data, profile)
+        && !exists(eventPath)
+        && existsAfter(eventPath)
+        && profileUpdateAuditMatches(
+          getAfter(eventPath).data,
+          eventId,
+          resource.data,
+          profile,
+          uid
+        );
+    }
+
+    function isInviteCreationAudit(audit, eventId) {
+      let invitePath = clinicalInvitePath(audit.inviteId);
+      return audit.action == 'invite_created'
+        && isAccessManager()
+        && !exists(invitePath)
+        && existsAfter(invitePath)
+        && inviteCreatedAuditMatches(
+          audit,
+          eventId,
+          getAfter(invitePath).data,
+          audit.inviteId
+        );
+    }
+
+    function isInviteRevocationAudit(audit, eventId) {
+      let invitePath = clinicalInvitePath(audit.inviteId);
+      return audit.action == 'invite_revoked'
+        && isAccessManager()
+        && exists(invitePath)
+        && existsAfter(invitePath)
+        && get(invitePath).data.status == 'pending'
+        && getAfter(invitePath).data.status == 'revoked'
+        && getAfter(invitePath).data.revision
+          == get(invitePath).data.revision + 1
+        && inviteRevokedAuditMatches(
+          audit,
+          eventId,
+          getAfter(invitePath).data,
+          audit.inviteId
+        );
+    }
+
+    function isInviteClaimAudit(audit, eventId) {
+      let invitePath = clinicalInvitePath(audit.inviteId);
+      let profilePath = clinicalUserPath(request.auth.uid);
+      return audit.action == 'invite_claimed'
+        && exists(invitePath)
+        && existsAfter(invitePath)
+        && get(invitePath).data.status == 'pending'
+        && getAfter(invitePath).data.status == 'claimed'
+        && getAfter(invitePath).data.claimedByUid == request.auth.uid
+        && getAfter(invitePath).data.lastAccessEventId == eventId
+        && !exists(profilePath)
+        && existsAfter(profilePath)
+        && getAfter(profilePath).data.inviteId == audit.inviteId
+        && getAfter(profilePath).data.lastAccessEventId == eventId
+        && inviteClaimedAuditMatches(
+          audit,
+          eventId,
+          getAfter(invitePath).data,
+          audit.inviteId
+        );
+    }
+
+    function isProfileUpdateAudit(audit, eventId) {
+      let profilePath = clinicalUserPath(audit.targetUid);
+      return audit.action in [
+          'user_deactivated',
+          'user_reactivated',
+          'user_name_updated'
+        ]
+        && isAccessManager()
+        && exists(profilePath)
+        && existsAfter(profilePath)
+        && getAfter(profilePath).data.revision
+          == get(profilePath).data.revision + 1
+        && getAfter(profilePath).data.lastAccessEventId == eventId
+        && profileUpdateAuditMatches(
+          audit,
+          eventId,
+          get(profilePath).data,
+          getAfter(profilePath).data,
+          audit.targetUid
+        );
+    }
+
+    function isAtomicAccessAuditCreate(eventId) {
+      let audit = request.resource.data;
+      return validAccessAudit(audit, eventId)
+        && (
+          isInviteCreationAudit(audit, eventId)
+          || isInviteRevocationAudit(audit, eventId)
+          || isInviteClaimAudit(audit, eventId)
+          || isProfileUpdateAudit(audit, eventId)
+        );
+    }
+
     match /admin_users/{uid} {
       allow get: if isPasswordUser() && request.auth.uid == uid;
       allow list, create, update, delete: if false;
     }
 
     match /clinical_users/{uid} {
-      allow get: if isPasswordUser() && request.auth.uid == uid;
-      allow list, create, update, delete: if false;
+      allow get: if (
+          isPasswordUser()
+          && request.auth.uid == uid
+        )
+        || isAccessManager();
+      allow list: if isAccessManager();
+      allow create: if isAtomicClinicalProfileClaim(uid);
+      allow update: if isAtomicManagerProfileUpdate(uid);
+      allow delete: if false;
+    }
+
+    match /clinical_invites/{inviteId} {
+      allow get: if isAccessManager()
+        || (
+          isPasswordUser()
+          && validClinicalInvite(resource.data, inviteId)
+          && resource.data.email == request.auth.token.email
+        );
+      allow list: if isAccessManager();
+      allow create: if isAtomicInviteCreate(inviteId);
+      allow update: if (
+          request.resource.data.status == 'revoked'
+          && isAtomicInviteRevoke(inviteId)
+        )
+        || (
+          request.resource.data.status == 'claimed'
+          && isAtomicInviteClaim(inviteId)
+        );
+      allow delete: if false;
+    }
+
+    match /access_audit/{eventId} {
+      allow get, list: if isAccessManager();
+      allow create: if isAtomicAccessAuditCreate(eventId);
+      allow update, delete: if false;
     }
 
     match /historico_eventos/{outcomeId} {

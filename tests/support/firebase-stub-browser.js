@@ -19,6 +19,7 @@
   function clone(value){
     if(value === null || value === undefined) return value;
     if(Array.isArray(value)) return value.map(clone);
+    if(value instanceof Date) return new Date(value.getTime());
     if(value && value.__testTimestamp === true) return makeTimestamp(value.iso);
     if(typeof value === 'object') {
       const output = {};
@@ -38,6 +39,7 @@
 
   function materialize(value){
     if(value && value.__serverTimestamp === true) return makeTimestamp();
+    if(value instanceof Date) return makeTimestamp(value.toISOString());
     if(Array.isArray(value)) return value.map(materialize);
     if(value && typeof value === 'object') {
       const output = {};
@@ -343,6 +345,14 @@
       writeLog.push({ operation: 'set', path: this.path, merge: Boolean(options.merge), data: serialize(next), at: performance.now() });
       scheduleListeners(this.path);
     }
+    async update(data){
+      if(!documents.has(this.path)){
+        const error = new Error('Documento não encontrado para atualização.');
+        error.code = 'not-found';
+        throw error;
+      }
+      return this.set(data, { merge: true });
+    }
     async delete(){
       await applyOperationControl('delete', this.path);
       documents.delete(this.path);
@@ -428,6 +438,20 @@
             operations.push({ operation: 'set', reference, data, options });
             return transaction;
           },
+          update(reference, data){
+            if(!snapshotDocuments.has(reference.path)){
+              const error = new Error('Documento não encontrado para atualização.');
+              error.code = 'not-found';
+              throw error;
+            }
+            operations.push({
+              operation: 'set',
+              reference,
+              data,
+              options: { merge: true }
+            });
+            return transaction;
+          },
           delete(reference){
             operations.push({ operation: 'delete', reference });
             return transaction;
@@ -446,6 +470,20 @@
       return {
         set(reference, data, options = {}){
           operations.push({ operation: 'set', reference, data, options });
+          return this;
+        },
+        update(reference, data){
+          if(!documents.has(reference.path)){
+            const error = new Error('Documento não encontrado para atualização.');
+            error.code = 'not-found';
+            throw error;
+          }
+          operations.push({
+            operation: 'set',
+            reference,
+            data,
+            options: { merge: true }
+          });
           return this;
         },
         delete(reference){
@@ -513,6 +551,189 @@
     };
   }
 
+  function authAccountByEmail(email){
+    return authAccounts.find(candidate => (
+      String(candidate.email || '').toLowerCase() === String(email || '').toLowerCase()
+    ));
+  }
+
+  function normalizedAuthEmail(email){
+    return String(email || '').trim().toLowerCase();
+  }
+
+  function ensureAuthAccountState(account){
+    if(!account) return account;
+    if(!Number.isInteger(account.sessionVersion)) account.sessionVersion = 0;
+    if(account.passwordMechanism === undefined) {
+      account.passwordMechanism = typeof account.password === 'string' && account.password.length > 0;
+    }
+    return account;
+  }
+
+  function fixtureEmailFingerprint(email){
+    let hash = 2166136261;
+    for(const character of normalizedAuthEmail(email)){
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  }
+
+  function parseFixtureEmailLink(href){
+    try {
+      const url = new URL(String(href || ''));
+      const entries = [...url.searchParams.entries()];
+      if(
+        entries.length !== 3 ||
+        entries[0][0] !== 'mode' ||
+        entries[0][1] !== 'signIn' ||
+        entries[1][0] !== 'oobCode' ||
+        !entries[1][1] ||
+        entries[2][0] !== 'apiKey' ||
+        entries[2][1] !== 'fixture-api-key' ||
+        url.searchParams.toString() !== url.search.slice(1)
+      ) return null;
+      return { url, oobCode: entries[1][1] };
+    } catch {
+      return null;
+    }
+  }
+
+  function buildFixtureEmailLink(continueUrl, email){
+    const url = new URL(String(continueUrl || ''));
+    url.search = new URLSearchParams({
+      mode: 'signIn',
+      oobCode: `fixture_${fixtureEmailFingerprint(email)}_${++generatedId}`,
+      apiKey: 'fixture-api-key'
+    }).toString();
+    return url.toString();
+  }
+
+  function hydrateAuthUser(rawUser, appName){
+    if(!rawUser) return null;
+    const account = ensureAuthAccountState(authAccountByEmail(rawUser.email));
+    const user = {
+      uid: rawUser.uid,
+      email: rawUser.email || '',
+      isAnonymous: rawUser.isAnonymous === true,
+      __sessionVersion: account?.sessionVersion || 0,
+      __signInProvider: rawUser.signInProvider || (rawUser.isAnonymous === true ? 'anonymous' : 'password'),
+      providerData: Array.isArray(rawUser.providerData)
+        ? clone(rawUser.providerData)
+        : rawUser.isAnonymous === true
+          ? []
+          : [{ providerId: 'password', uid: rawUser.email || rawUser.uid }],
+      emailVerified: rawUser.isAnonymous === true
+        ? false
+        : rawUser.emailVerified !== undefined
+          ? Boolean(rawUser.emailVerified)
+          : account?.emailVerified !== false,
+      async updatePassword(password){
+        await applyAuthOperationControl('updatePassword', appName);
+        const latest = ensureAuthAccountState(authAccountByEmail(user.email));
+        const instance = authInstances.get(appName);
+        if(
+          !latest ||
+          !instance ||
+          instance.currentUser !== user ||
+          latest.uid !== user.uid ||
+          latest.sessionVersion !== user.__sessionVersion ||
+          user.emailVerified !== true
+        ){
+          const error = new Error('A prova recente da identidade não está disponível.');
+          error.code = 'auth/requires-recent-login';
+          throw error;
+        }
+        latest.password = String(password || '');
+        latest.passwordMechanism = true;
+        latest.emailVerified = true;
+        latest.sessionVersion += 1;
+        user.__sessionVersion = latest.sessionVersion;
+        for(const [otherName, otherInstance] of authInstances){
+          if(
+            otherName !== appName &&
+            otherInstance.currentUser?.uid === user.uid
+          ){
+            otherInstance.currentUser = null;
+            notifyAuthObservers(otherInstance);
+          }
+        }
+        authLog.push({
+          operation: 'updatePassword',
+          appName,
+          uid: user.uid,
+          sessionsRevoked: true
+        });
+      },
+      async sendEmailVerification(actionCodeSettings){
+        await applyAuthOperationControl('sendEmailVerification', appName);
+        authLog.push({
+          operation: 'sendEmailVerification',
+          appName,
+          uid: user.uid,
+          continueUrl: String(actionCodeSettings?.url || '')
+        });
+      },
+      async reload(){
+        await applyAuthOperationControl('reload', appName);
+        const latest = ensureAuthAccountState(authAccountByEmail(user.email));
+        if(latest && latest.sessionVersion !== user.__sessionVersion){
+          const error = new Error('A sessão foi revogada.');
+          error.code = 'auth/user-token-expired';
+          throw error;
+        }
+        if(latest) user.emailVerified = latest.emailVerified !== false;
+        authLog.push({
+          operation: 'reload',
+          appName,
+          uid: user.uid,
+          emailVerified: user.emailVerified
+        });
+      },
+      async getIdToken(forceRefresh = false){
+        await applyAuthOperationControl('getIdToken', appName);
+        const latest = ensureAuthAccountState(authAccountByEmail(user.email));
+        if(latest && latest.sessionVersion !== user.__sessionVersion){
+          const error = new Error('A sessão foi revogada.');
+          error.code = 'auth/user-token-expired';
+          throw error;
+        }
+        authLog.push({
+          operation: 'getIdToken',
+          appName,
+          uid: user.uid,
+          forceRefresh: Boolean(forceRefresh)
+        });
+        return `fixture-token-${user.uid}`;
+      },
+      async getIdTokenResult(forceRefresh = false){
+        await applyAuthOperationControl('getIdTokenResult', appName);
+        const latest = ensureAuthAccountState(authAccountByEmail(user.email));
+        if(latest && latest.sessionVersion !== user.__sessionVersion){
+          const error = new Error('A sessão foi revogada.');
+          error.code = 'auth/user-token-expired';
+          throw error;
+        }
+        authLog.push({
+          operation: 'getIdTokenResult',
+          appName,
+          uid: user.uid,
+          forceRefresh: Boolean(forceRefresh)
+        });
+        return {
+          claims: {
+            email: user.email,
+            email_verified: user.emailVerified,
+            firebase: {
+              sign_in_provider: user.__signInProvider
+            }
+          }
+        };
+      }
+    };
+    return user;
+  }
+
   function notifyAuthObservers(instance){
     for(const observer of instance.__observers){
       setTimeout(() => {
@@ -525,10 +746,17 @@
   function authForApp(appName = '[DEFAULT]'){
     if(authInstances.has(appName)) return authInstances.get(appName);
     const initialUser = initialAuthByApp[appName];
+    const delayInitialState = Number(seed.authInitialStateDelayMs || 0) > 0;
     const instance = {
       __appName: appName,
       __observers: new Set(),
-      currentUser: initialUser ? clone(initialUser) : null,
+      __seedSignOutFailureUsed: false,
+      __pendingInitialUser: delayInitialState && initialUser
+        ?hydrateAuthUser(clone(initialUser), appName)
+        :null,
+      currentUser: initialUser && !delayInitialState
+        ?hydrateAuthUser(clone(initialUser), appName)
+        :null,
       async setPersistence(value){
         authLog.push({ operation: 'setPersistence', appName, value: String(value) });
         if(seed.authPersistenceFailure){
@@ -541,9 +769,15 @@
         const observer = { success, failure };
         instance.__observers.add(observer);
         setTimeout(() => {
-          try { success(instance.currentUser); }
+          try {
+            if(instance.__pendingInitialUser){
+              instance.currentUser = instance.__pendingInitialUser;
+              instance.__pendingInitialUser = null;
+            }
+            success(instance.currentUser);
+          }
           catch(error) { if(failure) failure(error); }
-        }, 0);
+        }, Math.max(0, Number(seed.authInitialStateDelayMs || 0)));
         return () => instance.__observers.delete(observer);
       },
       async signInAnonymously(){
@@ -556,11 +790,13 @@
       },
       async signInWithEmailAndPassword(email, password){
         await applyAuthOperationControl('signInWithEmailAndPassword', appName);
-        const account = authAccounts.find(candidate => (
-          String(candidate.email || '').toLowerCase() === String(email || '').toLowerCase() &&
-          String(candidate.password || '') === String(password || '')
-        ));
-        if(!account){
+        const account = ensureAuthAccountState(authAccountByEmail(email));
+        if(!account || account.passwordMechanism !== true){
+          const error = new Error('Credencial institucional inválida.');
+          error.code = 'auth/invalid-credential';
+          throw error;
+        }
+        if(String(account.password || '') !== String(password || '')){
           const error = new Error('Credencial institucional inválida.');
           error.code = 'auth/invalid-credential';
           throw error;
@@ -570,18 +806,179 @@
           error.code = 'auth/user-disabled';
           throw error;
         }
-        const user = {
+        const user = hydrateAuthUser({
           uid: account.uid,
           email: account.email,
-          isAnonymous: false
-        };
+          isAnonymous: false,
+          emailVerified: account.emailVerified !== false,
+          signInProvider: 'password'
+        }, appName);
         instance.currentUser = user;
         authLog.push({ operation: 'signInWithEmailAndPassword', appName, uid: user.uid });
         notifyAuthObservers(instance);
         return { user };
       },
+      async createUserWithEmailAndPassword(email, password){
+        await applyAuthOperationControl('createUserWithEmailAndPassword', appName);
+        if(authAccountByEmail(email)){
+          const error = new Error('Conta já existente.');
+          error.code = 'auth/email-already-in-use';
+          throw error;
+        }
+        const account = {
+          uid: seed.nextAuthUid || `fixture-created-user-${++generatedId}`,
+          email: String(email || ''),
+          password: String(password || ''),
+          passwordMechanism: true,
+          disabled: false,
+          emailVerified: false,
+          sessionVersion: 0
+        };
+        authAccounts.push(account);
+        const user = hydrateAuthUser({
+          uid: account.uid,
+          email: account.email,
+          isAnonymous: false,
+          emailVerified: false
+        }, appName);
+        instance.currentUser = user;
+        authLog.push({
+          operation: 'createUserWithEmailAndPassword',
+          appName,
+          uid: user.uid
+        });
+        notifyAuthObservers(instance);
+        return { user };
+      },
+      async sendSignInLinkToEmail(email, actionCodeSettings){
+        await applyAuthOperationControl('sendSignInLinkToEmail', appName);
+        const normalizedEmail = normalizedAuthEmail(email);
+        const continueUrl = String(actionCodeSettings?.url || '');
+        let actionLink = '';
+        try {
+          const parsedContinueUrl = new URL(continueUrl);
+          if(
+            actionCodeSettings?.handleCodeInApp !== true ||
+            parsedContinueUrl.search ||
+            !/^#invite=invite_[0-9a-f]{32}$/.test(parsedContinueUrl.hash)
+          ) throw new Error('invalid-action-settings');
+          actionLink = buildFixtureEmailLink(continueUrl, normalizedEmail);
+        } catch {
+          const error = new Error('Configuração inválida para o link por e-mail.');
+          error.code = 'auth/invalid-continue-uri';
+          throw error;
+        }
+        authLog.push({
+          operation: 'sendSignInLinkToEmail',
+          appName,
+          email: normalizedEmail,
+          continueUrl,
+          handleCodeInApp: true,
+          actionLink
+        });
+      },
+      isSignInWithEmailLink(href){
+        const parsed = parseFixtureEmailLink(href);
+        authLog.push({
+          operation: 'isSignInWithEmailLink',
+          appName,
+          result: Boolean(parsed)
+        });
+        return Boolean(parsed);
+      },
+      async signInWithEmailLink(email, href){
+        await applyAuthOperationControl('signInWithEmailLink', appName);
+        const normalizedEmail = normalizedAuthEmail(email);
+        const parsed = parseFixtureEmailLink(href);
+        const expectedCodePrefix = `fixture_${fixtureEmailFingerprint(normalizedEmail)}_`;
+        const usedKey = parsed
+          ?`firebase-stub-used-email-link:${parsed.oobCode}`
+          :'';
+        if(
+          !parsed ||
+          !parsed.oobCode.startsWith(expectedCodePrefix) ||
+          !/^fixture_[0-9a-f]{8}_[1-9][0-9]*$/.test(parsed.oobCode) ||
+          parsed.oobCode.startsWith('expired_') ||
+          sessionStorage.getItem(usedKey) === 'true'
+        ){
+          const error = new Error('Link por e-mail inválido ou expirado.');
+          error.code = 'auth/invalid-action-code';
+          throw error;
+        }
+
+        let account = ensureAuthAccountState(authAccountByEmail(normalizedEmail));
+        const isNewUser = !account;
+        if(!account){
+          account = {
+            uid: seed.nextAuthUid || `fixture-created-user-${++generatedId}`,
+            email: normalizedEmail,
+            password: '',
+            passwordMechanism: false,
+            disabled: false,
+            emailVerified: true,
+            sessionVersion: 0
+          };
+          authAccounts.push(account);
+        }else if(account.disabled === true){
+          const error = new Error('Conta institucional desativada.');
+          error.code = 'auth/user-disabled';
+          throw error;
+        }else if(account.emailVerified !== true){
+          account.password = '';
+          account.passwordMechanism = false;
+          account.emailVerified = true;
+          account.sessionVersion += 1;
+          for(const otherInstance of authInstances.values()){
+            if(otherInstance.currentUser?.uid === account.uid){
+              otherInstance.currentUser = null;
+              notifyAuthObservers(otherInstance);
+            }
+          }
+          authLog.push({
+            operation: 'invalidateUnverifiedCredential',
+            appName,
+            uid: account.uid,
+            sessionsRevoked: true
+          });
+        }
+
+        sessionStorage.setItem(usedKey, 'true');
+        const user = hydrateAuthUser({
+          uid: account.uid,
+          email: account.email,
+          isAnonymous: false,
+          emailVerified: true,
+          signInProvider: 'password'
+        }, appName);
+        instance.currentUser = user;
+        authLog.push({
+          operation: 'signInWithEmailLink',
+          appName,
+          uid: user.uid,
+          isNewUser
+        });
+        notifyAuthObservers(instance);
+        return {
+          user,
+          additionalUserInfo: { isNewUser }
+        };
+      },
+      async sendPasswordResetEmail(email){
+        await applyAuthOperationControl('sendPasswordResetEmail', appName);
+        authLog.push({
+          operation: 'sendPasswordResetEmail',
+          appName,
+          email: String(email || '').toLowerCase()
+        });
+      },
       async signOut(){
         await applyAuthOperationControl('signOut', appName);
+        if(seed.authSignOutFailure && !instance.__seedSignOutFailureUsed){
+          instance.__seedSignOutFailureUsed = true;
+          const error = new Error('Falha controlada ao encerrar a sessão.');
+          error.code = 'fixture/sign-out-failed';
+          throw error;
+        }
         const uid = instance.currentUser?.uid || null;
         instance.currentUser = null;
         authLog.push({ operation: 'signOut', appName, uid });
@@ -589,7 +986,7 @@
       },
       async updateCurrentUser(user){
         const uid = instance.currentUser?.uid || null;
-        instance.currentUser = user ? clone(user) : null;
+        instance.currentUser = user ? hydrateAuthUser(clone(user), appName) : null;
         authLog.push({
           operation: 'updateCurrentUser',
           appName,
@@ -629,10 +1026,21 @@
   firebase.firestore.FieldValue = {
     serverTimestamp(){ return { __serverTimestamp: true }; }
   };
+  firebase.firestore.Timestamp = {
+    fromMillis(value){ return makeTimestamp(new Date(Number(value)).toISOString()); },
+    now(){ return makeTimestamp(); }
+  };
   for(const appName of Object.keys(initialAuthByApp)) authForApp(appName);
 
   function seedCollection(path, values){
     for(const value of values || []) documents.set(`${path}/${value.id}`, materialize(clone(value)));
+  }
+
+  function seedStrictCollection(path, values){
+    for(const value of values || []){
+      const { id, ...documentData } = value;
+      documents.set(`${path}/${id}`, materialize(clone(documentData)));
+    }
   }
 
   const unit = seed.unit || 'emergencia';
@@ -646,7 +1054,9 @@
   seedCollection(`${root}/closed_patients`, seed.closedPatients);
   seedCollection('historico_eventos', seed.historyEvents);
   seedCollection('admin_outcomes', seed.adminOutcomes);
-  seedCollection('admin_users', seed.adminUsers);
+  seedStrictCollection('admin_users', seed.adminUsers);
+  seedStrictCollection('clinical_invites', seed.clinicalInvites);
+  seedStrictCollection('access_audit', seed.accessAudit);
   for(const profile of seed.clinicalUsers || []){
     const { id, ...profileData } = profile;
     documents.set(`clinical_users/${id}`, materialize(clone(profileData)));
@@ -738,6 +1148,19 @@
         failureCode: code,
         failureMessage: message
       });
+    },
+    verifyAuthEmail(email){
+      const account = authAccountByEmail(email);
+      if(account) account.emailVerified = true;
+      for(const instance of authInstances.values()){
+        if(
+          instance.currentUser &&
+          String(instance.currentUser.email || '').toLowerCase() === String(email || '').toLowerCase()
+        ){
+          instance.currentUser.emailVerified = true;
+        }
+      }
+      return Boolean(account);
     },
     failActiveListener(pathIncludes, code = 'permission-denied', message = 'Leitura negada pela regra simulada.'){
       const error = new Error(message);

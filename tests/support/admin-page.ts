@@ -6,27 +6,37 @@ export type AdminSeed = {
     uid: string;
     email?: string;
     isAnonymous?: boolean;
+    emailVerified?: boolean;
+    providerData?: Array<{ providerId: string; uid?: string }>;
   } | null;
   initialAuthByApp?: Record<string, {
     uid: string;
     email?: string;
     isAnonymous?: boolean;
+    emailVerified?: boolean;
+    providerData?: Array<{ providerId: string; uid?: string }>;
   } | null>;
   authAccounts?: Array<{
     uid: string;
     email: string;
     password: string;
     disabled?: boolean;
+    emailVerified?: boolean;
   }>;
   authPersistenceUnavailable?: boolean;
+  authPersistenceFailure?: boolean;
   adminAccounts?: Array<{
     uid: string;
     email: string;
     password: string;
     disabled?: boolean;
+    emailVerified?: boolean;
   }>;
   clinicalUsers?: Array<Record<string, unknown> & { id: string }>;
   adminUsers?: Array<Record<string, unknown> & { id: string }>;
+  clinicalInvites?: Array<Record<string, unknown> & { id: string }>;
+  accessAudit?: Array<Record<string, unknown> & { id: string }>;
+  nextAuthUid?: string;
   patientsByUnit?: Record<string, Array<Record<string, unknown> & { id: string }>>;
   historyEvents?: Array<Record<string, unknown> & { id: string }>;
   adminOutcomes?: Array<Record<string, unknown> & { id: string }>;
@@ -83,6 +93,15 @@ export class AdminPage {
         },
         __xssTriggered: false
       });
+      const clipboardWrites: string[] = [];
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          async writeText(text: string){ clipboardWrites.push(String(text)); },
+          async readText(){ return clipboardWrites.at(-1) || ''; }
+        }
+      });
+      Object.assign(window, { __clipboardWrites: clipboardWrites });
       window.print = () => {
         (window as typeof window & {
           __adminAssetTestHarness: { printInvocations: number };
@@ -95,7 +114,11 @@ export class AdminPage {
       (window as typeof window & { __firebaseTestHarness?: unknown }).__firebaseTestHarness
     ))).toBe(true);
     await expect(this.accessPanel).toBeVisible();
-    await expect(this.loginButton).toBeEnabled();
+    if(seed.authPersistenceUnavailable||seed.authPersistenceFailure){
+      await expect(this.loginButton).toBeDisabled();
+    }else{
+      await expect(this.loginButton).toBeEnabled();
+    }
   }
 
   async login(email: string, password: string){
@@ -127,6 +150,14 @@ export class AdminPage {
     ).__firebaseTestHarness.writes());
   }
 
+  async firebaseSnapshot(){
+    return this.page.evaluate(() => (
+      window as typeof window & {
+        __firebaseTestHarness: { snapshot(): Record<string, unknown> };
+      }
+    ).__firebaseTestHarness.snapshot());
+  }
+
   async authState(){
     return this.page.evaluate(() => (
       window as typeof window & {
@@ -135,5 +166,65 @@ export class AdminPage {
         };
       }
     ).__firebaseTestHarness.authState());
+  }
+
+  async authLog(){
+    return this.page.evaluate(() => (
+      window as typeof window & {
+        __firebaseTestHarness: { authLog(): Array<Record<string, unknown>> };
+      }
+    ).__firebaseTestHarness.authLog());
+  }
+
+  async failNextAuth(
+    operation: string,
+    appName = '',
+    code = 'fixture/auth-failed',
+    message = 'Falha de autenticação simulada.'
+  ){
+    return this.page.evaluate(
+      ({ authOperation, authAppName, authCode, authMessage }) => (
+        window as typeof window & {
+          __firebaseTestHarness: {
+            failNextAuth(
+              operation: string,
+              appName?: string,
+              code?: string,
+              message?: string
+            ): string;
+          };
+        }
+      ).__firebaseTestHarness.failNextAuth(
+        authOperation,
+        authAppName,
+        authCode,
+        authMessage
+      ),
+      {
+        authOperation: operation,
+        authAppName: appName,
+        authCode: code,
+        authMessage: message
+      }
+    );
+  }
+
+  async replaceFirebaseDocument(path: string, data: Record<string, unknown>){
+    await this.page.evaluate(
+      ({ documentPath, documentData }) => (
+        window as typeof window & {
+          __firebaseTestHarness: {
+            replaceDocument(path: string, data: Record<string, unknown>): void;
+          };
+        }
+      ).__firebaseTestHarness.replaceDocument(documentPath, documentData),
+      { documentPath: path, documentData: data }
+    );
+  }
+
+  async clipboardWrites(){
+    return this.page.evaluate(() => (
+      window as typeof window & { __clipboardWrites: string[] }
+    ).__clipboardWrites.slice());
   }
 }

@@ -136,9 +136,11 @@ Em todas as larguras:
 
 ## 10. Firestore e Área Administrativa
 
-- [ ] `npm run test:rules` conclui os 27 cenários no Firestore Emulator.
+- [ ] `npm run test:rules` conclui os 46 cenários no Firestore Emulator.
 - [ ] Usuário anônimo, não autenticado ou sem perfil clínico ativo não lê nem
       grava pacientes, metadados, confirmações, lápides ou Desfechos.
+- [ ] Provedor diferente de Password ou e-mail não verificado é encerrado sem
+      consultar Firestore.
 - [ ] Clínico Email/Password com `clinical_users/<uid>` ativo pode consultar
       por `get` uma lápide conhecida, mas não pode listar lápides nem
       ler/listar `historico_eventos`.
@@ -153,8 +155,49 @@ Em todas as larguras:
       nomeada `connect-hub-admin`.
 - [ ] Login/logout administrativo não substitui nem encerra a sessão clínica
       nominal, e logout clínico não encerra a sessão administrativa.
-- [ ] O atalho administrativo da tela clínica abre o login real e não revela
-      histórico protegido ou código compartilhado.
+- [ ] A Passagem não exibe atalho administrativo; o HUB mostra o card somente
+      para perfil administrativo próprio válido.
+- [ ] Somente o Gestor vê a aba Usuários e lista `clinical_users`,
+      `clinical_invites` e `access_audit`.
+- [ ] Coordenador não consulta essas três coleções e não executa mutações de
+      acesso.
+- [ ] Médico ativo acessa todos os setores clínicos, não vê a Área
+      Administrativa e é bloqueado ao tentar sua URL diretamente.
+- [ ] Convite tem ID aleatório de 128 bits, validade de 72 horas e criação
+      atômica com `invite_created`.
+- [ ] O Gestor cria o convite e a Área Administrativa envia o Firebase Email
+      Link diretamente à caixa postal cadastrada, sem exibir a URL de ação.
+- [ ] Convites aceitam um e-mail válido sem exigir domínio institucional.
+- [ ] Somente o Gestor pode iniciar o reenvio; o envio inicial e cada reenvio
+      consomem a cota atual de cinco Email Links por dia do Spark.
+- [ ] `cadastro.html` falha fechado sem um Firebase Email Link válido e o
+      fragmento canônico `#invite=invite_<32hex>`.
+- [ ] Depois de abrir a mensagem, o médico redigita o mesmo e-mail; ele nunca
+      é registrado na URL ou em `localStorage`, e os parâmetros da ação são
+      limpos antes de qualquer espera assíncrona.
+- [ ] `signInWithEmailLink` ocorre antes da etapa de senha e
+      `additionalUserInfo.isNewUser === true` é obrigatório.
+- [ ] Conta Firebase preexistente é desconectada, orientada a procurar o
+      Gestor e não pode reivindicar convite, entrar ou redefinir senha no
+      cadastro.
+- [ ] Somente conta comprovadamente nova define a própria senha.
+- [ ] Recuperação de falha parcial só funciona na mesma navegação depois de
+      `isNewUser === true`; após recarga, o Gestor revisa/remove a conta órfã
+      no Firebase Console, revoga o convite e emite outro.
+- [ ] Cadastro não lê Firestore antes de reautenticar por Password e renovar o
+      token.
+- [ ] Claim válido atualiza convite, cria perfil v2 e grava `invite_claimed`
+      na mesma transação.
+- [ ] Convite expirado, revogado, divergente ou utilizado por outro UID falha
+      fechado.
+- [ ] Renomear, desativar e reativar perfil v2 incrementa revisão e cria a
+      auditoria correta; duas mudanças simultâneas são negadas.
+- [ ] Perfis v1, convites e auditorias não podem ser alterados ou excluídos no
+      navegador.
+- [ ] Recuperação de senha usa mensagem genérica e nunca exibe senha ou
+      existência da conta.
+- [ ] Revogação do Gestor limpa a aba e encerra a sessão administrativa em
+      tempo real.
 - [ ] Confirmações de transição podem ser criadas e lidas, mas update/delete
       são negados pelas Rules.
 - [ ] O contrato legado estrito mantém abas antigas funcionais na janela
@@ -190,12 +233,16 @@ Em todas as larguras:
 - [ ] O setor legado `uti` participa de consultas, filtros e totais.
 - [ ] Login e painel permanecem acessíveis e sem overflow nas larguras
       obrigatórias.
-- [ ] Email/Password está habilitado no Firebase Authentication.
-- [ ] Cada conta clínica foi criada e seu UID foi cadastrado em
-      `clinical_users/<uid>` com esquema exato, `active: true` e
-      `role: clinician`.
-- [ ] A conta administrativa foi criada e seu UID foi cadastrado em
-      `admin_users/<uid>` com `active: true` e papel permitido.
+- [ ] Email/Password e Email Link estão habilitados no Firebase Authentication.
+- [ ] Contas Password verificadas sem perfil aprovado foram revisadas e
+      desativadas antes do corte.
+- [ ] O primeiro Gestor foi criado e verificado manualmente; o mesmo UID possui
+      `clinical_users/<uid>` v1 e `admin_users/<uid>` v1 exatos.
+- [ ] O e-mail real do primeiro Gestor não aparece no repositório, fixtures,
+      documentação, issue ou PR.
+- [ ] Novos médicos são adicionados pela aba Usuários e ativam a própria conta
+      pela mensagem entregue diretamente à caixa postal, sem senha definida
+      pelo Gestor.
 - [ ] HUB e Passagem consultam o perfil no servidor antes de qualquer dado,
       observam revogação e usam persistência `SESSION`.
 - [ ] Logout clínico aguarda escritas e limpa listeners, pacientes, formulário,
