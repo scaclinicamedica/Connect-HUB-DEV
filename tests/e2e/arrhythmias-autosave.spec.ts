@@ -22,7 +22,7 @@ test('protege Auto Save intermediário, Auto Advance, reabertura e conclusão ex
     name: 'PACIENTE FICTÍCIO AUTOSAVE',
     bed: 'Leito 01',
     diagnosis: 'HIPÓTESE FICTÍCIA PARA TESTE',
-    dischargeForecast: '2026-07-20'
+    dischargeForecast: '2099-12-31'
   });
 
   await app.clearFirebaseWrites();
@@ -137,6 +137,7 @@ test('novo paciente não herda o estado de Arritmias do paciente anterior', asyn
   await app.fillRequiredPatientFields('NOVO');
   await expect.poll(async () => app.page.locator('#patientId').inputValue()).not.toBe('');
   const newPatientId = await app.page.locator('#patientId').inputValue();
+  await expect.poll(async () => Boolean(await app.persistedPatient(newPatientId))).toBe(true);
   await app.openCatalog();
   await app.selectModule('Arritmias');
   await expect.poll(async () => {

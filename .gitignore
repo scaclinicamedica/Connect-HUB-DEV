@@ -3,4 +3,5 @@ test-results/
 playwright-report/
 blob-report/
 .playwright-artifacts/
-
+firebase-debug.log
+firestore-debug.log

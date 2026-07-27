@@ -34,6 +34,15 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Set up Java for Firebase Emulator
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Verify Firestore security rules
+        run: npm run test:rules
+
       - name: Install Chromium and Linux dependencies
         if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium

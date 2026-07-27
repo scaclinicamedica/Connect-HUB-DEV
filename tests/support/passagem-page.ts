@@ -2,21 +2,52 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 type Seed = {
   unit?: string;
+  authUid?: string;
   patients?: unknown[];
+  patientsByUnit?: Record<string, unknown[]>;
   meta?: Record<string, unknown>;
   confirmations?: unknown[];
+  closedPatients?: unknown[];
+  historyEvents?: unknown[];
+  adminUsers?: unknown[];
+  adminAccounts?: Array<{ uid: string; email: string; password: string }>;
+  readFailures?: Array<{ pathIncludes?: string; message?: string; code?: string }>;
 };
 
 export class PassagemPage {
+  private readonly expectedConsoleErrorPatterns: RegExp[] = [];
+
   constructor(
     readonly page: Page,
     readonly networkAttempts: Array<{ url: string; method: string; disposition: string }>
   ){}
 
+  expectConsoleError(pattern: RegExp){
+    this.expectedConsoleErrorPatterns.push(pattern);
+  }
+
+  classifyConsoleErrors(messages: string[]){
+    const unexpected = [...messages];
+    const missing: string[] = [];
+
+    for(const pattern of this.expectedConsoleErrorPatterns){
+      const index = unexpected.findIndex(message => {
+        pattern.lastIndex = 0;
+        return pattern.test(message);
+      });
+      if(index >= 0) unexpected.splice(index, 1);
+      else missing.push(String(pattern));
+    }
+
+    return { unexpected, missing };
+  }
+
   get drawer(){ return this.page.locator('#drawer'); }
   get catalog(){ return this.page.locator('#alertChecks'); }
   get arrhythmiasPanel(){ return this.page.locator('#arrhythmiasCleanWrap'); }
   get cards(){ return this.page.locator('#cards .card'); }
+  get outcomeDialog(){ return this.page.locator('#patientOutcomeDialog'); }
+  get outcomeConfirmButton(){ return this.page.locator('#patientOutcomeConfirmBtn'); }
 
   async goto(seed: Seed = {}){
     await this.page.addInitScript(value => {
@@ -33,7 +64,10 @@ export class PassagemPage {
       window.print = () => { window.__printInvocations += 1; };
     }, seed);
 
-    await this.page.goto('/passagem.html?setor=emergencia', { waitUntil: 'domcontentloaded' });
+    const requestedSector = String(seed.unit || 'emergencia').replace(/_/g, '-');
+    await this.page.goto(`/passagem.html?setor=${encodeURIComponent(requestedSector)}`, {
+      waitUntil: 'domcontentloaded'
+    });
     await expect.poll(() => this.page.evaluate(() => Boolean(window.__firebaseTestHarness))).toBe(true);
     await expect.poll(() => this.page.evaluate(() => document.documentElement.dataset.rc127HostedDesktopBridge)).toBe('ready');
     await expect(this.page.locator('#cards')).toBeVisible();
@@ -57,7 +91,7 @@ export class PassagemPage {
       await expect(bed).not.toHaveValue('');
     }
     await this.page.locator('#name').fill(`PACIENTE FICTÍCIO ${suffix}`);
-    await this.page.locator('#dischargeForecast').fill('2026-07-20');
+    await this.page.locator('#dischargeForecast').fill('2099-12-31');
     await this.page.locator('#diagnosis').fill('HIPÓTESE FICTÍCIA PARA TESTE');
   }
 
@@ -80,8 +114,45 @@ export class PassagemPage {
   }
 
   async openPatientById(id: string){
-    await this.page.locator(`.card[data-id="${id}"]`).click();
+    const card = this.page.locator(`.card[data-id="${id}"]`);
+    await expect(card).toBeVisible();
+    await card.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    const box = await card.boundingBox();
+    if(!box) throw new Error(`O card ${id} não possui área clicável.`);
+    await this.page.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 28));
     await expect(this.drawer).toHaveClass(/open/);
+  }
+
+  async openOutcomeFromCard(id: string){
+    const button = this.page.locator(`.card[data-id="${id}"] .outcome-action`);
+    await expect(button).toBeVisible();
+    await button.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    const box = await button.boundingBox();
+    if(!box) throw new Error(`O botão Desfecho do paciente ${id} não possui área clicável.`);
+    await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(this.outcomeDialog).toHaveClass(/is-open/);
+  }
+
+  async selectOutcome(value: 'treated' | 'death' | 'transferred'){
+    await this.page.locator(`input[name="patientOutcomeType"][value="${value}"]`).check();
+  }
+
+  async fillOutcomeResponsible(name: string){
+    await this.page.locator('#patientOutcomeResponsibleDoctor').fill(name);
+  }
+
+  async fillOutcomeCid(code = 'Z00.0'){
+    await this.page.locator('#patientOutcomePrimaryCid').fill(code);
+  }
+
+  async waitForAutosaveHydration(){
+    await expect.poll(() => this.page.evaluate(() => {
+      try {
+        return window.eval('patientAutosaveHydrating === false');
+      } catch {
+        return false;
+      }
+    })).toBe(true);
   }
 
   async firebaseSnapshot(){
@@ -92,12 +163,71 @@ export class PassagemPage {
     return this.page.evaluate(() => window.__firebaseTestHarness.writes());
   }
 
+  async firebaseReads(){
+    return this.page.evaluate(() => window.__firebaseTestHarness.reads());
+  }
+
   async clearFirebaseWrites(){
     await this.page.evaluate(() => window.__firebaseTestHarness.clearWrites());
   }
 
+  async clearFirebaseReads(){
+    await this.page.evaluate(() => window.__firebaseTestHarness.clearReads());
+  }
+
   async persistedPatient(id: string){
     return this.page.evaluate(patientId => window.__firebaseTestHarness.document(`connect_hub_v55/emergencia/pacientes/${patientId}`), id);
+  }
+
+  async persistedPatientInUnit(unit: string, id: string){
+    return this.page.evaluate(
+      ({ sectorUnit, patientId }) =>
+        window.__firebaseTestHarness.document(`connect_hub_v55/${sectorUnit}/pacientes/${patientId}`),
+      { sectorUnit: unit, patientId: id }
+    );
+  }
+
+  async firebaseDocument(path: string){
+    return this.page.evaluate(documentPath => window.__firebaseTestHarness.document(documentPath), path);
+  }
+
+  async replaceFirebaseDocumentSilently(path: string, data: Record<string, unknown>){
+    await this.page.evaluate(
+      ({ documentPath, documentData }) =>
+        window.__firebaseTestHarness.replaceDocumentSilently(documentPath, documentData),
+      { documentPath: path, documentData: data }
+    );
+  }
+
+  async delayNextFirebaseWrite(operation: 'set' | 'delete', pathIncludes: string, delayMs = 250){
+    return this.page.evaluate(
+      ({ op, path, delay }) => window.__firebaseTestHarness.delayNext(op, path, delay),
+      { op: operation, path: pathIncludes, delay: delayMs }
+    );
+  }
+
+  async waitForFirebaseControl(controlId: string, state: 'scheduled' | 'pending'){
+    await expect.poll(
+      () => this.page.evaluate(
+        id => window.__firebaseTestHarness.pendingControls()
+          .find(control => control.id === id)?.state || '',
+        controlId
+      )
+    ).toBe(state);
+  }
+
+  async failNextFirebaseWrite(operation: 'set' | 'delete', pathIncludes: string, message?: string){
+    return this.page.evaluate(
+      ({ op, path, failureMessage }) => window.__firebaseTestHarness.failNext(op, path, failureMessage),
+      { op: operation, path: pathIncludes, failureMessage: message }
+    );
+  }
+
+  async failAfterNextFirebaseTransactionCommit(message?: string){
+    return this.page.evaluate(
+      failureMessage => window.__firebaseTestHarness.failAfterNextTransactionCommit(failureMessage),
+      message
+    );
   }
 }
 
@@ -109,8 +239,17 @@ declare global {
     __firebaseTestHarness: {
       snapshot(): Record<string, unknown>;
       writes(): Array<Record<string, unknown>>;
+      reads(): Array<Record<string, unknown>>;
+      authLog(): Array<Record<string, unknown>>;
+      authState(): Record<string, Record<string, unknown> | null>;
       clearWrites(): void;
+      clearReads(): void;
       document(path: string): Record<string, unknown> | undefined;
+      replaceDocumentSilently(path: string, data: Record<string, unknown>): void;
+      delayNext(operation: string, pathIncludes: string, delayMs?: number): string;
+      failNext(operation: string, pathIncludes: string, message?: string): string;
+      failAfterNextTransactionCommit(message?: string): void;
+      pendingControls(): Array<Record<string, unknown>>;
     };
   }
 }

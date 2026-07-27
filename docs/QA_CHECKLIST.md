@@ -101,7 +101,156 @@ Em todas as larguras:
 - [ ] O cenário homologado de oito pacientes cabe em uma página A4.
 - [ ] O modo horizontal da tela não altera indevidamente a impressão.
 
-## 9. Revisão do PR
+## 9. Desfecho
+
+- [ ] Card e drawer apresentam `Desfecho`, sem ação `Excluir` do paciente.
+- [ ] Existem somente Alta médica, Óbito e Transferência externa, preservando
+      os códigos internos homologados.
+- [ ] Abrir, navegar e cancelar não criam escrita de Desfecho.
+- [ ] Os três tipos exigem CID principal em formato estruturado antes de
+      habilitar a confirmação.
+- [ ] Médico responsável é obrigatório e explicitamente confirmado.
+- [ ] `Encerrando atendimento...` permanece visível durante a persistência.
+- [ ] O paciente permanece ativo quando a persistência falha.
+- [ ] Evento privado, projeção administrativa, lápide mínima e retirada do
+      ativo são atômicos e idempotentes no Firebase.
+- [ ] A lápide contém somente identificadores técnicos, tipo, timestamps e
+      `closedByUid`, sem nome, CID, diagnóstico, alertas ou snapshot.
+- [ ] Retry após perda de confirmação não sobrescreve o primeiro registro.
+- [ ] Retry confirmado consulta somente a lápide e não lê nem reescreve o
+      histórico privado.
+- [ ] `actorUid` e `closedByUid` correspondem ao UID Firebase autenticado.
+- [ ] `patientSnapshot` é integralmente idêntico ao paciente autoritativo lido
+      dentro da transação.
+- [ ] Autosave, salvamento manual e reordenação em voo não recriam o paciente
+      encerrado.
+- [ ] O eco local otimista do Firestore não oculta o card antes do ACK.
+- [ ] Histórico local corrompido não é sobrescrito e mantém o paciente ativo.
+- [ ] DIH inválida ou futura produz permanência `null`; mesmo dia produz `1`.
+- [ ] As Rules negam evento, lápide ou exclusão isolados e combinações
+      incompletas.
+- [ ] As Rules impedem update/delete de `patient_outcome` e
+      `patient_closed`.
+- [ ] As Rules impedem recriar o mesmo `patientId` no setor original e nos
+      demais setores conhecidos.
+- [ ] Migração válida e atualizações em lote de pacientes ativos continuam
+      permitidas.
+- [ ] Paciente novo inicia rastreamento v1 com `initial_entry` e timestamp do
+      servidor no mesmo commit de criação.
+- [ ] Migração entre setores cria o fato administrativo e o paciente de
+      destino na mesma transação; nenhuma das partes pode existir isoladamente.
+- [ ] Primeira migração de paciente legado usa `baseline_observation` e não
+      inventa o instante de entrada na origem.
+- [ ] Remanejamento de unidade/leito no mesmo setor preserva
+      `sectorEnteredAt` e não cria fato setorial.
+- [ ] Atualização clínica comum não pode alterar versão, episódio, origem,
+      predecessor ou entrada setorial.
+- [ ] O modal permanece utilizável e sem overflow nas larguras obrigatórias.
+
+## 10. Firestore e Área Administrativa
+
+- [ ] `npm run test:rules` conclui todos os cenários descobertos no Firestore
+      Emulator.
+- [ ] Cliente clínico anônimo pode consultar por `get` uma lápide conhecida,
+      mas não pode listar lápides nem ler/listar `historico_eventos`.
+- [ ] Usuário não-anônimo com `admin_users/<uid>` ativo e papel `admin` lê o
+      histórico.
+- [ ] Usuário não-anônimo com papel `coordinator` ativo lê o histórico.
+- [ ] Perfil ausente, inativo ou com outro papel é negado antes da consulta de
+      pacientes.
+- [ ] Não existe código compartilhado, senha, token ou credencial administrativa
+      no HTML, testes ou documentação.
+- [ ] O login usa e-mail e senha, persistência de sessão e a instância Firebase
+      nomeada `connect-hub-admin`.
+- [ ] Login/logout administrativo não substitui nem encerra a sessão anônima
+      clínica.
+- [ ] O atalho administrativo da tela clínica abre o login real e não revela
+      histórico protegido ou código compartilhado.
+- [ ] Confirmações de transição podem ser criadas e lidas, mas update/delete
+      são negados pelas Rules.
+- [ ] O contrato legado estrito mantém abas antigas funcionais na janela
+      Rules-first e nega campos extras ou timestamp do cliente.
+- [ ] Logout ou perda de autorização limpa pacientes, histórico, gráficos,
+      tabelas e relatórios administrativos.
+- [ ] Falha ou truncamento do histórico invalida relatório anterior e bloqueia
+      geração/exportação incompleta.
+- [ ] Conteúdo persistido é escapado antes de ser inserido no HTML do painel.
+- [ ] A aba Desfechos consulta somente `admin_outcomes` versões 1, 2 ou 3 e
+      `admin_sector_transitions` versão 1, nos tipos homologados.
+- [ ] A projeção versão 3 exige `palliativeAlertPresentAtOutcome` booleano igual à
+      presença do alerta estruturado `Paliativo` no evento privado e no
+      paciente ativo lido antes da exclusão.
+- [ ] Evento e projeção que forjam juntos o alerta em divergência com o
+      paciente ativo são negados.
+- [ ] Projeções legadas permanecem nos totais e conservam cobertura
+      indisponível onde o respectivo campo não existia.
+- [ ] O período padrão cobre 30 dias e os filtros por data, setor,
+      especialidade, tipo, CID e registro paliativo funcionam em conjunto.
+- [ ] Hoje e D-29 entram no período padrão; D-30 fica fora, e intervalo
+      invertido exibe erro sem métricas.
+- [ ] Período, ordenação e auditoria usam exclusivamente `createdAt` do
+      servidor convertido para `America/Sao_Paulo`.
+- [ ] Permanência é recalculada de `admissionDate` até o timestamp do servidor
+      e ignora `lengthOfStayDays` ou datas locais adulteradas.
+- [ ] Hidratar um paciente já Paliativo não cria escrita ou timer recorrente;
+      alterações reais de Paliativo e PaO₂/FiO₂ continuam agendando autosave.
+- [ ] DIH com sufixo, formato incompleto ou data impossível não entra na
+      permanência nem é apresentada como data válida na auditoria.
+- [ ] Total, Altas médicas, Óbitos, Transferências externas, média, mediana e
+      cobertura usam somente os registros filtrados.
+- [ ] Óbitos gerais, com alerta, sem alerta e com registro indisponível
+      respeitam os invariantes `com alerta <= com registro <= óbitos <= total`.
+- [ ] Percentual do alerta usa somente Óbitos com registro disponível;
+      denominador zero
+      apresenta `—`, sem `NaN`, `Infinity` ou percentual artificial.
+- [ ] Distribuição da permanência e tabela por tipo usam a mesma lista válida
+      da média/mediana e mantêm cobertura explícita.
+- [ ] A proporção de Óbitos é rotulada como proporção entre Desfechos e não
+      como mortalidade institucional.
+- [ ] CIDs novos aceitam somente formato estruturado; texto livre ou
+      identificável é negado e valores legados inválidos não entram na
+      cobertura.
+- [ ] O perfil nosológico usa os CIDs principais dos três Desfechos, discrimina
+      Alta médica, Óbito e Transferência externa e não afirma validação contra
+      terminologia oficial.
+- [ ] A permanência setorial usa intervalos `[entrada, saída)` em horas,
+      encerra o último setor no Desfecho e soma retornos ao mesmo setor.
+- [ ] Média, mediana, total de horas e episódios por setor reconciliam com a
+      tabela exata e distinguem cobertura completa, parcial e indisponível.
+- [ ] Cadeia ausente, quebrada, contraditória, negativa ou truncada não produz
+      zero nem duração estimada.
+- [ ] Intervalo válido com entrada e saída no mesmo instante permanece completo
+      e aparece como `0 h`.
+- [ ] Falha/truncamento de `admin_sector_transitions` bloqueia somente a
+      análise setorial e preserva os demais indicadores íntegros.
+- [ ] Consolidações por setor/especialidade exibem cobertura local do alerta;
+      CIDs e auditoria correspondem ao mesmo conjunto filtrado.
+- [ ] Falha total ou parcial de Chart.js preserva KPIs e tabelas exatas e
+      apresenta fallback textual.
+- [ ] Os KPIs do censo atual ficam ocultos na aba histórica de Desfechos e
+      reaparecem nas demais abas.
+- [ ] A auditoria permite rastrear cada linha pelo `outcomeId`.
+- [ ] A auditoria limita a renderização a 50 linhas por página e mantém
+      ordenação, totais e navegação Anterior/Próxima corretos.
+- [ ] A ação Limpar filtros restaura os últimos 30 dias e todas as dimensões.
+- [ ] Estados carregando, pronto, vazio, filtro vazio, negado, erro e truncado
+      não exibem números parciais ou antigos.
+- [ ] Falha na leitura de pacientes ou do histórico encerra o estado de
+      carregamento e apresenta erro.
+- [ ] `patientSnapshot` e eventos privados de Desfecho não são retornados pela
+      consulta da aba; somente a projeção mínima permanece em memória.
+- [ ] O setor legado `uti` participa de consultas, filtros e totais.
+- [ ] Login e painel permanecem acessíveis e sem overflow nas larguras
+      obrigatórias.
+- [ ] Email/Password está habilitado no Firebase Authentication.
+- [ ] A conta institucional foi criada e seu UID foi cadastrado em
+      `admin_users/<uid>` com `active: true` e papel permitido.
+- [ ] O acesso clínico anônimo do site público foi substituído por autenticação
+      nominal ou protegido por barreira institucional comprovada.
+- [ ] `firestore.rules` foi publicado e o smoke test pós-deploy de
+      `docs/FIRESTORE_SECURITY.md` passou antes do merge da aplicação.
+
+## 11. Revisão do PR
 
 - [ ] Diff limitado ao escopo da tarefa.
 - [ ] Nenhum dado real de paciente foi incluído.
@@ -112,7 +261,7 @@ Em todas as larguras:
 - [ ] Documentação e changelog foram atualizados quando necessário.
 - [ ] Existe plano de rollback para mudança publicada.
 
-## 10. Dívida do teste histórico
+## 12. Dívida do teste histórico
 
 O comando `node test_rc128.cjs` foi usado na workspace de homologação, mas
 esse teste ainda não faz parte de uma suíte portátil do repositório: depende

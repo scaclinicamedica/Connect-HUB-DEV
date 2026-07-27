@@ -1,0 +1,1210 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isRealUser() {
+      return isSignedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    function isHistoryAdmin() {
+      return isRealUser()
+        && exists(/databases/$(database)/documents/admin_users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.active == true
+        && get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.role
+          in ['admin', 'coordinator'];
+    }
+
+    function isKnownSector(sectorUnit) {
+      return sectorUnit in [
+        'emergencia',
+        'observacao_sus',
+        'convenio',
+        'enfermaria',
+        'uti',
+        'uti_1',
+        'uti_2'
+      ];
+    }
+
+    function expectedEpisodeId(patientId) {
+      return 'patient_episode_' + patientId;
+    }
+
+    function patientNameValue(data) {
+      return (
+          data.keys().hasAll(['name'])
+          && data.name is string
+        )
+        ? data.name
+        : '';
+    }
+
+    function patientSpecialtyValue(data) {
+      return (
+          data.keys().hasAll(['specialty'])
+          && data.specialty is string
+        )
+        ? data.specialty
+        : '';
+    }
+
+    function patientAdmissionDateValue(data) {
+      return (
+          data.keys().hasAll(['admissionDate'])
+          && data.admissionDate is string
+        )
+        ? data.admissionDate
+        : '';
+    }
+
+    function patientStatusValue(data) {
+      return (
+          data.keys().hasAll(['status'])
+          && data.status is string
+        )
+        ? data.status
+        : '';
+    }
+
+    function patientSeverityValue(data) {
+      return (
+          data.keys().hasAll(['severity'])
+          && data.severity is string
+        )
+        ? data.severity
+        : '';
+    }
+
+    function patientAlertsValue(data) {
+      return (
+          data.keys().hasAll(['alerts'])
+          && data.alerts is list
+        )
+        ? data.alerts
+        : [];
+    }
+
+    function isOutcomeType(outcomeType) {
+      return outcomeType in ['treated', 'death', 'transferred'];
+    }
+
+    function outcomeLabelMatches(outcomeType, outcomeLabel) {
+      return (
+          outcomeType == 'treated'
+          && outcomeLabel == 'Alta médica'
+        )
+        || (
+          outcomeType == 'death'
+          && outcomeLabel == 'Óbito'
+        )
+        || (
+          outcomeType == 'transferred'
+          && outcomeLabel == 'Transferência externa'
+        );
+    }
+
+    function validPrimaryIcdCode(code) {
+      return code is string
+        && code.size() <= 8
+        && code.matches('^[A-Z][0-9]{2}(\\.[A-Z0-9]{1,4})?$');
+    }
+
+    function validOutcomeAdmissionDate(value) {
+      return value is string
+        && (
+          value == ''
+          || value.matches(
+            '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+          )
+        );
+    }
+
+    function patientPath(sectorUnit, patientId) {
+      return /databases/$(database)/documents/connect_hub_v55/$(sectorUnit)/pacientes/$(patientId);
+    }
+
+    function closedPatientPath(sectorUnit, patientId) {
+      return /databases/$(database)/documents/connect_hub_v55/$(sectorUnit)/closed_patients/$(patientId);
+    }
+
+    function outcomePath(outcomeId) {
+      return /databases/$(database)/documents/historico_eventos/$(outcomeId);
+    }
+
+    function adminOutcomePath(outcomeId) {
+      return /databases/$(database)/documents/admin_outcomes/$(outcomeId);
+    }
+
+    function sectorTransitionPath(factId) {
+      return /databases/$(database)/documents/admin_sector_transitions/$(factId);
+    }
+
+    function hasAnyPatientTrackingFields(data) {
+      return data.keys().hasAny([
+        'sectorTrackingVersion',
+        'episodeId',
+        'sectorTrackingOrigin',
+        'lastSectorTransitionFactId',
+        'sectorEnteredAt'
+      ]);
+    }
+
+    function hasAllPatientTrackingFields(data) {
+      return data.keys().hasAll([
+        'sectorTrackingVersion',
+        'episodeId',
+        'sectorTrackingOrigin',
+        'lastSectorTransitionFactId',
+        'sectorEnteredAt'
+      ]);
+    }
+
+    function hasNoPatientTrackingFields(data) {
+      return !hasAnyPatientTrackingFields(data);
+    }
+
+    function isTrackingOrigin(value) {
+      return value in ['initial_entry', 'baseline_observation'];
+    }
+
+    function validTrackedPatient(data) {
+      return hasAllPatientTrackingFields(data)
+        && data.sectorTrackingVersion == 1
+        && data.episodeId is string
+        && data.episodeId.size() > 0
+        && data.episodeId.size() <= 512
+        && isTrackingOrigin(data.sectorTrackingOrigin)
+        && data.lastSectorTransitionFactId is string
+        && data.lastSectorTransitionFactId.size() <= 512
+        && data.sectorEnteredAt is timestamp;
+    }
+
+    function validInitialPatientCreate(data, patientId) {
+      return validTrackedPatient(data)
+        && data.keys().hasAll(['id'])
+        && data.id == patientId
+        && data.episodeId == expectedEpisodeId(patientId)
+        && data.sectorTrackingOrigin == 'initial_entry'
+        && data.lastSectorTransitionFactId == ''
+        && data.sectorEnteredAt == request.time;
+    }
+
+    function validRegularPatientUpdate(before, after, patientId) {
+      return before.keys().hasAll(['id'])
+        && after.keys().hasAll(['id'])
+        && before.id == patientId
+        && after.id == patientId
+        && (
+          (
+            validTrackedPatient(before)
+            && validTrackedPatient(after)
+            && after.sectorTrackingVersion == before.sectorTrackingVersion
+            && after.episodeId == before.episodeId
+            && after.sectorTrackingOrigin == before.sectorTrackingOrigin
+            && after.lastSectorTransitionFactId
+              == before.lastSectorTransitionFactId
+            && after.sectorEnteredAt == before.sectorEnteredAt
+          )
+          || (
+            hasNoPatientTrackingFields(before)
+            && hasNoPatientTrackingFields(after)
+          )
+        );
+    }
+
+    function outcomeTrackingMatchesActivePatient(outcome, activePath) {
+      let patient = get(activePath).data;
+      return (
+          validTrackedPatient(patient)
+          && {
+            'sectorTrackingVersion': outcome.sectorTrackingVersion,
+            'episodeId': outcome.episodeId,
+            'sectorTrackingOrigin': outcome.sectorTrackingOrigin,
+            'lastSectorTransitionFactId':
+              outcome.lastSectorTransitionFactId,
+            'sectorEnteredAt': outcome.sectorEnteredAt
+          } == {
+            'sectorTrackingVersion': patient.sectorTrackingVersion,
+            'episodeId': patient.episodeId,
+            'sectorTrackingOrigin': patient.sectorTrackingOrigin,
+            'lastSectorTransitionFactId':
+              patient.lastSectorTransitionFactId,
+            'sectorEnteredAt': patient.sectorEnteredAt
+          }
+        )
+        || (
+          hasNoPatientTrackingFields(patient)
+          && {
+            'sectorTrackingVersion': outcome.sectorTrackingVersion,
+            'episodeId': outcome.episodeId,
+            'sectorTrackingOrigin': outcome.sectorTrackingOrigin,
+            'lastSectorTransitionFactId':
+              outcome.lastSectorTransitionFactId,
+            'sectorEnteredAt': outcome.sectorEnteredAt
+          } == {
+            'sectorTrackingVersion': 0,
+            'episodeId': '',
+            'sectorTrackingOrigin': '',
+            'lastSectorTransitionFactId': '',
+            'sectorEnteredAt': null
+          }
+        );
+    }
+
+    function patientOutcomeDimensions(data) {
+      return {
+        'patientId': data.id,
+        'patientName': patientNameValue(data),
+        'specialty': patientSpecialtyValue(data),
+        'admissionDate': patientAdmissionDateValue(data),
+        'unit': patientLocationUnit(data),
+        'bed': patientLocationBed(data),
+        'status': patientStatusValue(data),
+        'severity': patientSeverityValue(data),
+        'alerts': patientAlertsValue(data)
+      };
+    }
+
+    function outcomeDimensions(outcome) {
+      return {
+        'patientId': outcome.patientId,
+        'patientName': outcome.patientName,
+        'specialty': outcome.specialty,
+        'admissionDate': outcome.admissionDate,
+        'unit': outcome.unit,
+        'bed': outcome.bed,
+        'status': outcome.status,
+        'severity': outcome.severity,
+        'alerts': outcome.alerts
+      };
+    }
+
+    function outcomeEssentialFieldsMatchActivePatient(outcome, activePath) {
+      let patient = get(activePath).data;
+      let patientDimensions = patientOutcomeDimensions(patient);
+      return patient.keys().hasAll(['id'])
+        && patient.id == outcome.patientId
+        && outcome.patientSnapshot == patient
+        && outcomeDimensions(outcome) == patientDimensions;
+    }
+
+    function validClosedPatient(data, sectorUnit, patientId) {
+      return data.outcomeId is string
+        && data.outcomeId.size() > 0
+        && data.outcomeId.size() <= 512
+        && isOutcomeType(data.outcomeType)
+        && data == {
+          'schemaVersion': 1,
+          'type': 'patient_closed',
+          'patientId': patientId,
+          'sectorUnit': sectorUnit,
+          'outcomeId': data.outcomeId,
+          'outcomeType': data.outcomeType,
+          'closedAt': request.time,
+          'closedByUid': request.auth.uid
+        };
+    }
+
+    function validOutcome(data, outcomeId) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'sourceVersion',
+          'outcomeId',
+          'type',
+          'outcomeType',
+          'outcomeLabel',
+          'createdAt',
+          'createdAtLocal',
+          'dateLocal',
+          'patientId',
+          'patientName',
+          'sectorUnit',
+          'sectorName',
+          'unit',
+          'bed',
+          'specialty',
+          'admissionDate',
+          'lengthOfStayDays',
+          'lengthOfStayMethod',
+          'responsibleDoctor',
+          'actor',
+          'actorUid',
+          'primaryIcdCode',
+          'sectorTrackingVersion',
+          'episodeId',
+          'sectorTrackingOrigin',
+          'lastSectorTransitionFactId',
+          'sectorEnteredAt',
+          'status',
+          'severity',
+          'alerts',
+          'patientSnapshot'
+        ])
+        && data.schemaVersion == 2
+        && data.sourceVersion is string
+        && data.sourceVersion.size() > 0
+        && data.outcomeId == outcomeId
+        && outcomeId.matches(
+          '^patient_outcome_' + data.sectorUnit + '_.*'
+        )
+        && data.type == 'patient_outcome'
+        && isOutcomeType(data.outcomeType)
+        && outcomeLabelMatches(data.outcomeType, data.outcomeLabel)
+        && data.createdAt == request.time
+        && data.createdAtLocal is string
+        && data.createdAtLocal.size() > 0
+        && data.dateLocal.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.patientId is string
+        && data.patientId.size() > 0
+        && data.patientName.size() > 0
+        && isKnownSector(data.sectorUnit)
+        && sectorNameMatches(data.sectorUnit, data.sectorName)
+        && validOutcomeAdmissionDate(data.admissionDate)
+        && (
+          data.lengthOfStayDays == null
+          || (
+            data.lengthOfStayDays is int
+            && data.lengthOfStayDays >= 1
+          )
+        )
+        && data.lengthOfStayMethod == 'inclusive_calendar_days'
+        && data.responsibleDoctor.matches('.*\\S.*')
+        && data.actor == data.responsibleDoctor
+        && data.actorUid == request.auth.uid
+        && validPrimaryIcdCode(data.primaryIcdCode)
+        && data.patientSnapshot is map;
+    }
+
+    function markerMatchesOutcome(marker, outcome) {
+      return marker.outcomeId == outcome.outcomeId
+        && marker.patientId == outcome.patientId
+        && marker.sectorUnit == outcome.sectorUnit
+        && marker.outcomeType == outcome.outcomeType
+        && marker.closedByUid == outcome.actorUid;
+    }
+
+    function adminProjectionMatchesOutcome(projection, outcome) {
+      return outcome.schemaVersion == 2
+        && projection == {
+          'schemaVersion': 3,
+          'sourceVersion': outcome.sourceVersion,
+          'type': 'patient_outcome_admin',
+          'outcomeId': outcome.outcomeId,
+          'outcomeType': outcome.outcomeType,
+          'outcomeLabel': outcome.outcomeLabel,
+          'createdAt': outcome.createdAt,
+          'patientId': outcome.patientId,
+          'patientName': outcome.patientName,
+          'sectorUnit': outcome.sectorUnit,
+          'sectorName': outcome.sectorName,
+          'unit': outcome.unit,
+          'bed': outcome.bed,
+          'specialty': outcome.specialty,
+          'admissionDate': outcome.admissionDate,
+          'lengthOfStayDays': outcome.lengthOfStayDays,
+          'lengthOfStayMethod': outcome.lengthOfStayMethod,
+          'responsibleDoctor': outcome.responsibleDoctor,
+          'primaryIcdCode': outcome.primaryIcdCode,
+          'palliativeAlertPresentAtOutcome':
+            outcome.alerts.hasAny(['Paliativo']),
+          'sectorTrackingVersion': outcome.sectorTrackingVersion,
+          'episodeId': outcome.episodeId,
+          'sectorTrackingOrigin': outcome.sectorTrackingOrigin,
+          'lastSectorTransitionFactId':
+            outcome.lastSectorTransitionFactId,
+          'sectorEnteredAt': outcome.sectorEnteredAt,
+          'actorUid': outcome.actorUid
+        };
+    }
+
+    function isAtomicOutcomeCreate(outcomeId) {
+      let outcome = request.resource.data;
+      let activePath = patientPath(outcome.sectorUnit, outcome.patientId);
+      let markerPath = closedPatientPath(outcome.sectorUnit, outcome.patientId);
+      let projectionPath = adminOutcomePath(outcomeId);
+      return isSignedIn()
+        && validOutcome(outcome, outcomeId)
+        && exists(activePath)
+        && outcomeEssentialFieldsMatchActivePatient(
+          outcome,
+          activePath
+        )
+        && outcomeTrackingMatchesActivePatient(outcome, activePath)
+        && !existsAfter(activePath)
+        && !exists(markerPath)
+        && existsAfter(markerPath)
+        && !exists(projectionPath)
+        && existsAfter(projectionPath);
+    }
+
+    function isAtomicClosedPatientCreate(sectorUnit, patientId) {
+      let marker = request.resource.data;
+      let historyPath = outcomePath(marker.outcomeId);
+      return isSignedIn()
+        && isKnownSector(sectorUnit)
+        && validClosedPatient(marker, sectorUnit, patientId)
+        && !exists(historyPath)
+        && existsAfter(historyPath)
+        && markerMatchesOutcome(marker, getAfter(historyPath).data);
+    }
+
+    function isAtomicAdminOutcomeCreate(outcomeId) {
+      let projection = request.resource.data;
+      let historyPath = outcomePath(outcomeId);
+      return isSignedIn()
+        && !exists(historyPath)
+        && existsAfter(historyPath)
+        && adminProjectionMatchesOutcome(
+          projection,
+          getAfter(historyPath).data
+        );
+    }
+
+    function isAtomicOutcomePatientDelete(sectorUnit, patientId) {
+      let markerPath = closedPatientPath(sectorUnit, patientId);
+      return !exists(markerPath)
+        && existsAfter(markerPath)
+        && getAfter(markerPath).data.type == 'patient_closed'
+        && getAfter(markerPath).data.patientId == patientId
+        && getAfter(markerPath).data.sectorUnit == sectorUnit;
+    }
+
+    function validConfirmation(data, sectorUnit) {
+      return data.keys().hasAll([
+          'schemaVersion',
+          'type',
+          'sectorUnit',
+          'actorUid',
+          'createdAt',
+          'createdAtLocal',
+          'handoverDate',
+          'shift',
+          'currentDoctor',
+          'currentDoctor2',
+          'receiverDoctor',
+          'receiverDoctor2',
+          'wardAssist1R1',
+          'wardAssist2R1',
+          'wardGlobalR2',
+          'wardR2Chief',
+          'obsDoctor1',
+          'obsDoctor2',
+          'obsDoctorNight',
+          'sector',
+          'receiverSummary',
+          'handoverDoctorsText',
+          'transitionText',
+          'confirmedAtText',
+          'totalPatients',
+          'criticalPatients',
+          'severityMetricLabel',
+          'statusMetricLabel',
+          'waitingIcuPatients',
+          'statusMetricPatients',
+          'dischargeTodayPatients',
+          'pendingPatients',
+          'patientsSnapshot'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion',
+          'type',
+          'sectorUnit',
+          'actorUid',
+          'createdAt',
+          'createdAtLocal',
+          'handoverDate',
+          'shift',
+          'currentDoctor',
+          'currentDoctor2',
+          'receiverDoctor',
+          'receiverDoctor2',
+          'wardAssist1R1',
+          'wardAssist2R1',
+          'wardGlobalR2',
+          'wardR2Chief',
+          'obsDoctor1',
+          'obsDoctor2',
+          'obsDoctorNight',
+          'sector',
+          'receiverSummary',
+          'handoverDoctorsText',
+          'transitionText',
+          'confirmedAtText',
+          'totalPatients',
+          'criticalPatients',
+          'severityMetricLabel',
+          'statusMetricLabel',
+          'waitingIcuPatients',
+          'statusMetricPatients',
+          'dischargeTodayPatients',
+          'pendingPatients',
+          'patientsSnapshot'
+        ])
+        && data.schemaVersion == 1
+        && data.type == 'handover_confirmation'
+        && data.sectorUnit == sectorUnit
+        && data.actorUid == request.auth.uid
+        && data.createdAt == request.time
+        && data.createdAtLocal is string
+        && data.handoverDate is string
+        && data.shift is string
+        && data.currentDoctor is string
+        && data.currentDoctor2 is string
+        && data.receiverDoctor is string
+        && data.receiverDoctor2 is string
+        && data.wardAssist1R1 is string
+        && data.wardAssist2R1 is string
+        && data.wardGlobalR2 is string
+        && data.wardR2Chief is string
+        && data.obsDoctor1 is string
+        && data.obsDoctor2 is string
+        && data.obsDoctorNight is string
+        && data.sector is string
+        && data.receiverSummary is string
+        && data.handoverDoctorsText is string
+        && data.transitionText is string
+        && data.confirmedAtText is string
+        && data.totalPatients is int
+        && data.totalPatients >= 0
+        && data.criticalPatients is int
+        && data.criticalPatients >= 0
+        && data.severityMetricLabel is string
+        && data.statusMetricLabel is string
+        && data.waitingIcuPatients is int
+        && data.waitingIcuPatients >= 0
+        && data.statusMetricPatients is int
+        && data.statusMetricPatients >= 0
+        && data.dischargeTodayPatients is int
+        && data.dischargeTodayPatients >= 0
+        && data.pendingPatients is int
+        && data.pendingPatients >= 0
+        && data.patientsSnapshot is list;
+    }
+
+    function validLegacyConfirmation(data) {
+      return isSignedIn()
+        && data.keys().hasAll([
+          'createdAt',
+          'createdAtLocal',
+          'handoverDate',
+          'shift',
+          'currentDoctor',
+          'currentDoctor2',
+          'receiverDoctor',
+          'receiverDoctor2',
+          'wardAssist1R1',
+          'wardAssist2R1',
+          'wardGlobalR2',
+          'wardR2Chief',
+          'obsDoctor1',
+          'obsDoctor2',
+          'obsDoctorNight',
+          'sector',
+          'receiverSummary',
+          'handoverDoctorsText',
+          'transitionText',
+          'confirmedAtText',
+          'totalPatients',
+          'criticalPatients',
+          'severityMetricLabel',
+          'statusMetricLabel',
+          'waitingIcuPatients',
+          'statusMetricPatients',
+          'dischargeTodayPatients',
+          'pendingPatients',
+          'patientsSnapshot'
+        ])
+        && data.keys().hasOnly([
+          'createdAt',
+          'createdAtLocal',
+          'handoverDate',
+          'shift',
+          'currentDoctor',
+          'currentDoctor2',
+          'receiverDoctor',
+          'receiverDoctor2',
+          'wardAssist1R1',
+          'wardAssist2R1',
+          'wardGlobalR2',
+          'wardR2Chief',
+          'obsDoctor1',
+          'obsDoctor2',
+          'obsDoctorNight',
+          'sector',
+          'receiverSummary',
+          'handoverDoctorsText',
+          'transitionText',
+          'confirmedAtText',
+          'totalPatients',
+          'criticalPatients',
+          'severityMetricLabel',
+          'statusMetricLabel',
+          'waitingIcuPatients',
+          'statusMetricPatients',
+          'dischargeTodayPatients',
+          'pendingPatients',
+          'patientsSnapshot'
+        ])
+        && data.createdAt == request.time
+        && data.createdAtLocal is string
+        && data.handoverDate is string
+        && data.shift is string
+        && data.currentDoctor is string
+        && data.currentDoctor2 is string
+        && data.receiverDoctor is string
+        && data.receiverDoctor2 is string
+        && data.wardAssist1R1 is string
+        && data.wardAssist2R1 is string
+        && data.wardGlobalR2 is string
+        && data.wardR2Chief is string
+        && data.obsDoctor1 is string
+        && data.obsDoctor2 is string
+        && data.obsDoctorNight is string
+        && data.sector is string
+        && data.receiverSummary is string
+        && data.handoverDoctorsText is string
+        && data.transitionText is string
+        && data.confirmedAtText is string
+        && data.totalPatients is int
+        && data.totalPatients >= 0
+        && data.criticalPatients is int
+        && data.criticalPatients >= 0
+        && data.severityMetricLabel is string
+        && data.statusMetricLabel is string
+        && data.waitingIcuPatients is int
+        && data.waitingIcuPatients >= 0
+        && data.statusMetricPatients is int
+        && data.statusMetricPatients >= 0
+        && data.dischargeTodayPatients is int
+        && data.dischargeTodayPatients >= 0
+        && data.pendingPatients is int
+        && data.pendingPatients >= 0
+        && data.patientsSnapshot is list;
+    }
+
+    function isValidMigrationPair(sourceSector, targetSector) {
+      return (
+          sourceSector == 'observacao_sus'
+          && targetSector in ['emergencia', 'enfermaria']
+        )
+        || (
+          sourceSector == 'emergencia'
+          && targetSector in ['uti_1', 'uti_2', 'observacao_sus', 'enfermaria']
+        )
+        || (
+          sourceSector == 'enfermaria'
+          && targetSector in ['uti_1', 'uti_2', 'emergencia', 'convenio']
+        )
+        || (
+          sourceSector == 'convenio'
+          && targetSector in ['emergencia', 'enfermaria', 'uti_1', 'uti_2']
+        )
+        || (
+          sourceSector in ['uti', 'uti_1', 'uti_2']
+          && targetSector == 'enfermaria'
+        );
+    }
+
+    function sectorNameMatches(sectorUnit, sectorName) {
+      return (
+          sectorUnit == 'emergencia'
+          && sectorName == 'Emergência'
+        )
+        || (
+          sectorUnit == 'observacao_sus'
+          && sectorName == 'Observação SUS'
+        )
+        || (
+          sectorUnit == 'convenio'
+          && sectorName == 'Convênio'
+        )
+        || (
+          sectorUnit == 'enfermaria'
+          && sectorName == 'Enfermaria'
+        )
+        || (
+          sectorUnit == 'uti'
+          && sectorName == 'UTI'
+        )
+        || (
+          sectorUnit == 'uti_1'
+          && sectorName == 'UTI 1'
+        )
+        || (
+          sectorUnit == 'uti_2'
+          && sectorName == 'UTI 2'
+        );
+    }
+
+    function patientLocationUnit(data) {
+      return (
+          data.keys().hasAll(['inpatientUnit'])
+          && data.inpatientUnit is string
+          && data.inpatientUnit.size() > 0
+        )
+        ? data.inpatientUnit
+        : (
+            data.keys().hasAll(['wardUnit'])
+            && data.wardUnit is string
+            && data.wardUnit.size() > 0
+          )
+          ? data.wardUnit
+          : (
+              data.keys().hasAll(['unit'])
+              && data.unit is string
+              && data.unit.size() > 0
+            )
+            ? data.unit
+            : (
+                data.keys().hasAll(['obsLocation'])
+                && data.obsLocation is string
+              )
+              ? data.obsLocation
+              : '';
+    }
+
+    function patientLocationBed(data) {
+      return (
+          data.keys().hasAll(['bed'])
+          && data.bed is string
+        )
+        ? data.bed
+        : '';
+    }
+
+    function validTransitionLocation(location) {
+      return location is map
+        && location.keys().hasOnly([
+          'catalogVersion',
+          'canonicalSectorId',
+          'sectorUnit',
+          'sectorName',
+          'unit',
+          'bed'
+        ])
+        && location.catalogVersion == 1
+        && location.canonicalSectorId is string
+        && location.canonicalSectorId == location.sectorUnit
+        && isKnownSector(location.sectorUnit)
+        && sectorNameMatches(location.sectorUnit, location.sectorName)
+        && location.unit is string
+        && location.bed is string;
+    }
+
+    function transitionLocationMatchesPatient(location, sectorUnit, patient) {
+      return validTransitionLocation(location)
+        && location.sectorUnit == sectorUnit
+        && location.unit == patientLocationUnit(patient)
+        && location.bed == patientLocationBed(patient);
+    }
+
+    function movementClassificationMatches(
+      movementClassification,
+      sourceSector,
+      targetSector
+    ) {
+      return (
+          sourceSector in ['enfermaria', 'convenio']
+          && targetSector == 'emergencia'
+          && movementClassification == 'counterflow_transfer'
+        )
+        || (
+          !(
+            sourceSector in ['enfermaria', 'convenio']
+            && targetSector == 'emergencia'
+          )
+          && movementClassification == 'sector_transfer'
+        );
+    }
+
+    function validSectorTransitionFact(data, factId) {
+      return data.keys().hasOnly([
+          'schemaVersion',
+          'sourceVersion',
+          'type',
+          'factId',
+          'episodeId',
+          'patientId',
+          'occurredAt',
+          'actorUid',
+          'predecessorFactId',
+          'movementClassification',
+          'trackingOrigin',
+          'originEnteredAt',
+          'origin',
+          'destination'
+        ])
+        && data.schemaVersion == 1
+        && data.sourceVersion
+          == 'FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS'
+        && data.type == 'patient_sector_transition_admin'
+        && data.factId == factId
+        && data.factId.size() > 0
+        && data.factId.size() <= 512
+        && data.patientId.size() > 0
+        && data.occurredAt == request.time
+        && data.actorUid == request.auth.uid
+        && isValidMigrationPair(
+          data.origin.sectorUnit,
+          data.destination.sectorUnit
+        )
+        && movementClassificationMatches(
+          data.movementClassification,
+          data.origin.sectorUnit,
+          data.destination.sectorUnit
+        );
+    }
+
+    function transitionTrackingMatchesSource(fact, source) {
+      return (
+          validTrackedPatient(source)
+          && {
+            'episodeId': fact.episodeId,
+            'predecessorFactId': fact.predecessorFactId,
+            'trackingOrigin': fact.trackingOrigin,
+            'originEnteredAt': fact.originEnteredAt
+          } == {
+            'episodeId': source.episodeId,
+            'predecessorFactId': source.lastSectorTransitionFactId,
+            'trackingOrigin': source.sectorTrackingOrigin,
+            'originEnteredAt': source.sectorEnteredAt
+          }
+        )
+        || (
+          hasNoPatientTrackingFields(source)
+          && {
+            'episodeId': fact.episodeId,
+            'predecessorFactId': fact.predecessorFactId,
+            'trackingOrigin': fact.trackingOrigin,
+            'originEnteredAt': fact.originEnteredAt
+          } == {
+            'episodeId': expectedEpisodeId(fact.patientId),
+            'predecessorFactId': '',
+            'trackingOrigin': 'baseline_observation',
+            'originEnteredAt': null
+          }
+        );
+    }
+
+    function transitionTargetMatchesFact(fact, factId, target) {
+      return target.keys().hasAll(['id', 'migratedFrom', 'migratedTo'])
+        && target.id == fact.patientId
+        && target.migratedFrom == fact.origin.sectorUnit
+        && target.migratedTo == fact.destination.sectorUnit
+        && validTrackedPatient(target)
+        && {
+          'episodeId': target.episodeId,
+          'sectorTrackingOrigin': target.sectorTrackingOrigin,
+          'lastSectorTransitionFactId':
+            target.lastSectorTransitionFactId,
+          'sectorEnteredAt': target.sectorEnteredAt
+        } == {
+          'episodeId': fact.episodeId,
+          'sectorTrackingOrigin': fact.trackingOrigin,
+          'lastSectorTransitionFactId': factId,
+          'sectorEnteredAt': request.time
+        }
+        && transitionLocationMatchesPatient(
+          fact.destination,
+          fact.destination.sectorUnit,
+          target
+        );
+    }
+
+    function isAtomicSectorTransition(fact, factId) {
+      let sourcePath = patientPath(
+        fact.origin.sectorUnit,
+        fact.patientId
+      );
+      let targetPath = patientPath(
+        fact.destination.sectorUnit,
+        fact.patientId
+      );
+      return isSignedIn()
+        && validSectorTransitionFact(fact, factId)
+        && exists(sourcePath)
+        && get(sourcePath).data.id == fact.patientId
+        && !existsAfter(sourcePath)
+        && !exists(targetPath)
+        && existsAfter(targetPath)
+        && transitionLocationMatchesPatient(
+          fact.origin,
+          fact.origin.sectorUnit,
+          get(sourcePath).data
+        )
+        && transitionTrackingMatchesSource(
+          fact,
+          get(sourcePath).data
+        )
+        && transitionTargetMatchesFact(
+          fact,
+          factId,
+          getAfter(targetPath).data
+        );
+    }
+
+    function migrationFactBindsDocument(
+      fact,
+      factId,
+      patientId,
+      sourceSector,
+      targetSector
+    ) {
+      return fact.factId == factId
+        && fact.patientId == patientId
+        && fact.origin.sectorUnit == sourceSector
+        && fact.destination.sectorUnit == targetSector;
+    }
+
+    function migrationDestinationMatchesSource(
+      sourceSector,
+      targetSector,
+      patientId,
+      target
+    ) {
+      return target.id == patientId
+        && target.migratedFrom == sourceSector
+        && target.migratedTo == targetSector;
+    }
+
+    function isMigrationDestinationAfter(sourceSector, targetSector, patientId) {
+      let targetPath = patientPath(targetSector, patientId);
+      return !exists(targetPath)
+        && existsAfter(targetPath)
+        && migrationDestinationMatchesSource(
+          sourceSector,
+          targetSector,
+          patientId,
+          getAfter(targetPath).data
+        );
+    }
+
+    function isValidMigrationDelete(sourceSector, patientId) {
+      return (
+          sourceSector == 'observacao_sus'
+          && (
+            isMigrationDestinationAfter(
+              sourceSector,
+              'emergencia',
+              patientId
+            )
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'enfermaria',
+              patientId
+            )
+          )
+        )
+        || (
+          sourceSector == 'emergencia'
+          && (
+            isMigrationDestinationAfter(sourceSector, 'uti_1', patientId)
+            || isMigrationDestinationAfter(sourceSector, 'uti_2', patientId)
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'observacao_sus',
+              patientId
+            )
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'enfermaria',
+              patientId
+            )
+          )
+        )
+        || (
+          sourceSector == 'enfermaria'
+          && (
+            isMigrationDestinationAfter(sourceSector, 'uti_1', patientId)
+            || isMigrationDestinationAfter(sourceSector, 'uti_2', patientId)
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'emergencia',
+              patientId
+            )
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'convenio',
+              patientId
+            )
+          )
+        )
+        || (
+          sourceSector == 'convenio'
+          && (
+            isMigrationDestinationAfter(
+              sourceSector,
+              'emergencia',
+              patientId
+            )
+            || isMigrationDestinationAfter(
+              sourceSector,
+              'enfermaria',
+              patientId
+            )
+            || isMigrationDestinationAfter(sourceSector, 'uti_1', patientId)
+            || isMigrationDestinationAfter(sourceSector, 'uti_2', patientId)
+          )
+        )
+        || (
+          sourceSector in ['uti', 'uti_1', 'uti_2']
+          && isMigrationDestinationAfter(
+            sourceSector,
+            'enfermaria',
+            patientId
+          )
+        );
+    }
+
+    function hasMigrationFields(data) {
+      return data.keys().hasAny(['migratedFrom', 'migratedTo']);
+    }
+
+    function isValidMigrationCreate(targetSector, patientId) {
+      let sourceSector = request.resource.data.migratedFrom;
+      let factId = request.resource.data.lastSectorTransitionFactId;
+      let factPath = sectorTransitionPath(factId);
+      return request.resource.data.id == patientId
+        && request.resource.data.migratedTo == targetSector
+        && !existsAfter(closedPatientPath(sourceSector, patientId))
+        && !existsAfter(closedPatientPath(targetSector, patientId))
+        && factId.size() > 0
+        && !exists(factPath)
+        && existsAfter(factPath)
+        && migrationFactBindsDocument(
+          getAfter(factPath).data,
+          factId,
+          patientId,
+          sourceSector,
+          targetSector
+        );
+    }
+
+    function hasNoClosedMarkerAfter(patientId) {
+      // A V1 cria um paciente por operação. No create, consultar todos os
+      // setores impede reutilizar o mesmo identificador após um Desfecho.
+      return !existsAfter(closedPatientPath('emergencia', patientId))
+        && !existsAfter(closedPatientPath('observacao_sus', patientId))
+        && !existsAfter(closedPatientPath('convenio', patientId))
+        && !existsAfter(closedPatientPath('enfermaria', patientId))
+        && !existsAfter(closedPatientPath('uti', patientId))
+        && !existsAfter(closedPatientPath('uti_1', patientId))
+        && !existsAfter(closedPatientPath('uti_2', patientId));
+    }
+
+    function isLegacyHistoryCreate(historyId) {
+      let data = request.resource.data;
+      return isSignedIn()
+        && !historyId.matches('^patient_outcome_.*')
+        && data.keys().hasAll([
+          'type',
+          'createdAt',
+          'createdAtLocal',
+          'patientId',
+          'sectorUnit'
+        ])
+        && data.type in [
+          'patient_created',
+          'patient_updated',
+          'sector_migration',
+          'bed_reassignment',
+          'counterflow'
+        ]
+        && data.createdAt == request.time
+        && data.createdAtLocal is string
+        && data.patientId is string
+        && data.patientId.size() > 0
+        && isKnownSector(data.sectorUnit);
+    }
+
+    match /admin_users/{uid} {
+      allow get: if isRealUser() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    match /historico_eventos/{outcomeId} {
+      allow get, list: if isHistoryAdmin();
+      allow create: if isAtomicOutcomeCreate(outcomeId)
+        || isLegacyHistoryCreate(outcomeId);
+      allow update, delete: if false;
+    }
+
+    match /admin_outcomes/{outcomeId} {
+      allow get, list: if isHistoryAdmin();
+      allow create: if isAtomicAdminOutcomeCreate(outcomeId);
+      allow update, delete: if false;
+    }
+
+    match /admin_sector_transitions/{factId} {
+      allow get, list: if isHistoryAdmin();
+      allow create: if isAtomicSectorTransition(
+        request.resource.data,
+        factId
+      );
+      allow update, delete: if false;
+    }
+
+    match /connect_hub_v55/{sectorUnit}/closed_patients/{patientId} {
+      allow get: if isSignedIn();
+      allow list: if isHistoryAdmin();
+      allow create: if isAtomicClosedPatientCreate(sectorUnit, patientId);
+      allow update, delete: if false;
+    }
+
+    match /connect_hub_v55/{sectorUnit}/pacientes/{patientId} {
+      allow get, list: if isSignedIn() && isKnownSector(sectorUnit);
+
+      allow create: if isSignedIn()
+        && isKnownSector(sectorUnit)
+        && (
+          (
+            !hasMigrationFields(request.resource.data)
+            && hasNoClosedMarkerAfter(patientId)
+            && validInitialPatientCreate(
+              request.resource.data,
+              patientId
+            )
+          )
+          || (
+            hasMigrationFields(request.resource.data)
+            && isValidMigrationCreate(sectorUnit, patientId)
+          )
+        );
+
+      allow update: if isSignedIn()
+        && isKnownSector(sectorUnit)
+        && validRegularPatientUpdate(
+          resource.data,
+          request.resource.data,
+          patientId
+        );
+
+      allow delete: if isSignedIn()
+        && isKnownSector(sectorUnit)
+        && (
+          isAtomicOutcomePatientDelete(sectorUnit, patientId)
+          || isValidMigrationDelete(sectorUnit, patientId)
+        );
+    }
+
+    match /connect_hub_v55/{sectorUnit}/meta/{documentId} {
+      allow read, write: if isSignedIn() && isKnownSector(sectorUnit);
+    }
+
+    match /connect_hub_v55/{sectorUnit}/confirmacoes/{documentId} {
+      allow read: if isSignedIn() && isKnownSector(sectorUnit);
+      allow create: if isSignedIn()
+        && isKnownSector(sectorUnit)
+        && (
+          validConfirmation(request.resource.data, sectorUnit)
+          || validLegacyConfirmation(request.resource.data)
+        );
+      allow update, delete: if false;
+    }
+  }
+}

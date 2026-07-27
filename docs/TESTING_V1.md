@@ -6,15 +6,18 @@ ou navegador instalado manualmente.
 
 Todos os pacientes usados nos testes são explicitamente fictícios. Não copie
 informações de prontuário para fixtures, traces, screenshots ou PDFs.
+Datas de previsão usadas para exercitar pacientes não atrasados devem ser
+determinísticas e permanecer no futuro, sem depender da data de execução.
 
 A identificação funcional atualmente caracterizada é
-`FOUNDATION-1.0-RC1.2.10-RESPONSIVE-BOUNDARY-FIX`.
+`FOUNDATION-1.0-RC1.3.3-OUTCOME-NOSOLOGY-SECTOR-LOS`.
 
 ## Pré-requisitos
 
 - Node.js 22, 24 ou 26.
 - npm.
 - Git disponível no `PATH` para a verificação de integridade.
+- Java 21 ou superior para o Firestore Emulator usado pelas Rules.
 
 ## Instalação
 
@@ -55,6 +58,38 @@ Integridade do artefato clínico:
 npm run verify:integrity
 ```
 
+Firestore Rules no Emulator:
+
+```bash
+npm run test:rules
+```
+
+Autenticação e autorização da Área Administrativa em 1180 px:
+
+```bash
+npx playwright test tests/e2e/admin-auth.spec.ts \
+  --project=functional-1180
+```
+
+Matriz responsiva do acesso administrativo:
+
+```bash
+npx playwright test tests/e2e/admin-auth.matrix.spec.ts
+```
+
+Indicadores administrativos de Desfecho em 1180 px:
+
+```bash
+npx playwright test tests/e2e/admin-outcomes.spec.ts \
+  --project=functional-1180
+```
+
+Matriz responsiva da aba Desfechos:
+
+```bash
+npx playwright test tests/e2e/admin-outcomes.matrix.spec.ts
+```
+
 ## Cobertura fortalecida na RC1.2.9
 
 - persistência intermediária das decisões e dos precipitantes de Arritmias;
@@ -69,11 +104,166 @@ npm run verify:integrity
 A configuração global e os cenários de estabilidade permanecem com
 `retries: 0`.
 
+## Cobertura de Desfecho na RC1.3.3
+
+- substituição da ação Excluir por Desfecho no card e no drawer;
+- ausência de escrita ao abrir ou cancelar;
+- enumeração fechada Alta médica, Óbito e Transferência externa, com códigos
+  persistidos compatíveis;
+- CID principal obrigatório e validado nos três tipos;
+- persistência do médico responsável, setor, especialidade, DIH e permanência;
+- preservação integral do snapshot clínico autoritativo lido dentro da
+  transação;
+- transação condicional, atômica e idempotente entre evento privado, lápide
+  mínima e retirada do paciente ativo;
+- estado `Encerrando atendimento...` enquanto o commit está pendente;
+- falha atômica mantendo o paciente e permitindo retry;
+- retry após perda de confirmação sem sobrescrever o registro imutável;
+- atualização concorrente mantendo campos administrativos e snapshot
+  consistentes entre si;
+- coordenação com autosave, salvamento manual e reordenação em voo sem
+  recriação tardia;
+- confirmação do alerta `Paliativo` pendente antes de liberar o modal;
+- hidratação de paciente já Paliativo sem escrita ou timer recorrente, mantendo
+  autosave em alterações reais;
+- preservação visual durante o eco local otimista do Firestore;
+- datas de permanência inválidas, futuras e no mesmo dia;
+- falha fechada quando o histórico local está corrompido;
+- limpeza de dados TEV desmarcados no snapshot do drawer;
+- modal sem overflow na matriz responsiva.
+- criação inicial do envelope setorial v1 com timestamp do servidor;
+- Desfecho legado com cobertura setorial indisponível, sem timestamp
+  retroativo;
+- migração de legado iniciando observação parcial e migração rastreada
+  preservando a cadeia;
+- remanejamento interno sem reiniciar o relógio setorial.
+
+## Cobertura de segurança do Desfecho
+
+`npm run test:rules` executa todos os cenários descobertos contra o Firestore
+Emulator:
+
+- criação conjunta de evento privado, projeção mínima, lápide e exclusão do
+  ativo;
+- negação de cada parte isolada e de combinações incompletas;
+- vínculo de `actorUid` e `closedByUid` ao UID autenticado;
+- obrigatoriedade do médico e do CID nos três Desfechos;
+- imutabilidade do `patient_outcome`, `patient_outcome_admin` e
+  `patient_closed`;
+- bloqueio de recriação no mesmo setor e nos demais setores conhecidos;
+- separação entre `get` clínico da lápide e leitura administrativa do
+  histórico;
+- autorização de `admin` e `coordinator` não-anônimos e ativos;
+- negação de usuário anônimo, perfil ausente/inativo ou papel não permitido na
+  leitura histórica;
+- preservação de create/update/get/list de pacientes ativos;
+- preservação de migração válida e atualização atômica em lote;
+- negação de delete avulso do paciente;
+- compatibilidade imutável de eventos legados reconhecidos;
+- reserva do ID determinístico `patient_outcome_*`;
+- criação/leitura e imutabilidade das confirmações de transição de cuidados.
+- compatibilidade transitória do contrato legado de confirmação, sem campos
+  extras nem timestamp fornecido pelo cliente.
+- leitura histórica das projeções administrativas v1/v2, negação de novas
+  projeções antigas, obrigatoriedade do booleano na v3 e negação de divergência
+  em relação ao evento privado ou ao paciente ativo;
+- rejeição de CID livre/identificável fora do formato estruturado.
+- rejeição de DIH com sufixo ou fora do formato estruturado.
+- criação atômica e imutabilidade dos fatos `admin_sector_transitions`;
+- rejeição de migração sem fato, fato sem migração, cadeia divergente e
+  alteração comum dos campos técnicos de rastreamento;
+- bootstrap `baseline_observation` somente para fonte legada e encerramento
+  legado com envelope zero.
+
+Os testes usam exclusivamente o projeto de demonstração
+`demo-connect-hub-rules`. Nenhuma credencial ou dado do Firebase real deve ser
+fornecido ao Emulator.
+
+## Cobertura do acesso administrativo
+
+Os testes Playwright da Área Administrativa verificam:
+
+- remoção do código compartilhado e do login anônimo;
+- redirecionamento do atalho clínico para o login administrativo real;
+- login por e-mail/senha e consulta de `admin_users/<uid>`;
+- autorização somente para perfil ativo `admin` ou `coordinator`;
+- instância nomeada `connect-hub-admin` e preservação da sessão clínica;
+- zero leitura de pacientes ou histórico antes da autorização;
+- zero escrita pelo painel;
+- limpeza de dados, gráficos e relatórios no logout;
+- escape de conteúdo persistido no contexto privilegiado;
+- bloqueio de relatório/exportação quando o histórico falha ou ultrapassa
+  5.000 eventos;
+- invalidação de relatório anterior após falha de atualização;
+- ausência de repovoamento tardio após logout;
+- degradação segura quando a biblioteca de gráficos falha;
+- foco previsível e contenção responsiva do login e do dashboard.
+
+As contas, senhas, pacientes e históricos da suíte são totalmente fictícios e
+existem somente no test double em memória.
+
+## Cobertura da aba Desfechos
+
+Os testes dedicados verificam:
+
+- período inicial inclusivo de 30 dias, bordas D-29/D-30, período
+  personalizado e intervalo invertido;
+- uso exclusivo do timestamp de servidor convertido para a data civil de
+  `America/Sao_Paulo`;
+- inclusão somente de `patient_outcome_admin` versões 1, 2 ou 3 e tipos
+  homologados;
+- exclusão de `patient_deleted`, esquemas desconhecidos e eventos fora do
+  período;
+- contagens de Altas médicas, Óbitos e Transferências externas;
+- separação de Óbitos gerais, com alerta Paliativo, sem alerta e registro
+  histórico indisponível, com cobertura e denominador zero;
+- proporção de Óbitos entre Desfechos, média, mediana par/ímpar e cobertura que
+  exclui permanências inválidas;
+- distribuição em faixas, permanência por tipo, consolidações por setor e
+  especialidade, perfil nosológico dos três Desfechos por CID e auditoria;
+- combinação dos filtros por setor, especialidade, tipo, CID e alerta
+  Paliativo;
+- restauração conjunta dos filtros para o período padrão;
+- distinção entre histórico vazio e filtro sem resultados;
+- estados negado, carregando, erro e truncado sem números parciais, inclusive
+  quando a leitura de pacientes falha;
+- permanência recalculada por `admissionDate + createdAt`, ignorando campos
+  locais e valor persistido adulteráveis;
+- descarte de DIH com sufixo ou data impossível na permanência e auditoria;
+- escape de todos os campos persistidos exibidos, ausência de transferência de
+  `patientSnapshot` e zero escrita;
+- inclusão do setor legado `uti` em consultas e totais;
+- auditoria paginada em lotes de 50, com ordenação e limites de página;
+- fallback de gráficos preservando números e tabelas exatas;
+- permanência setorial em horas por cadeia completa, soma de retornos ao mesmo
+  setor, média/mediana/total/episódios e cobertura exata;
+- aceitação de intervalo válido de `0 h` e rejeição de fato com versão
+  desconhecida ou baseline retroativo;
+- distinção entre episódios completos, observação parcial e cobertura
+  indisponível, sem converter inconsistência em zero;
+- bloqueio isolado da análise setorial quando os fatos falham ou são
+  truncados, preservando as demais métricas válidas;
+- separação visual entre KPIs do censo atual e indicadores históricos;
+- contenção do layout, filtros, gráficos e tabelas em todos os oito viewports
+  da matriz.
+
+O baseline RC1.3.2 `d17ebdb` permanece registrado em 131/131 testes principais,
+22/22 Rules e estabilidade 50/50. A RC1.3.3 passou em 145/145 testes na suíte
+principal, 33/33 Rules, impressão A4 e estabilidade 50/50, com um worker e zero
+retries. A configuração global descobre 146 testes em 20 arquivos, incluindo
+uma execução do cenário de estabilidade repetido separadamente.
+
+`npm audit --omit=dev` passou sem vulnerabilidades. A auditoria completa aponta
+21 ocorrências transitivas (16 altas e 5 moderadas) sob o `firebase-tools`
+usado somente em desenvolvimento/CI; não há correção não destrutiva na versão
+estável atual, portanto o CLI deve permanecer restrito a runner controlado.
+
 ## Isolamento
 
-Durante cada teste, somente `127.0.0.1` pode acessar a rede. As solicitações
-dos scripts Firebase são atendidas por um test double em memória; qualquer
-outro destino é bloqueado e registrado no artefato de rede do teste.
+Durante cada teste Playwright, somente `127.0.0.1` pode acessar a rede. As
+solicitações dos scripts Firebase são atendidas por um test double em memória;
+Chart.js e XLSX recebem doubles controlados nos cenários administrativos.
+Qualquer outro destino é bloqueado e registrado no artefato de rede do teste.
 
 O vídeo está desativado por instabilidade comprovada no encerramento paralelo
 do Chromium no Windows. Em diagnóstico controlado com quatro workers,
